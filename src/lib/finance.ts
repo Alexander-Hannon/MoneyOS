@@ -217,14 +217,15 @@ export function nextResponsibleAction(data: MoneyOSData): MoneyAlert {
 /** Six-month cashflow trend for the snapshot chart (mock, deterministic). */
 export function cashflowTrend(snapshot: MoneySnapshot) {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  const factors = [0.94, 1.02, 0.97, 1.05, 0.99, 1.0];
-  return months.map((month, i) => {
-    const income = Math.round(snapshot.monthlyIncome * factors[i]);
-    const spending = Math.round(
-      snapshot.monthlyOutflow * (factors[i] + (i % 2 === 0 ? 0.04 : -0.02)),
-    );
-    return { month, income, spending };
-  });
+  // Separate, more varied factors so the chart reads as a real trend rather
+  // than two flat lines (e.g. a freelance bump in Mar, a heavy-spend Apr).
+  const incomeFactors = [0.82, 0.91, 1.18, 0.96, 1.09, 1.0];
+  const spendingFactors = [0.86, 1.07, 0.93, 1.24, 0.9, 1.0];
+  return months.map((month, i) => ({
+    month,
+    income: Math.round(snapshot.monthlyIncome * incomeFactors[i]),
+    spending: Math.round(snapshot.monthlyOutflow * spendingFactors[i]),
+  }));
 }
 
 export function formatCurrency(value: number, withCents = false): string {
