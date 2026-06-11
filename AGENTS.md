@@ -6,12 +6,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Cursor Cloud specific instructions
 
-MoneyOS is a single-service Next.js 16 (App Router) + React 19 app with a local SQLite database via Prisma. There is no separate backend; API logic lives in `src/app/api/*/route.ts` and the dashboard is the server component `src/app/page.tsx`.
+MoneyOS is a single-service Next.js 16 (App Router) + React 19 + Tailwind v4 app. It is AJ's private finance command center, organized around one question: "What is the next responsible financial action?"
 
-Standard scripts are in `package.json` (`dev`, `build`, `lint`, `db:push`, `db:seed`). Non-obvious caveats:
+By design (per product spec) there is **no database, no auth, and no bank APIs yet** — all data is local mock data. Don't add Prisma/Plaid/Teller/auth unless the spec changes.
 
-- The SQLite DB file is git-ignored, so it does NOT exist on a fresh clone. Before running `dev`/`build`/tests, create and seed it once: `npm run db:push` then `npm run db:seed`. The startup update script only installs deps (which runs `prisma generate`); it intentionally does not create/seed the DB.
-- `DATABASE_URL` lives in a committed `.env` (`file:./dev.db`) — it is a path, not a secret, so it is intentionally not git-ignored.
-- `npm run db:seed` is idempotent: it clears all tables (`deleteMany`) and re-inserts demo data, so use it to get back to a clean state. Avoid `prisma db push --force-reset` / `npm run db:reset` — Prisma blocks it for AI agents without explicit user consent.
-- `src/app/page.tsx` sets `export const dynamic = "force-dynamic"` so the dashboard is never prerendered at build time (it queries the DB at request time). `next build` therefore succeeds without a populated DB, but the running app still needs the DB.
-- Dev server runs at `http://localhost:3000`. After mutating data through the API, the client calls `router.refresh()` to re-render the server component.
+Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB scripts. Architecture / non-obvious notes:
+
+- Data lives in `src/lib/mock-data.ts` (`getMockData()`), with dates generated **relative to "now"** so the dashboard always looks live. Derived metrics, the spending-alert engine, and the "next responsible action" are pure functions in `src/lib/finance.ts`.
+- `src/app/page.tsx` is a server component that sets `export const dynamic = "force-dynamic"` so relative mock dates are recomputed per request rather than frozen at build time.
+- UI is shadcn/ui-style primitives hand-built in `src/components/ui/` (Card/Badge/Button/Table via `class-variance-authority` + the `cn()` helper in `src/lib/utils.ts`); feature sections are in `src/components/dashboard/`. Icons are `lucide-react`; the cashflow chart uses `recharts` and must stay a client component (`"use client"`).
+- Dark mode is the default and only theme: `<html className="dark">` in `layout.tsx`, with theme tokens defined in `src/app/globals.css` and mapped to Tailwind utilities (`bg-card`, `text-muted-foreground`, etc.) via `@theme inline`.
+- Dev server runs at `http://localhost:3000`.

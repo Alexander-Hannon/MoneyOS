@@ -1,28 +1,33 @@
 # MoneyOS
 
-Private personal finance dashboard for bills, income, subscriptions, spending alerts, and Money Agent reviews.
+AJ's private personal finance **command center** — built around one question:
+
+> **What is the next responsible financial action?**
+
+It is intentionally *not* a public fintech SaaS, spreadsheet clone, or generic budgeting app. The goal is a dashboard so clean and simple that it's actually checked daily.
+
+## What's inside (v1)
+
+1. **Money Snapshot** — balance, safe-to-spend, monthly outflow, net cashflow, and a 6-month cashflow trend.
+2. **Bills Command Center** — upcoming bills with due dates and status badges.
+3. **Income Pipeline** — income sources and when the next payment lands.
+4. **Subscription Watchlist** — recurring spend with flags for unused, trials, and price hikes.
+5. **Money Agent Alerts** — prioritized insights that surface the single next responsible action.
 
 ## Stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS v4**
-- **Prisma** ORM with a local **SQLite** database (zero external services)
+- **Tailwind CSS v4**, dark-mode-first command-center design
+- **shadcn/ui-style** components (hand-built) + **lucide-react** icons
+- **Recharts** for the cashflow chart
+- **Local mock data** only — no database, no auth, no bank APIs (by design)
 
 ## Quick start
 
 ```bash
-npm install          # installs deps and generates the Prisma client
-npm run db:push      # create the local SQLite database (prisma/dev.db)
-npm run db:seed      # load demo bills, income, and subscriptions
-npm run dev          # start the dev server on http://localhost:3000
+npm install      # install dependencies
+npm run dev      # start the dev server on http://localhost:3000
 ```
-
-## Features
-
-- **Dashboard** — monthly income, bills, subscriptions, and net cashflow at a glance.
-- **Bills / Income / Subscriptions** — add entries from the UI; data persists to SQLite.
-- **Spending alerts** — automatic warnings for overspending, subscription creep, thin savings buffers, and bills due early in the month.
-- **Money Agent** — generates a financial health score (0–100) with a plain-language summary and personalized recommendations.
 
 ## Scripts
 
@@ -32,9 +37,10 @@ npm run dev          # start the dev server on http://localhost:3000
 | `npm run build` | Production build |
 | `npm run start` | Run the production build |
 | `npm run lint` | Lint with ESLint |
-| `npm run db:push` | Sync the Prisma schema to SQLite |
-| `npm run db:seed` | Reset + seed demo data |
 
-## Configuration
+## Where things live
 
-`DATABASE_URL` is defined in `.env` and points at a local SQLite file (`file:./dev.db`). It contains no secrets and is committed for convenience.
+- `src/lib/mock-data.ts` — mock bills, income, subscriptions, and accounts.
+- `src/lib/finance.ts` — cashflow math, the Money Agent alert engine, and the "next responsible action".
+- `src/components/dashboard/` — the five dashboard sections.
+- `src/components/ui/` — shadcn-style primitives (Card, Badge, Button, Table).
