@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type {
   Account,
+  Alert,
   Bill,
   IncomeSource,
   Subscription,
@@ -19,7 +20,9 @@ import {
   describeStatus,
   expectedIncomeWithin,
   formatCurrency,
+  hasHighSeverityReview,
   monthlyRecurringCost,
+  overdueUnpaidCount,
   reviewCount,
   toneForDashboardStatus,
   totalCashAvailable,
@@ -59,11 +62,13 @@ export function MoneySnapshot({
   bills,
   income,
   subscriptions,
+  alerts,
 }: {
   accounts: Account[];
   bills: Bill[];
   income: IncomeSource[];
   subscriptions: Subscription[];
+  alerts: Alert[];
 }) {
   const cash = totalCashAvailable(accounts);
   const due = billsDueWithin(bills, 14);
@@ -75,6 +80,8 @@ export function MoneySnapshot({
     cashAvailable: cash,
     billsDue14: due.total,
     incomeExpected14: incoming.total,
+    overdueUnpaid: overdueUnpaidCount(bills),
+    hasHighSeverityReview: hasHighSeverityReview(alerts),
     reviewItems: reviews,
   });
 

@@ -72,13 +72,24 @@ export interface Subscription {
   notes?: string;
 }
 
-export type AlertSeverity = "info" | "warning" | "critical";
+export type AlertSeverity = "low" | "medium" | "high";
+
+export type AlertCategory =
+  | "bill"
+  | "subscription"
+  | "income"
+  | "account"
+  | "spending"
+  | "review";
 
 export interface Alert {
   id: string;
-  severity: AlertSeverity;
   title: string;
   description: string;
+  severity: AlertSeverity;
+  category: AlertCategory;
+  suggestedAction: string;
+  reviewRequired: boolean;
 }
 
 export type DashboardStatus =
@@ -87,3 +98,25 @@ export type DashboardStatus =
   | "Tight"
   | "Danger"
   | "Review Needed";
+
+export type PlannedExpenseStatus = "planned" | "saving" | "scheduled";
+
+export interface PlannedExpense {
+  id: string;
+  name: string;
+  /** null = amount not yet known. */
+  amount: number | null;
+  /** ISO date the money is needed, if known. */
+  targetDate?: string;
+  category: string;
+  status: PlannedExpenseStatus;
+  notes?: string;
+}
+
+/** Manual, mock financial estimates (not from live accounts). */
+export interface FinancialEstimates {
+  manual: true;
+  monthlyIncomeEstimate: number;
+  monthlySpendingEstimate: number;
+  note: string;
+}

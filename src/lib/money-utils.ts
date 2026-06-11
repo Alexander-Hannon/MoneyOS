@@ -1,5 +1,7 @@
 import type {
   Account,
+  Alert,
+  AlertSeverity,
   Bill,
   DashboardStatus,
   IncomeSource,
@@ -152,19 +154,43 @@ export function reviewCount(
   );
 }
 
+export function overdueUnpaidCount(bills: Bill[]): number {
+  return bills.filter(
+    (b) => b.status !== "paid" && !b.autopay && daysUntil(b.dueDate) < 0,
+  ).length;
+}
+
+/**
+ * Dashboard status, in priority order:
+ *  - Danger: an unpaid bill is overdue, or upcoming bills exceed cash + income.
+ *  - Tight: upcoming bills eat a large share of available cash + expected income.
+ *  - Review Needed: a high-severity decision is waiting on a human.
+ *  - Watch: lower-priority review items exist.
+ *  - Stable: nothing pressing.
+ */
 export function computeDashboardStatus(args: {
   cashAvailable: number;
   billsDue14: number;
   incomeExpected14: number;
+  overdueUnpaid: number;
+  hasHighSeverityReview: boolean;
   reviewItems: number;
 }): DashboardStatus {
-  const { cashAvailable, billsDue14, incomeExpected14, reviewItems } = args;
-  const net = cashAvailable + incomeExpected14 - billsDue14;
+  const {
+    cashAvailable,
+    billsDue14,
+    incomeExpected14,
+    overdueUnpaid,
+    hasHighSeverityReview,
+    reviewItems,
+  } = args;
 
-  if (net < 0) return "Danger";
-  if (net < 300) return "Tight";
-  if (reviewItems > 0) return "Review Needed";
-  if (net < 1200) return "Watch";
+  const runway = cashAvailable + incomeExpected14;
+
+  if (overdueUnpaid > 0 || runway < billsDue14) return "Danger";
+  if (billsDue14 > runway * 0.6) return "Tight";
+  if (hasHighSeverityReview) return "Review Needed";
+  if (reviewItems > 0) return "Watch";
   return "Stable";
 }
 
@@ -187,40 +213,76 @@ export function describeStatus(status: DashboardStatus): string {
 /* Next responsible action                                             */
 /* ------------------------------------------------------------------ */
 
-export type NextAction = { title: string; detail: string };
+const severityWeight: Record<AlertSeverity, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
-export function nextResponsibleAction(bills: Bill[]): NextAction {
-  const actionable = bills
-    .filter((b) => b.status !== "paid" && !b.autopay)
-    .filter((b) => daysUntil(b.dueDate) >= -7)
-    .sort((a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate));
+export function alertPriority(alert: Alert): number {
+  return severityWeight[alert.severity] * 10 + (alert.reviewRequired ? 5 : 0);
+}
 
-  if (actionable.length > 0) {
-    const b = actionable[0];
-    const amount =
-      b.amount == null
-        ? "A variable amount"
-        : `${b.amountIsEstimate ? "~" : ""}${formatCurrency(b.amount)}`;
-    return {
-      title: `Pay ${b.name}`,
-      detail: `${amount} is due ${formatDate(b.dueDate)} (${formatRelativeDays(
-        daysUntil(b.dueDate),
-      )}) via ${b.paidFrom}. Not on autopay, so it needs a manual move.`,
-    };
-  }
+/** Sort alerts most-urgent first (severity, then review-required). */
+export function sortAlerts(alerts: Alert[]): Alert[] {
+  return [...alerts].sort((a, b) => alertPriority(b) - alertPriority(a));
+}
 
-  const review = bills.find((b) => b.status === "review");
-  if (review) {
-    return {
-      title: `Review ${review.name}`,
-      detail: review.notes ?? "This bill is flagged for review.",
-    };
-  }
+/**
+ * The single next responsible action — the highest-priority alert. With the
+ * starter data this surfaces the credit-card-from-savings decision.
+ */
+export function nextResponsibleAction(alerts: Alert[]): Alert | null {
+  return sortAlerts(alerts)[0] ?? null;
+}
 
+export function hasHighSeverityReview(alerts: Alert[]): boolean {
+  return alerts.some((a) => a.severity === "high" && a.reviewRequired);
+}
+
+/* ------------------------------------------------------------------ */
+/* Summary helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+export function billsDueThisMonth(bills: Bill[]): { total: number; count: number } {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  const items = bills.filter((b) => {
+    if (b.status === "paid") return false;
+    const d = new Date(`${b.dueDate.slice(0, 10)}T00:00:00`);
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
   return {
-    title: "You're caught up",
-    detail: "No manual bills are due soon. Keep the system disciplined.",
+    total: items.reduce((sum, b) => sum + (b.amount ?? 0), 0),
+    count: items.length,
   };
+}
+
+export function upcomingIncomeSources(income: IncomeSource[]): IncomeSource[] {
+  return income.filter((i) => i.active || i.startDate);
+}
+
+export function monthlySubscriptionTotal(subscriptions: Subscription[]): number {
+  return subscriptions.reduce(
+    (sum, s) => sum + monthlyAmountForSubscription(s),
+    0,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Cashflow trend (manual estimate, deterministic)                     */
+/* ------------------------------------------------------------------ */
+
+export function cashflowTrend(monthlyIncome: number, monthlySpending: number) {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+  const incomeFactors = [0.82, 0.91, 1.18, 0.96, 1.09, 1.0];
+  const spendingFactors = [0.86, 1.07, 0.93, 1.24, 0.9, 1.0];
+  return months.map((month, i) => ({
+    month,
+    income: Math.round(monthlyIncome * incomeFactors[i]),
+    spending: Math.round(monthlySpending * spendingFactors[i]),
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -276,6 +338,17 @@ export function toneForSubscriptionStatus(status: Subscription["status"]): Tone 
       return "warning";
     case "cancel":
       return "danger";
+  }
+}
+
+export function toneForAlertSeverity(severity: AlertSeverity): Tone {
+  switch (severity) {
+    case "high":
+      return "danger";
+    case "medium":
+      return "warning";
+    case "low":
+      return "info";
   }
 }
 
