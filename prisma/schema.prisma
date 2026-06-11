@@ -1,0 +1,55 @@
+// MoneyOS data model — local-first personal finance dashboard.
+// Uses SQLite for zero-config local development.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum CashflowKind {
+  BILL
+  INCOME
+  SUBSCRIPTION
+}
+
+model Bill {
+  id        String   @id @default(cuid())
+  name      String
+  amount    Float
+  dueDay    Int      @default(1)
+  category  String   @default("General")
+  autopay   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Income {
+  id        String   @id @default(cuid())
+  source    String
+  amount    Float
+  frequency String   @default("monthly")
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  name         String
+  amount       Float
+  billingCycle String   @default("monthly")
+  category     String   @default("Entertainment")
+  createdAt    DateTime @default(now())
+}
+
+model AgentReview {
+  id              String   @id @default(cuid())
+  healthScore     Int
+  monthlyIncome   Float
+  monthlyOutflow  Float
+  netCashflow     Float
+  summary         String
+  recommendations String
+  createdAt       DateTime @default(now())
+}
