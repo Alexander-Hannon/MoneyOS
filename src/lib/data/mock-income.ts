@@ -1,0 +1,62 @@
+import type { IncomeSource } from "@/lib/types/money";
+import { daysFromNow } from "@/lib/money-utils";
+
+export const mockIncome: IncomeSource[] = [
+  {
+    id: "rumble",
+    source: "Rumble Boxing",
+    expectedAmount: 350,
+    amountNote: "+ commission",
+    frequency: "biweekly",
+    reliability: "high",
+    active: true,
+    nextDate: daysFromNow(9),
+    notes: "Base $350 plus variable commission — budget on base only.",
+  },
+  {
+    id: "teaching-assistant",
+    source: "Teaching Assistant",
+    expectedAmount: 800,
+    frequency: "biweekly",
+    reliability: "high",
+    active: false,
+    startDate: "2026-08-12",
+    notes: "Starts Aug 12 — the money system changes after this date.",
+  },
+  {
+    id: "side-work",
+    source: "Side Work",
+    expectedAmount: null,
+    frequency: "variable",
+    reliability: "low",
+    active: true,
+    notes: "Occasional and unpredictable.",
+  },
+  {
+    id: "business",
+    source: "Business Income",
+    expectedAmount: 0,
+    frequency: "variable",
+    reliability: "medium",
+    active: true,
+    notes: "Currently $0 — ramping up.",
+  },
+  {
+    id: "school-aid",
+    source: "School Refund / Aid",
+    expectedAmount: null,
+    frequency: "semester",
+    reliability: "variable",
+    active: true,
+    notes: "Disbursed per semester.",
+  },
+  {
+    id: "family-support",
+    source: "Family Support",
+    expectedAmount: null,
+    frequency: "as-needed",
+    reliability: "medium",
+    active: true,
+    notes: "Available as needed.",
+  },
+];
