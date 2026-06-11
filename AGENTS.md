@@ -12,8 +12,10 @@ By design (per product spec) there is **no database, no auth, and no bank APIs y
 
 Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB scripts. Architecture / non-obvious notes:
 
-- Data lives in `src/lib/mock-data.ts` (`getMockData()`), with dates generated **relative to "now"** so the dashboard always looks live. Derived metrics, the spending-alert engine, and the "next responsible action" are pure functions in `src/lib/finance.ts`.
-- `src/app/page.tsx` is a server component that sets `export const dynamic = "force-dynamic"` so relative mock dates are recomputed per request rather than frozen at build time.
-- UI is shadcn/ui-style primitives hand-built in `src/components/ui/` (Card/Badge/Button/Table via `class-variance-authority` + the `cn()` helper in `src/lib/utils.ts`); feature sections are in `src/components/dashboard/`. Icons are `lucide-react`; the cashflow chart uses `recharts` and must stay a client component (`"use client"`).
+- Types live in `src/lib/types/money.ts` (`Account`, `Bill`, `IncomeSource`, `Subscription`, `Alert`, plus `DashboardStatus`/`Tone`).
+- Mock data is split per domain in `src/lib/data/` (`mock-accounts.ts`, `mock-bills.ts`, `mock-income.ts`, `mock-subscriptions.ts`, `mock-alerts.ts`). Bill/income dates are generated **relative to "now"** via `nextMonthlyDate`/`daysFromNow` so the dashboard always looks live.
+- All calculations are pure functions in `src/lib/money-utils.ts`: monthly recurring cost, bills due soon, expected income, total cash available, `computeDashboardStatus` (Stable/Watch/Tight/Danger/Review Needed), `nextResponsibleAction`, plus formatting and `tone*` mappers for badges.
+- `src/app/page.tsx` is a server component that sets `export const dynamic = "force-dynamic"` so relative mock dates are recomputed per request rather than frozen at build time. The display title is "AJ Money Command Center".
+- UI is shadcn/ui-style primitives hand-built in `src/components/ui/` (Card/Badge/Button/Table via `class-variance-authority` + the `cn()` helper in `src/lib/utils.ts`). Reusable `StatusBadge`/`SectionHeader` live in `src/components/shared/`; the five sections are in `src/components/dashboard/`. Icons are `lucide-react` (there is no chart library — Recharts was intentionally removed).
 - Dark mode is the default and only theme: `<html className="dark">` in `layout.tsx`, with theme tokens defined in `src/app/globals.css` and mapped to Tailwind utilities (`bg-card`, `text-muted-foreground`, etc.) via `@theme inline`.
 - Dev server runs at `http://localhost:3000`.

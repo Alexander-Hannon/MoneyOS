@@ -40,7 +40,9 @@ npm run dev      # start the dev server on http://localhost:3000
 
 ## Where things live
 
-- `src/lib/mock-data.ts` — mock bills, income, subscriptions, and accounts.
-- `src/lib/finance.ts` — cashflow math, the Money Agent alert engine, and the "next responsible action".
-- `src/components/dashboard/` — the five dashboard sections.
+- `src/lib/types/money.ts` — `Account`, `Bill`, `IncomeSource`, `Subscription`, `Alert` types.
+- `src/lib/data/` — split mock data: `mock-accounts`, `mock-bills`, `mock-income`, `mock-subscriptions`, `mock-alerts`.
+- `src/lib/money-utils.ts` — monthly recurring cost, bills due soon, expected income, dashboard status, and the "next responsible action".
+- `src/components/dashboard/` — the five sections (MoneySnapshot, BillsCommandCenter, IncomePipeline, SubscriptionWatchlist, MoneyAgentAlerts).
+- `src/components/shared/` — reusable `StatusBadge` and `SectionHeader`.
 - `src/components/ui/` — shadcn-style primitives (Card, Badge, Button, Table).

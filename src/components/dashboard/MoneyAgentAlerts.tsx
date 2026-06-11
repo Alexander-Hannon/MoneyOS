@@ -1,70 +1,64 @@
 import {
   BellRing,
   CircleAlert,
-  CircleCheck,
   Info,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { MoneyAlert, Severity } from "@/lib/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/shared/SectionHeader";
+import type { Alert, AlertSeverity } from "@/lib/types/money";
 
-const severityConfig: Record<
-  Severity,
-  { icon: LucideIcon; tint: string; badge: "destructive" | "warning" | "info" }
-> = {
-  critical: { icon: CircleAlert, tint: "text-destructive bg-destructive/10", badge: "destructive" },
-  warning: { icon: TriangleAlert, tint: "text-warning bg-warning/10", badge: "warning" },
-  info: { icon: Info, tint: "text-info bg-info/10", badge: "info" },
+const config: Record<AlertSeverity, { icon: LucideIcon; tint: string }> = {
+  critical: { icon: CircleAlert, tint: "text-destructive bg-destructive/10" },
+  warning: { icon: TriangleAlert, tint: "text-warning bg-warning/10" },
+  info: { icon: Info, tint: "text-info bg-info/10" },
 };
 
-export function MoneyAgentAlerts({ alerts }: { alerts: MoneyAlert[] }) {
-  const allClear = alerts.length === 1 && alerts[0].kind === "all-clear";
-  const actionable = alerts.filter((a) => a.kind !== "all-clear").length;
+const order: Record<AlertSeverity, number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
+};
+
+export function MoneyAgentAlerts({ alerts }: { alerts: Alert[] }) {
+  const sorted = [...alerts].sort(
+    (a, b) => order[a.severity] - order[b.severity],
+  );
+  const actionable = alerts.filter((a) => a.severity !== "info").length;
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <BellRing className="size-4 text-primary" />
-          Money Agent Alerts
-        </CardTitle>
-        {!allClear && <Badge variant="secondary">{actionable} active</Badge>}
-      </CardHeader>
-      <CardContent className="space-y-2.5">
-        {allClear ? (
-          <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border/60 bg-muted/20 px-3.5 py-4">
-            <CircleCheck className="size-5 text-primary" />
-            <p className="text-sm text-muted-foreground">
-              No urgent actions. Everything looks disciplined.
-            </p>
-          </div>
-        ) : (
-          alerts.map((alert) => {
-            const cfg = severityConfig[alert.severity];
-            const Icon = cfg.icon;
+      <CardContent className="pt-5">
+        <SectionHeader
+          icon={BellRing}
+          title="Money Agent Alerts"
+          description="Things to decide on or keep an eye on"
+          meta={`${actionable} need action · ${alerts.length} total`}
+        />
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {sorted.map((alert) => {
+            const { icon: Icon, tint } = config[alert.severity];
             return (
               <div
                 key={alert.id}
                 className="flex items-start gap-3 rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3"
               >
-                <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${cfg.tint}`}>
+                <span
+                  className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${tint}`}
+                >
                   <Icon className="size-4" />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{alert.title}</p>
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{alert.description}</p>
-                  <Badge variant={cfg.badge} className="mt-2">
-                    {alert.action}
-                  </Badge>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{alert.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {alert.description}
+                  </p>
                 </div>
               </div>
             );
-          })
-        )}
+          })}
+        </div>
       </CardContent>
     </Card>
   );

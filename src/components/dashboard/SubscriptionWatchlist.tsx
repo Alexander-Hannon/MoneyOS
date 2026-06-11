@@ -1,81 +1,64 @@
-import { Repeat, TriangleAlert, ArrowUpRight, Clock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Repeat } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/shared/SectionHeader";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
-  daysUntil,
   formatCurrency,
-  formatRelativeDays,
-  monthlyAmount,
-  monthlySubscriptions,
-} from "@/lib/finance";
-import type { Subscription } from "@/lib/types";
+  monthlyAmountForSubscription,
+  toneForSubscriptionStatus,
+} from "@/lib/money-utils";
+import type { Subscription } from "@/lib/types/money";
 
-function flag(sub: Subscription) {
-  if (sub.trialEndsAt) {
-    return (
-      <Badge variant="warning">
-        <Clock className="size-3" /> Trial ends {formatRelativeDays(daysUntil(sub.trialEndsAt))}
-      </Badge>
-    );
-  }
-  if (sub.usage === "unused") {
-    return (
-      <Badge variant="destructive">
-        <TriangleAlert className="size-3" /> Unused
-      </Badge>
-    );
-  }
-  if (sub.priceIncrease) {
-    return (
-      <Badge variant="info">
-        <ArrowUpRight className="size-3" /> +{formatCurrency(sub.priceIncrease)}
-      </Badge>
-    );
-  }
-  if (sub.usage === "occasional") return <Badge variant="secondary">Occasional</Badge>;
-  return <Badge variant="success">Active</Badge>;
-}
-
-export function SubscriptionWatchlist({ subscriptions }: { subscriptions: Subscription[] }) {
-  const total = monthlySubscriptions(subscriptions);
-  const flagged = subscriptions.filter(
-    (s) => s.usage === "unused" || s.trialEndsAt || s.priceIncrease,
-  ).length;
-  const sorted = [...subscriptions].sort(
-    (a, b) => monthlyAmount(b.amount, b.cadence) - monthlyAmount(a.amount, a.cadence),
+export function SubscriptionWatchlist({
+  subscriptions,
+}: {
+  subscriptions: Subscription[];
+}) {
+  const monthlyTotal = subscriptions.reduce(
+    (sum, s) => sum + monthlyAmountForSubscription(s),
+    0,
   );
+  const flagged = subscriptions.filter((s) => s.status === "review").length;
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <Repeat className="size-4 text-info" />
-          Subscription Watchlist
-        </CardTitle>
-        <span className="text-xs text-muted-foreground">
-          {formatCurrency(total)}/mo · {flagged} flagged
-        </span>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {sorted.map((sub) => (
-          <div
-            key={sub.id}
-            className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border/60 bg-muted/20 px-3.5 py-2.5"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{sub.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {sub.category} · renews {formatRelativeDays(daysUntil(sub.nextRenewal))}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
-              {flag(sub)}
-              <span className="w-16 text-right text-sm font-semibold tabular-nums">
-                {formatCurrency(monthlyAmount(sub.amount, sub.cadence), true)}
-              </span>
-            </div>
-          </div>
-        ))}
+      <CardContent className="pt-5">
+        <SectionHeader
+          icon={Repeat}
+          title="Subscription Watchlist"
+          description="Recurring software and services"
+          meta={`${formatCurrency(monthlyTotal, true)}/mo · ${flagged} to review`}
+        />
+        <ul className="space-y-2">
+          {subscriptions.map((sub) => (
+            <li
+              key={sub.id}
+              className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border/60 bg-muted/20 px-3.5 py-3"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-medium">{sub.name}</p>
+                  <StatusBadge
+                    label={sub.status}
+                    tone={toneForSubscriptionStatus(sub.status)}
+                  />
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {sub.category}
+                  {sub.notes ? ` · ${sub.notes}` : ""}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold tabular-nums">
+                  {formatCurrency(sub.amount, true)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {sub.frequency === "annually" ? "per year" : "per month"}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );
