@@ -52,3 +52,10 @@ Bills, income, subscriptions, and alerts are **editable from the UI** (add / edi
 - `src/components/forms/` — Bill/Income/Subscription/Alert edit forms.
 - `src/components/shared/` — `StatusBadge`, `SectionHeader`, `RowActions`, `EmptyState`.
 - `src/components/ui/` — shadcn-style primitives (Card, Badge, Button, Table, Dialog, form fields, Toast).
+
+## Installing Locally
+
+```Cloning
+- git clone https://github.com/Alexander-Hannon/MoneyOS.git
+- gh repo clone Alexander-Hannon/MoneyOS
+
