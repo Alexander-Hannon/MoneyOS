@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { CashflowChart } from "@/components/dashboard/CashflowChart";
 import { cashflowTrend } from "@/lib/money-utils";
-import type { FinancialEstimates } from "@/lib/types/money";
+import type { FinancialEstimates } from "@/types/money";
 
 export function CashflowCard({ financials }: { financials: FinancialEstimates }) {
   const data = cashflowTrend(

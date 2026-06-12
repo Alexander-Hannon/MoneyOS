@@ -1,4 +1,4 @@
-import type { IncomeSource } from "@/lib/types/money";
+import type { IncomeSource } from "@/types/money";
 import { daysFromNow } from "@/lib/money-utils";
 
 export const mockIncome: IncomeSource[] = [
@@ -6,7 +6,7 @@ export const mockIncome: IncomeSource[] = [
     id: "rumble",
     source: "Rumble Boxing",
     expectedAmount: 350,
-    amountNote: "+ commission",
+    amountType: "commission",
     frequency: "biweekly",
     reliability: "high",
     active: true,
@@ -17,6 +17,7 @@ export const mockIncome: IncomeSource[] = [
     id: "teaching-assistant",
     source: "Teaching Assistant",
     expectedAmount: 800,
+    amountType: "fixed",
     frequency: "biweekly",
     reliability: "high",
     active: false,
@@ -27,6 +28,7 @@ export const mockIncome: IncomeSource[] = [
     id: "side-work",
     source: "Side Work",
     expectedAmount: null,
+    amountType: "variable",
     frequency: "variable",
     reliability: "low",
     active: true,
@@ -36,6 +38,7 @@ export const mockIncome: IncomeSource[] = [
     id: "business",
     source: "Business Income",
     expectedAmount: 0,
+    amountType: "variable",
     frequency: "variable",
     reliability: "medium",
     active: true,
@@ -45,6 +48,7 @@ export const mockIncome: IncomeSource[] = [
     id: "school-aid",
     source: "School Refund / Aid",
     expectedAmount: null,
+    amountType: "unknown",
     frequency: "semester",
     reliability: "variable",
     active: true,
@@ -54,6 +58,7 @@ export const mockIncome: IncomeSource[] = [
     id: "family-support",
     source: "Family Support",
     expectedAmount: null,
+    amountType: "unknown",
     frequency: "as-needed",
     reliability: "medium",
     active: true,

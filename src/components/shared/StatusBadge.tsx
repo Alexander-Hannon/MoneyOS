@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Tone } from "@/lib/types/money";
+import type { Tone } from "@/types/money";
 
 const toneToVariant = {
   success: "success",

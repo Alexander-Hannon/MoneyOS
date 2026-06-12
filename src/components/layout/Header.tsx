@@ -1,6 +1,13 @@
-import { CircleDollarSign } from "lucide-react";
+"use client";
+
+import { CircleDollarSign, RotateCcw } from "lucide-react";
+import { useMoneyData } from "@/lib/storage/store";
+import { useToast } from "@/components/ui/toast";
 
 export function Header() {
+  const { resetAll } = useMoneyData();
+  const toast = useToast();
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -27,7 +34,26 @@ export function Header() {
           <span className="hidden rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
             Manual / mock data
           </span>
-          <p className="text-xs text-muted-foreground sm:text-sm">{today}</p>
+          <p className="hidden text-xs text-muted-foreground sm:block sm:text-sm">
+            {today}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Reset all data to the default mock values? Your local edits will be lost.",
+                )
+              ) {
+                resetAll();
+                toast("Data reset to defaults");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <RotateCcw className="size-3.5" />
+            <span className="hidden sm:inline">Reset</span>
+          </button>
         </div>
       </div>
     </header>

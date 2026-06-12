@@ -1,4 +1,5 @@
-// Core MoneyOS domain types. All data is local/mock — no bank APIs, no DB.
+// Core MoneyOS domain types. All data is local/mock and editable in-browser
+// (persisted to localStorage) — no bank APIs, no auth, no database.
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 
@@ -14,29 +15,37 @@ export interface Account {
   notes?: string;
 }
 
-export type BillCadence = "monthly" | "biweekly" | "annual" | "one-time";
-export type BillStatus = "scheduled" | "unpaid" | "paid" | "review";
+export type BillAmountType = "fixed" | "variable" | "estimate";
+export type BillFrequency =
+  | "monthly"
+  | "biweekly"
+  | "annual"
+  | "one-time"
+  | "variable";
+export type BillStatus = "unpaid" | "scheduled" | "paid" | "review";
 
 export interface Bill {
   id: string;
   name: string;
-  /** null = variable amount. */
+  /** null when the amount is unknown/variable. */
   amount: number | null;
-  /** true when the amount is an estimate (e.g. ~$300). */
-  amountIsEstimate?: boolean;
+  amountType: BillAmountType;
   /** ISO date string (YYYY-MM-DD). */
   dueDate: string;
-  cadence: BillCadence;
+  frequency: BillFrequency;
   autopay: boolean;
   paidFrom: string;
   status: BillStatus;
   notes?: string;
 }
 
+export type IncomeAmountType = "fixed" | "variable" | "commission" | "unknown";
 export type IncomeFrequency =
+  | "weekly"
   | "biweekly"
   | "monthly"
   | "semester"
+  | "annual"
   | "variable"
   | "as-needed";
 export type Reliability = "high" | "medium" | "low" | "variable";
@@ -44,13 +53,11 @@ export type Reliability = "high" | "medium" | "low" | "variable";
 export interface IncomeSource {
   id: string;
   source: string;
-  /** null = variable amount. */
+  /** null when the amount is unknown/variable. */
   expectedAmount: number | null;
-  /** Extra context for the amount, e.g. "+ commission". */
-  amountNote?: string;
+  amountType: IncomeAmountType;
   frequency: IncomeFrequency;
   reliability: Reliability;
-  /** Whether the income is flowing now. */
   active: boolean;
   /** ISO date the income begins (for not-yet-active sources). */
   startDate?: string;
@@ -59,7 +66,7 @@ export interface IncomeSource {
   notes?: string;
 }
 
-export type SubscriptionFrequency = "monthly" | "annually";
+export type SubscriptionFrequency = "weekly" | "monthly" | "annual" | "variable";
 export type SubscriptionStatus = "keep" | "review" | "cancel";
 
 export interface Subscription {
@@ -69,6 +76,8 @@ export interface Subscription {
   frequency: SubscriptionFrequency;
   category: string;
   status: SubscriptionStatus;
+  /** ISO date of the next renewal. */
+  renewalDate?: string;
   notes?: string;
 }
 
@@ -82,6 +91,8 @@ export type AlertCategory =
   | "spending"
   | "review";
 
+export type AlertStatus = "active" | "reviewed" | "archived";
+
 export interface Alert {
   id: string;
   title: string;
@@ -90,6 +101,7 @@ export interface Alert {
   category: AlertCategory;
   suggestedAction: string;
   reviewRequired: boolean;
+  status: AlertStatus;
 }
 
 export type DashboardStatus =

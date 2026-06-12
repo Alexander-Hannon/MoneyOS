@@ -38,11 +38,17 @@ npm run dev      # start the dev server on http://localhost:3000
 | `npm run start` | Run the production build |
 | `npm run lint` | Lint with ESLint |
 
+## Editing data
+
+Bills, income, subscriptions, and alerts are **editable from the UI** (add / edit / delete, status changes). Edits are saved to your browser's `localStorage` — no account, server, or database. Use **Reset** in the header to restore the default mock data.
+
 ## Where things live
 
-- `src/lib/types/money.ts` — `Account`, `Bill`, `IncomeSource`, `Subscription`, `Alert` types.
-- `src/lib/data/` — split mock data: `mock-accounts`, `mock-bills`, `mock-income`, `mock-subscriptions`, `mock-alerts`.
+- `src/types/money.ts` — `Account`, `Bill`, `IncomeSource`, `Subscription`, `Alert` types.
+- `src/lib/data/` — default mock data: `mock-accounts`, `mock-bills`, `mock-income`, `mock-subscriptions`, `mock-alerts`, `mock-financials`, `mock-spending-later`.
+- `src/lib/storage/` — `local-storage.ts` (persistence) and `store.tsx` (`MoneyDataProvider` + `useMoneyData()` with CRUD + reset).
 - `src/lib/money-utils.ts` — monthly recurring cost, bills due soon, expected income, dashboard status, and the "next responsible action".
-- `src/components/dashboard/` — the five sections (MoneySnapshot, BillsCommandCenter, IncomePipeline, SubscriptionWatchlist, MoneyAgentAlerts).
-- `src/components/shared/` — reusable `StatusBadge` and `SectionHeader`.
-- `src/components/ui/` — shadcn-style primitives (Card, Badge, Button, Table).
+- `src/components/dashboard/` — the dashboard sections (editable ones use the store + modals).
+- `src/components/forms/` — Bill/Income/Subscription/Alert edit forms.
+- `src/components/shared/` — `StatusBadge`, `SectionHeader`, `RowActions`, `EmptyState`.
+- `src/components/ui/` — shadcn-style primitives (Card, Badge, Button, Table, Dialog, form fields, Toast).
