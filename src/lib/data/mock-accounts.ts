@@ -1,4 +1,4 @@
-import type { Account } from "@/lib/types/money";
+import type { Account } from "@/types/money";
 
 // Manual/mock balances — no real bank data. "Total cash available" sums only
 // accessible accounts (the Citizens school account is mom-managed).

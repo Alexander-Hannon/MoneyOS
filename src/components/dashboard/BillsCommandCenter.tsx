@@ -1,7 +1,15 @@
-import { Check, Minus, Receipt } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { Check, Minus, Plus, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { RowActions } from "@/components/shared/RowActions";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { BillForm } from "@/components/forms/BillForm";
 import {
   Table,
   TableBody,
@@ -18,14 +26,23 @@ import {
   formatRelativeDays,
   toneForBillStatus,
 } from "@/lib/money-utils";
-import type { Bill } from "@/lib/types/money";
+import { useMoneyData } from "@/lib/storage/store";
+import { useToast } from "@/components/ui/toast";
+import type { Bill, BillStatus } from "@/types/money";
 
 function amountLabel(bill: Bill): string {
   if (bill.amount === null) return "Variable";
-  return `${bill.amountIsEstimate ? "~" : ""}${formatCurrency(bill.amount, true)}`;
+  return `${bill.amountType === "estimate" ? "~" : ""}${formatCurrency(bill.amount, true)}`;
 }
 
-export function BillsCommandCenter({ bills }: { bills: Bill[] }) {
+const statusOptions: BillStatus[] = ["unpaid", "scheduled", "paid", "review"];
+
+export function BillsCommandCenter() {
+  const { bills, addBill, updateBill, deleteBill, setBillStatus } = useMoneyData();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Bill | null>(null);
+
   const sorted = [...bills].sort(
     (a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate),
   );
@@ -39,65 +56,140 @@ export function BillsCommandCenter({ bills }: { bills: Bill[] }) {
           title="Bills Command Center"
           description="Every recurring obligation in one place"
           meta={`${formatCurrency(due.total)} due in 14 days`}
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              <Plus /> Add bill
+            </Button>
+          }
         />
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Bill</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead>Autopay</TableHead>
-              <TableHead>Paid From</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Notes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((bill) => {
-              const d = daysUntil(bill.dueDate);
-              return (
-                <TableRow key={bill.id}>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {bill.name}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums whitespace-nowrap">
-                    {amountLabel(bill)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <div className="text-sm">{formatDate(bill.dueDate)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatRelativeDays(d)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {bill.autopay ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-success">
-                        <Check className="size-3.5" /> Auto
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <Minus className="size-3.5" /> Manual
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {bill.paidFrom}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={bill.status}
-                      tone={toneForBillStatus(bill.status)}
-                    />
-                  </TableCell>
-                  <TableCell className="max-w-[220px] text-xs text-muted-foreground">
-                    {bill.notes ?? "—"}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+
+        {bills.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            title="No bills yet"
+            description="Add your recurring bills to start tracking what's due."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Bill</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead>Autopay</TableHead>
+                <TableHead>Paid From</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((bill) => {
+                const d = daysUntil(bill.dueDate);
+                return (
+                  <TableRow key={bill.id}>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {bill.name}
+                      {bill.notes && (
+                        <div className="max-w-[200px] truncate text-xs text-muted-foreground">
+                          {bill.notes}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">
+                      {amountLabel(bill)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="text-sm">{formatDate(bill.dueDate)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatRelativeDays(d)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {bill.autopay ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-success">
+                          <Check className="size-3.5" /> Auto
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <Minus className="size-3.5" /> Manual
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {bill.paidFrom}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge
+                          label={bill.status}
+                          tone={toneForBillStatus(bill.status)}
+                        />
+                        <select
+                          aria-label={`Set status for ${bill.name}`}
+                          value={bill.status}
+                          onChange={(e) =>
+                            setBillStatus(bill.id, e.target.value as BillStatus)
+                          }
+                          className="rounded-md border border-input bg-background/60 px-1.5 py-1 text-xs text-muted-foreground outline-none focus:border-ring"
+                        >
+                          {statusOptions.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end">
+                        <RowActions
+                          label={bill.name}
+                          onEdit={() => {
+                            setEditing(bill);
+                            setOpen(true);
+                          }}
+                          onDelete={() => {
+                            deleteBill(bill.id);
+                            toast("Bill deleted");
+                          }}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editing ? "Edit bill" : "Add bill"}
+        description="Stored locally in your browser."
+      >
+        <BillForm
+          initial={editing ?? undefined}
+          onCancel={() => setOpen(false)}
+          onSubmit={(draft) => {
+            if (editing) {
+              updateBill(editing.id, draft);
+              toast("Bill updated");
+            } else {
+              addBill(draft);
+              toast("Bill added");
+            }
+            setOpen(false);
+          }}
+        />
+      </Dialog>
     </Card>
   );
 }

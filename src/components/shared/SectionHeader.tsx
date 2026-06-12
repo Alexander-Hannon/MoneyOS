@@ -6,11 +6,13 @@ export function SectionHeader({
   description,
   icon: Icon,
   meta,
+  action,
 }: {
   title: string;
   description?: string;
   icon?: LucideIcon;
   meta?: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
@@ -27,7 +29,10 @@ export function SectionHeader({
           )}
         </div>
       </div>
-      {meta && <div className="shrink-0 text-xs text-muted-foreground">{meta}</div>}
+      <div className="flex shrink-0 items-center gap-3">
+        {meta && <div className="text-xs text-muted-foreground">{meta}</div>}
+        {action}
+      </div>
     </div>
   );
 }

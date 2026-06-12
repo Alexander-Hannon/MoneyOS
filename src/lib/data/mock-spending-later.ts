@@ -1,4 +1,4 @@
-import type { PlannedExpense } from "@/lib/types/money";
+import type { PlannedExpense } from "@/types/money";
 
 // Future / planned spending AJ wants to stay ahead of. Mock values.
 export const mockSpendingLater: PlannedExpense[] = [

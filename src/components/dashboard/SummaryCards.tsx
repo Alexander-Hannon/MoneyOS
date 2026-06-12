@@ -10,7 +10,7 @@ import type {
   Bill,
   IncomeSource,
   Subscription,
-} from "@/lib/types/money";
+} from "@/types/money";
 import {
   billsDueThisMonth,
   formatCurrency,

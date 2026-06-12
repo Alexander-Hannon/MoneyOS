@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
-import type { PlannedExpense, Tone } from "@/lib/types/money";
+import type { PlannedExpense, Tone } from "@/types/money";
 
 const statusTone: Record<PlannedExpense["status"], Tone> = {
   saving: "info",

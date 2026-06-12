@@ -1,4 +1,4 @@
-import type { Alert } from "@/lib/types/money";
+import type { Alert } from "@/types/money";
 
 export const mockAlerts: Alert[] = [
   {
@@ -11,6 +11,7 @@ export const mockAlerts: Alert[] = [
     suggestedAction:
       "Review why the credit card payment comes from savings and decide whether it should move to the Bills Account or Checking.",
     reviewRequired: true,
+    status: "active",
   },
   {
     id: "cc-variable",
@@ -21,6 +22,7 @@ export const mockAlerts: Alert[] = [
     category: "bill",
     suggestedAction: "Confirm the statement balance before the 19th.",
     reviewRequired: true,
+    status: "active",
   },
   {
     id: "rumble-commission",
@@ -31,16 +33,17 @@ export const mockAlerts: Alert[] = [
     category: "income",
     suggestedAction: "Budget on the $350 base and treat commission as upside.",
     reviewRequired: false,
+    status: "active",
   },
   {
     id: "home-insurance-future",
     title: "Home insurance obligation on Sep 3, 2026",
-    description:
-      "$688 is due 9/3/26 with a remaining balance due end of year.",
+    description: "$688 is due 9/3/26 with a remaining balance due end of year.",
     severity: "medium",
     category: "spending",
     suggestedAction: "Start setting aside ~$115/mo so it's covered by September.",
     reviewRequired: true,
+    status: "active",
   },
   {
     id: "prime-review",
@@ -50,6 +53,7 @@ export const mockAlerts: Alert[] = [
     category: "subscription",
     suggestedAction: "Decide whether Prime still earns its keep.",
     reviewRequired: true,
+    status: "active",
   },
   {
     id: "capcut-review",
@@ -59,16 +63,17 @@ export const mockAlerts: Alert[] = [
     category: "subscription",
     suggestedAction: "Keep Outlook; decide on CapCut specifically.",
     reviewRequired: true,
+    status: "active",
   },
   {
     id: "citizens-access",
     title: "Citizens school account is mom-managed",
-    description:
-      "No direct access, so it's excluded from available cash.",
+    description: "No direct access, so it's excluded from available cash.",
     severity: "low",
     category: "account",
     suggestedAction: "Coordinate with Mom before relying on those funds.",
     reviewRequired: false,
+    status: "active",
   },
   {
     id: "ta-start",
@@ -79,5 +84,6 @@ export const mockAlerts: Alert[] = [
     category: "income",
     suggestedAction: "Re-balance the money system once the TA income begins.",
     reviewRequired: false,
+    status: "active",
   },
 ];

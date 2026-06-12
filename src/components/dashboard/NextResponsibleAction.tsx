@@ -2,7 +2,7 @@ import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { toneForAlertSeverity } from "@/lib/money-utils";
-import type { Alert } from "@/lib/types/money";
+import type { Alert } from "@/types/money";
 
 const severityRing: Record<Alert["severity"], string> = {
   high: "from-destructive/20 ring-destructive/30",

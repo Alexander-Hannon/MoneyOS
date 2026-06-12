@@ -8,7 +8,7 @@ import type {
   Reliability,
   Subscription,
   Tone,
-} from "@/lib/types/money";
+} from "@/types/money";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -58,7 +58,7 @@ export function daysUntil(iso: string): number {
 
 export function monthlyAmountForBill(bill: Bill): number {
   const amount = bill.amount ?? 0;
-  switch (bill.cadence) {
+  switch (bill.frequency) {
     case "biweekly":
       return (amount * 26) / 12;
     case "annual":
@@ -71,7 +71,14 @@ export function monthlyAmountForBill(bill: Bill): number {
 }
 
 export function monthlyAmountForSubscription(sub: Subscription): number {
-  return sub.frequency === "annually" ? sub.amount / 12 : sub.amount;
+  switch (sub.frequency) {
+    case "annual":
+      return sub.amount / 12;
+    case "weekly":
+      return (sub.amount * 52) / 12;
+    default:
+      return sub.amount;
+  }
 }
 
 /** Total monthly recurring outflow across recurring bills + subscriptions. */
@@ -228,16 +235,22 @@ export function sortAlerts(alerts: Alert[]): Alert[] {
   return [...alerts].sort((a, b) => alertPriority(b) - alertPriority(a));
 }
 
+export function activeAlerts(alerts: Alert[]): Alert[] {
+  return alerts.filter((a) => a.status === "active");
+}
+
 /**
- * The single next responsible action — the highest-priority alert. With the
- * starter data this surfaces the credit-card-from-savings decision.
+ * The single next responsible action — the highest-priority active alert. With
+ * the starter data this surfaces the credit-card-from-savings decision.
  */
 export function nextResponsibleAction(alerts: Alert[]): Alert | null {
-  return sortAlerts(alerts)[0] ?? null;
+  return sortAlerts(activeAlerts(alerts))[0] ?? null;
 }
 
 export function hasHighSeverityReview(alerts: Alert[]): boolean {
-  return alerts.some((a) => a.severity === "high" && a.reviewRequired);
+  return alerts.some(
+    (a) => a.status === "active" && a.severity === "high" && a.reviewRequired,
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -382,9 +395,11 @@ export function formatRelativeDays(days: number): string {
 
 export function frequencyLabel(frequency: string): string {
   const map: Record<string, string> = {
-    monthly: "Monthly",
-    annually: "Annually",
+    weekly: "Weekly",
     biweekly: "Biweekly",
+    monthly: "Monthly",
+    annual: "Annual",
+    "one-time": "One-time",
     semester: "Per semester",
     variable: "Variable",
     "as-needed": "As needed",

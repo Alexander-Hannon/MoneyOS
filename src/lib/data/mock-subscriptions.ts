@@ -1,13 +1,15 @@
-import type { Subscription } from "@/lib/types/money";
+import type { Subscription } from "@/types/money";
+import { daysFromNow } from "@/lib/money-utils";
 
 export const mockSubscriptions: Subscription[] = [
   {
     id: "meal-tracker",
     name: "Meal Tracker",
     amount: 11.99,
-    frequency: "annually",
+    frequency: "annual",
     category: "Fitness",
     status: "keep",
+    renewalDate: daysFromNow(120),
   },
   {
     id: "sleep-tracker",
@@ -16,6 +18,7 @@ export const mockSubscriptions: Subscription[] = [
     frequency: "monthly",
     category: "Fitness",
     status: "keep",
+    renewalDate: daysFromNow(10),
   },
   {
     id: "cursor",
@@ -24,6 +27,7 @@ export const mockSubscriptions: Subscription[] = [
     frequency: "monthly",
     category: "Business / Productivity",
     status: "keep",
+    renewalDate: daysFromNow(16),
   },
   {
     id: "icloud",
@@ -32,6 +36,7 @@ export const mockSubscriptions: Subscription[] = [
     frequency: "monthly",
     category: "Tech",
     status: "keep",
+    renewalDate: daysFromNow(20),
   },
   {
     id: "amazon-prime",
@@ -40,6 +45,7 @@ export const mockSubscriptions: Subscription[] = [
     frequency: "monthly",
     category: "Convenience",
     status: "review",
+    renewalDate: daysFromNow(5),
     notes: "Decide whether Prime still earns its keep.",
   },
   {
@@ -49,6 +55,7 @@ export const mockSubscriptions: Subscription[] = [
     frequency: "monthly",
     category: "Business",
     status: "review",
+    renewalDate: daysFromNow(12),
     notes: "Review CapCut specifically.",
   },
 ];

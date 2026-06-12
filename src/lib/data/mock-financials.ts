@@ -1,4 +1,4 @@
-import type { FinancialEstimates } from "@/lib/types/money";
+import type { FinancialEstimates } from "@/types/money";
 
 // Manual, mock estimates used for the cashflow trend. These are NOT pulled from
 // any live account — they're placeholder figures AJ can adjust by hand.
