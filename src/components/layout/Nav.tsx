@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   CalendarClock,
@@ -27,6 +27,9 @@ const items: NavItem[] = [
 
 export function Nav() {
   const [active, setActive] = useState("dashboard");
+  // Suppress scroll-spy updates briefly after a click so the clicked item
+  // (e.g. Subscriptions, which shares a row with Income) stays highlighted.
+  const suppressSpy = useRef(false);
 
   useEffect(() => {
     const els = items
@@ -35,6 +38,7 @@ export function Nav() {
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (suppressSpy.current) return;
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
@@ -47,6 +51,21 @@ export function Nav() {
     return () => observer.disconnect();
   }, []);
 
+  const handleClick = (e: React.MouseEvent, id: string) => {
+    // Scroll programmatically so re-clicking the active section (or a hash that
+    // already matches the URL) still navigates instead of doing nothing.
+    e.preventDefault();
+    suppressSpy.current = true;
+    window.setTimeout(() => {
+      suppressSpy.current = false;
+    }, 800);
+    setActive(id);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+  };
+
   return (
     <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-2 sm:px-6">
@@ -56,7 +75,7 @@ export function Nav() {
               <a
                 href={`#${id}`}
                 aria-current={active === id ? "true" : undefined}
-                onClick={() => setActive(id)}
+                onClick={(e) => handleClick(e, id)}
                 className={cn(
                   "flex items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] px-3 py-1.5 text-sm font-medium transition-colors",
                   active === id
