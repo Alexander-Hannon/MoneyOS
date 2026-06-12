@@ -10,6 +10,7 @@ import { BillsCommandCenter } from "@/components/dashboard/BillsCommandCenter";
 import { IncomePipeline } from "@/components/dashboard/IncomePipeline";
 import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchlist";
 import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
+import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
 import { mockAccounts } from "@/lib/data/mock-accounts";
 import { mockFinancials } from "@/lib/data/mock-financials";
@@ -66,6 +67,10 @@ export function Dashboard() {
             <SubscriptionWatchlist />
           </section>
         </div>
+
+        <section id="spending" className="scroll-mt-20">
+          <SpendingDashboard />
+        </section>
 
         <section id="alerts" className="scroll-mt-20">
           <MoneyAgentAlerts />

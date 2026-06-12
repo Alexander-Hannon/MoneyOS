@@ -38,6 +38,18 @@ npm run dev      # start the dev server on http://localhost:3000
 | `npm run start` | Run the production build |
 | `npm run lint` | Lint with ESLint |
 
+## Spending & Plaid (Phase 4)
+
+The **Spending** section shows mock transactions: monthly totals, spending by category, top merchants, recent transactions, items needing review, recurring-charge candidates, an income-vs-spending trend, and rule-based spending alerts — all clearly labeled *manual/mock data*.
+
+Plaid is **prepared but not connected**. Copy `.env.example` to `.env.local` and add sandbox credentials to enable it:
+
+```bash
+cp .env.example .env.local   # then fill PLAID_CLIENT_ID / PLAID_SECRET
+```
+
+Without credentials, the Plaid API routes (`/api/plaid/*`) return safe "not configured" responses and the "Connect a sandbox bank" card says so. Tokens are exchanged server-side only and never stored in the browser.
+
 ## Editing data
 
 Bills, income, subscriptions, and alerts are **editable from the UI** (add / edit / delete, status changes). Edits are saved to your browser's `localStorage` — no account, server, or database. Use **Reset** in the header to restore the default mock data.

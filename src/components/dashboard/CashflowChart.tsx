@@ -21,11 +21,11 @@ export function CashflowChart({ data }: { data: Point[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 6, right: 6, left: -16, bottom: 0 }}>
           <defs>
-            <linearGradient id="income" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="mos-income-gradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={INCOME} stopOpacity={0.35} />
               <stop offset="100%" stopColor={INCOME} stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="spending" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="mos-spending-gradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={SPENDING} stopOpacity={0.3} />
               <stop offset="100%" stopColor={SPENDING} stopOpacity={0} />
             </linearGradient>
@@ -62,14 +62,14 @@ export function CashflowChart({ data }: { data: Point[] }) {
             dataKey="income"
             stroke={INCOME}
             strokeWidth={2}
-            fill="url(#income)"
+            fill="url(#mos-income-gradient)"
           />
           <Area
             type="monotone"
             dataKey="spending"
             stroke={SPENDING}
             strokeWidth={2}
-            fill="url(#spending)"
+            fill="url(#mos-spending-gradient)"
           />
         </AreaChart>
       </ResponsiveContainer>

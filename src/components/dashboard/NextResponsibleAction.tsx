@@ -1,7 +1,10 @@
+"use client";
+
 import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { toneForAlertSeverity } from "@/lib/money-utils";
+import { useHighlight } from "@/components/providers/highlight";
 import type { Alert } from "@/types/money";
 
 const severityRing: Record<Alert["severity"], string> = {
@@ -11,6 +14,8 @@ const severityRing: Record<Alert["severity"], string> = {
 };
 
 export function NextResponsibleAction({ action }: { action: Alert | null }) {
+  const { highlight } = useHighlight();
+
   if (!action) {
     return (
       <section className="rounded-[var(--radius)] border border-border bg-card p-6">
@@ -56,7 +61,11 @@ export function NextResponsibleAction({ action }: { action: Alert | null }) {
             {action.title} — {action.description}
           </p>
         </div>
-        <Button size="lg" className="shrink-0 self-start lg:self-auto">
+        <Button
+          size="lg"
+          className="shrink-0 self-start lg:self-auto"
+          onClick={() => highlight(action.id)}
+        >
           Take action
           <ArrowRight />
         </Button>
