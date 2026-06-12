@@ -97,3 +97,23 @@ body {
   background: hsl(220 16% 20%);
   border-radius: 9999px;
 }
+
+/* Brief pulse used when "Take action" focuses a target alert card. */
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(152 62% 47% / 0.55);
+    border-color: hsl(152 62% 47%);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsl(152 62% 47% / 0);
+    border-color: hsl(152 62% 47%);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(152 62% 47% / 0);
+  }
+}
+
+.highlight-target {
+  animation: highlightPulse 1.3s ease-out 2;
+  border-color: hsl(152 62% 47%) !important;
+}

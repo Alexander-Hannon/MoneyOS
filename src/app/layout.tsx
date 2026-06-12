@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MoneyDataProvider } from "@/lib/storage/store";
 import { ToastProvider } from "@/components/ui/toast";
+import { HighlightProvider } from "@/components/providers/highlight";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,7 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
-          <MoneyDataProvider>{children}</MoneyDataProvider>
+          <HighlightProvider>
+            <MoneyDataProvider>{children}</MoneyDataProvider>
+          </HighlightProvider>
         </ToastProvider>
       </body>
     </html>
