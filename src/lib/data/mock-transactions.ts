@@ -43,7 +43,10 @@ export const mockLinkedAccounts: LinkedAccount[] = [
 ];
 
 // Mock transactions for the current month. Outflow is negative, inflow positive.
-export const mockTransactions: MoneyTransaction[] = [
+// Returned from a function so the relative dates are computed at render time,
+// keeping SSR and client hydration in the same calendar day.
+export function getMockTransactions(): MoneyTransaction[] {
+  return [
   { id: "t1", accountId: "acc-checking", date: daysFromNow(-2), merchantName: "Whole Foods", description: "Groceries", amount: -86.4, type: "debit", category: "Food", subcategory: "Groceries", pending: false, source: "mock", needsReview: false },
   { id: "t2", accountId: "acc-checking", date: daysFromNow(-9), merchantName: "Trader Joe's", description: "Groceries", amount: -52.18, type: "debit", category: "Food", subcategory: "Groceries", pending: false, source: "mock", needsReview: false },
   { id: "t3", accountId: "acc-credit", date: daysFromNow(-3), merchantName: "Shell", description: "Fuel", amount: -41.2, type: "debit", category: "Gas", pending: false, source: "mock", needsReview: false },
@@ -68,4 +71,5 @@ export const mockTransactions: MoneyTransaction[] = [
   { id: "t22", accountId: "acc-credit", date: daysFromNow(-9), merchantName: "CapCut + Outlook", description: "Bundle", amount: -7.99, type: "debit", category: "Business / Productivity", pending: false, source: "mock", needsReview: false },
   { id: "t23", accountId: "acc-credit", date: daysFromNow(-13), merchantName: "The Local Kitchen", description: "Dinner", amount: -33.1, type: "debit", category: "Food", subcategory: "Dining", pending: false, source: "mock", needsReview: false },
   { id: "t24", accountId: "acc-credit", date: daysFromNow(-7), merchantName: "Amazon", description: "Returned item", amount: 23.49, type: "refund", category: "Convenience / Shopping", pending: false, source: "mock", needsReview: false },
-];
+  ];
+}

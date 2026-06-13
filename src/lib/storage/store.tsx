@@ -17,9 +17,9 @@ import type {
   Subscription,
   SubscriptionStatus,
 } from "@/types/money";
-import { mockBills } from "@/lib/data/mock-bills";
-import { mockIncome } from "@/lib/data/mock-income";
-import { mockSubscriptions } from "@/lib/data/mock-subscriptions";
+import { getMockBills } from "@/lib/data/mock-bills";
+import { getMockIncome } from "@/lib/data/mock-income";
+import { getMockSubscriptions } from "@/lib/data/mock-subscriptions";
 import { mockAlerts } from "@/lib/data/mock-alerts";
 import {
   STORAGE_KEYS,
@@ -68,10 +68,13 @@ const MoneyDataContext = createContext<MoneyDataContextValue | null>(null);
 
 export function MoneyDataProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
-  const [bills, setBills] = useState<Bill[]>(mockBills);
-  const [income, setIncome] = useState<IncomeSource[]>(mockIncome);
+  // Lazy initializers compute the relative mock dates at render time (request
+  // time on the server, hydration time on the client) — same calendar day on
+  // both, so no hydration mismatch.
+  const [bills, setBills] = useState<Bill[]>(getMockBills);
+  const [income, setIncome] = useState<IncomeSource[]>(getMockIncome);
   const [subscriptions, setSubscriptions] =
-    useState<Subscription[]>(mockSubscriptions);
+    useState<Subscription[]>(getMockSubscriptions);
   const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
 
   // Load any saved edits after mount. This intentionally calls setState inside
@@ -79,10 +82,10 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
   // mismatch) and localStorage data is applied right after mount.
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    setBills(loadCollection(STORAGE_KEYS.bills, mockBills));
-    setIncome(loadCollection(STORAGE_KEYS.income, mockIncome));
+    setBills(loadCollection(STORAGE_KEYS.bills, getMockBills()));
+    setIncome(loadCollection(STORAGE_KEYS.income, getMockIncome()));
     setSubscriptions(
-      loadCollection(STORAGE_KEYS.subscriptions, mockSubscriptions),
+      loadCollection(STORAGE_KEYS.subscriptions, getMockSubscriptions()),
     );
     setAlerts(loadCollection(STORAGE_KEYS.alerts, mockAlerts));
     setHydrated(true);
@@ -158,9 +161,9 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
 
     resetAll: () => {
       clearAllCollections();
-      setBills(mockBills);
-      setIncome(mockIncome);
-      setSubscriptions(mockSubscriptions);
+      setBills(getMockBills());
+      setIncome(getMockIncome());
+      setSubscriptions(getMockSubscriptions());
       setAlerts(mockAlerts);
     },
   };

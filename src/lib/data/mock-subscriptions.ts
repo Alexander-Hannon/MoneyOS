@@ -1,7 +1,10 @@
 import type { Subscription } from "@/types/money";
 import { daysFromNow } from "@/lib/money-utils";
 
-export const mockSubscriptions: Subscription[] = [
+// Function (not a constant) so renewal dates are computed at render time —
+// avoids SSR/client hydration mismatches from stale module-load timestamps.
+export function getMockSubscriptions(): Subscription[] {
+  return [
   {
     id: "meal-tracker",
     name: "Meal Tracker",
@@ -58,4 +61,5 @@ export const mockSubscriptions: Subscription[] = [
     renewalDate: daysFromNow(12),
     notes: "Review CapCut specifically.",
   },
-];
+  ];
+}

@@ -1,69 +1,81 @@
 import { NextResponse } from "next/server";
+import type { Transaction } from "plaid";
 import {
   describePlaidError,
   getPlaidClient,
   getPlaidConfig,
 } from "@/lib/plaid/client";
+import { getPlaidSession, updatePlaidSync } from "@/lib/plaid/token-store";
+import { normalizeTransaction } from "@/lib/plaid/normalize";
 
-// POST /api/plaid/sync-transactions  { access_token?, cursor? }
-// Syncs transactions via Plaid's `transactions/sync`. When env vars are
-// missing it returns a safe "mock" response so the spending dashboard can keep
-// using local mock data without crashing.
+// POST /api/plaid/sync-transactions
+// Uses Plaid `transactions/sync` with the server-side access token, normalizes
+// results into MoneyOS MoneyTransaction shape (source = plaid_sandbox), and
+// returns them. The access token is never sent to the client.
 //
-// SAFETY: a real access_token would be supplied/looked up server-side only and
-// never read from the client. We do not persist anything in this phase.
-export async function POST(request: Request) {
+// SAFETY: when Plaid env vars are missing, this returns a safe "mock" response
+// so the spending dashboard keeps working without crashing.
+export async function POST() {
   const config = getPlaidConfig();
   const client = getPlaidClient();
 
   if (!config || !client) {
     return NextResponse.json({
       configured: false,
+      connected: false,
       source: "mock",
       message:
         "Plaid sandbox not configured. The spending dashboard is using local mock transactions.",
     });
   }
 
-  let accessToken: string | undefined;
-  let cursor: string | undefined;
-  try {
-    const body = await request.json();
-    accessToken = body?.access_token;
-    cursor = body?.cursor;
-  } catch {
-    // ignore — handled below
-  }
-
-  if (!accessToken) {
+  const session = getPlaidSession();
+  if (!session) {
     return NextResponse.json({
       configured: true,
-      source: "plaid_sandbox",
-      message:
-        "Connected, but no access_token provided. Connect an item first to sync transactions.",
+      connected: false,
+      source: "mock",
+      message: "Connect a sandbox bank first to sync transactions.",
     });
   }
 
   try {
-    const response = await client.transactionsSync({
-      access_token: accessToken,
-      cursor,
-    });
-    const { added, modified, removed, next_cursor, has_more } = response.data;
+    const added: Transaction[] = [];
+    let cursor = session.cursor ?? undefined;
+    let hasMore = true;
+    // Drain pages (bounded) so the first sync pulls the full sandbox history.
+    let guard = 0;
+    while (hasMore && guard < 10) {
+      const res = await client.transactionsSync({
+        access_token: session.accessToken,
+        cursor,
+      });
+      added.push(...res.data.added);
+      cursor = res.data.next_cursor;
+      hasMore = res.data.has_more;
+      guard += 1;
+    }
+
+    const lastSyncAt = new Date().toISOString();
+    updatePlaidSync(cursor ?? null, lastSyncAt);
+
+    const transactions = added.map(normalizeTransaction);
+
     return NextResponse.json({
       configured: true,
+      connected: true,
       source: "plaid_sandbox",
-      added,
-      modified,
-      removed,
-      next_cursor,
-      has_more,
+      transactions,
+      count: transactions.length,
+      lastSyncAt,
     });
   } catch (error) {
     return NextResponse.json(
       {
         configured: true,
-        error: "Failed to sync transactions.",
+        connected: true,
+        source: "plaid_sandbox",
+        error: "Failed to sync transactions from Plaid.",
         detail: describePlaidError(error),
       },
       { status: 502 },
