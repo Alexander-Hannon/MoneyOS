@@ -1,7 +1,11 @@
 import type { Bill } from "@/types/money";
 import { daysFromNow, nextMonthlyDate } from "@/lib/money-utils";
 
-export const mockBills: Bill[] = [
+// Returned from a function (not a module-level constant) so the relative dates
+// are computed at render time. This keeps server-render and client-hydration in
+// the same calendar day, avoiding hydration mismatches from stale module state.
+export function getMockBills(): Bill[] {
+  return [
   {
     id: "security",
     name: "Security System",
@@ -84,4 +88,5 @@ export const mockBills: Bill[] = [
     status: "review",
     notes: "Due 9/3/26 — remaining balance due end of year.",
   },
-];
+  ];
+}

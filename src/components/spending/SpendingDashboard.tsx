@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -31,7 +32,7 @@ import {
 import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
 import { PlaidProvider, usePlaid } from "@/components/spending/plaid-context";
-import { mockTransactions } from "@/lib/data/mock-transactions";
+import { getMockTransactions } from "@/lib/data/mock-transactions";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
   buildSpendingAlerts,
@@ -89,9 +90,9 @@ function SpendingDashboardContent() {
   const plaid = usePlaid();
   const usingSandbox = plaid.status === "connected";
 
-  const txns: MoneyTransaction[] = usingSandbox
-    ? plaid.transactions
-    : mockTransactions;
+  // Computed at render (not module load) to keep SSR/client dates aligned.
+  const mockTxns = useMemo(() => getMockTransactions(), []);
+  const txns: MoneyTransaction[] = usingSandbox ? plaid.transactions : mockTxns;
   const hasData = txns.length > 0;
 
   const spending = monthlySpendingTotal(txns);

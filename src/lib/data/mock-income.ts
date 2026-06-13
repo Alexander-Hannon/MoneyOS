@@ -1,7 +1,10 @@
 import type { IncomeSource } from "@/types/money";
 import { daysFromNow } from "@/lib/money-utils";
 
-export const mockIncome: IncomeSource[] = [
+// Function (not a constant) so relative dates are computed at render time —
+// avoids SSR/client hydration mismatches from stale module-load timestamps.
+export function getMockIncome(): IncomeSource[] {
+  return [
   {
     id: "rumble",
     source: "Rumble Boxing",
@@ -64,4 +67,5 @@ export const mockIncome: IncomeSource[] = [
     active: true,
     notes: "Available as needed.",
   },
-];
+  ];
+}
