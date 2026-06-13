@@ -14,18 +14,11 @@ import type {
   IncomeSource,
   Subscription,
 } from "@/types/money";
+import type { DashboardSummary, IncomeSummary } from "@/lib/data-source";
 import {
-  billsDueWithin,
-  computeDashboardStatus,
   describeStatus,
-  expectedIncomeWithin,
   formatCurrency,
-  hasHighSeverityReview,
-  monthlyRecurringCost,
-  overdueUnpaidCount,
-  reviewCount,
   toneForDashboardStatus,
-  totalCashAvailable,
 } from "@/lib/money-utils";
 
 function StatCard({
@@ -34,25 +27,32 @@ function StatCard({
   hint,
   icon: Icon,
   accent,
+  badge,
 }: {
   label: string;
   value: string;
   hint?: string;
   icon: LucideIcon;
   accent: string;
+  badge?: string;
 }) {
   return (
     <Card className="p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
-        <Icon className={`size-4 ${accent}`} />
+        <Icon className={`size-4 shrink-0 ${accent}`} />
       </div>
       <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
         {value}
       </p>
       {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      {badge && (
+        <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-info/80">
+          {badge}
+        </p>
+      )}
     </Card>
   );
 }
@@ -63,59 +63,75 @@ export function MoneySnapshot({
   income,
   subscriptions,
   alerts,
+  summary,
+  incomeSummary,
+  plaidConnected,
 }: {
   accounts: Account[];
   bills: Bill[];
   income: IncomeSource[];
   subscriptions: Subscription[];
   alerts: Alert[];
+  summary: DashboardSummary;
+  incomeSummary: IncomeSummary;
+  plaidConnected: boolean;
 }) {
-  const cash = totalCashAvailable(accounts);
-  const due = billsDueWithin(bills, 14);
-  const incoming = expectedIncomeWithin(income, 14);
-  const recurring = monthlyRecurringCost(bills, subscriptions);
-  const reviews = reviewCount(bills, subscriptions);
+  void bills;
+  void income;
+  void subscriptions;
+  void alerts;
 
-  const status = computeDashboardStatus({
-    cashAvailable: cash,
-    billsDue14: due.total,
-    incomeExpected14: incoming.total,
-    overdueUnpaid: overdueUnpaidCount(bills),
-    hasHighSeverityReview: hasHighSeverityReview(alerts),
-    reviewItems: reviews,
-  });
+  const status = summary.status;
+  const cashBadge = plaidConnected ? "Plaid sandbox data" : "Manual estimate";
+  const billsBadge = "Manual estimate";
+  const incomeBadge = incomeSummary.sandboxDetected
+    ? "Mixed manual + sandbox"
+    : "Manual estimate";
+  const recurringBadge = plaidConnected
+    ? "Mixed manual + sandbox"
+    : "Manual estimate";
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       <StatCard
         label="Total cash available"
-        value={formatCurrency(cash)}
+        value={formatCurrency(summary.cashAvailable)}
         hint={`${accounts.filter((a) => a.accessible).length} accessible accounts`}
         icon={Banknote}
         accent="text-primary"
+        badge={cashBadge}
       />
       <StatCard
         label="Bills due (14 days)"
-        value={formatCurrency(due.total)}
-        hint={`${due.count} bill${due.count === 1 ? "" : "s"}${
-          due.variableCount ? ` · ${due.variableCount} variable` : ""
+        value={formatCurrency(summary.billsDue14.total)}
+        hint={`${summary.billsDue14.count} bill${summary.billsDue14.count === 1 ? "" : "s"}${
+          summary.billsDue14.variableCount
+            ? ` · ${summary.billsDue14.variableCount} variable`
+            : ""
         }`}
         icon={CalendarClock}
         accent="text-warning"
+        badge={billsBadge}
       />
       <StatCard
         label="Income (14 days)"
-        value={formatCurrency(incoming.total)}
-        hint={`${incoming.count} source${incoming.count === 1 ? "" : "s"} expected`}
+        value={formatCurrency(summary.income14.total)}
+        hint={
+          incomeSummary.sandboxDetected
+            ? `${summary.income14.count} manual source${summary.income14.count === 1 ? "" : "s"} · sandbox income detected`
+            : `${summary.income14.count} source${summary.income14.count === 1 ? "" : "s"} expected`
+        }
         icon={TrendingUp}
         accent="text-success"
+        badge={incomeBadge}
       />
       <StatCard
         label="Monthly recurring"
-        value={formatCurrency(recurring)}
-        hint="bills + subscriptions"
+        value={formatCurrency(summary.monthlyRecurring)}
+        hint="bills + subscriptions + sandbox recurring"
         icon={Repeat}
         accent="text-info"
+        badge={recurringBadge}
       />
       <Card className="col-span-2 flex flex-col justify-between p-4 lg:col-span-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -130,6 +146,12 @@ export function MoneySnapshot({
           <p className="mt-1.5 text-xs text-muted-foreground">
             {describeStatus(status)}
           </p>
+          {summary.transactionReviewCount > 0 && plaidConnected && (
+            <p className="mt-1 text-[10px] text-warning">
+              {summary.transactionReviewCount} sandbox transaction
+              {summary.transactionReviewCount === 1 ? "" : "s"} need classification
+            </p>
+          )}
         </div>
       </Card>
     </section>

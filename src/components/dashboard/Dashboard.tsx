@@ -12,15 +12,20 @@ import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchl
 import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
-import { mockAccounts } from "@/lib/data/mock-accounts";
 import { mockFinancials } from "@/lib/data/mock-financials";
 import { mockSpendingLater } from "@/lib/data/mock-spending-later";
 import { nextResponsibleAction } from "@/lib/money-utils";
-import { useMoneyData } from "@/lib/storage/store";
+import { useFinancialData } from "@/hooks/useFinancialData";
+import { incomeVsSpendingTrend } from "@/lib/transaction-utils";
 
 export function Dashboard() {
-  const { bills, income, subscriptions, alerts } = useMoneyData();
-  const action = nextResponsibleAction(alerts);
+  const fd = useFinancialData();
+  const action = nextResponsibleAction(fd.alerts);
+  const { dashboardSummary, spendingSummary, incomeSummary } = fd;
+
+  const cashflowData = fd.plaidConnected
+    ? incomeVsSpendingTrend(fd.transactions)
+    : undefined;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -39,20 +44,40 @@ export function Dashboard() {
           </div>
 
           <SummaryCards
-            bills={bills}
-            income={income}
-            subscriptions={subscriptions}
+            bills={fd.bills}
+            income={fd.income}
+            subscriptions={fd.subscriptions}
+            transactionReviewCount={dashboardSummary.transactionReviewCount}
+            dataLabel={dashboardSummary.label}
+            plaidConnected={fd.plaidConnected}
           />
 
           <MoneySnapshot
-            accounts={mockAccounts}
-            bills={bills}
-            income={income}
-            subscriptions={subscriptions}
-            alerts={alerts}
+            accounts={fd.accounts}
+            bills={fd.bills}
+            income={fd.income}
+            subscriptions={fd.subscriptions}
+            alerts={fd.alerts}
+            summary={dashboardSummary}
+            incomeSummary={incomeSummary}
+            plaidConnected={fd.plaidConnected}
           />
 
-          <CashflowCard financials={mockFinancials} />
+          <CashflowCard
+            financials={mockFinancials}
+            plaidConnected={fd.plaidConnected}
+            monthlyIncome={
+              fd.plaidConnected
+                ? spendingSummary.monthlyIncome
+                : mockFinancials.monthlyIncomeEstimate
+            }
+            monthlySpending={
+              fd.plaidConnected
+                ? spendingSummary.monthlySpending
+                : mockFinancials.monthlySpendingEstimate
+            }
+            chartData={cashflowData}
+          />
         </section>
 
         <section id="bills" className="scroll-mt-20">
@@ -81,8 +106,10 @@ export function Dashboard() {
         </section>
 
         <footer className="pt-2 text-center text-xs text-muted-foreground/60">
-          MoneyOS · local mock data, editable in your browser · no bank
-          connections, no accounts stored
+          MoneyOS · {fd.dataSourceBadge}
+          {fd.plaidConnected
+            ? " · Plaid sandbox — not live bank data"
+            : " · local manual data, editable in your browser"}
         </footer>
       </main>
     </div>

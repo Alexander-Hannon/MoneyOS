@@ -4,6 +4,7 @@ import "./globals.css";
 import { MoneyDataProvider } from "@/lib/storage/store";
 import { ToastProvider } from "@/components/ui/toast";
 import { HighlightProvider } from "@/components/providers/highlight";
+import { FinancialDataProvider } from "@/context/FinancialDataProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +35,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ToastProvider>
           <HighlightProvider>
-            <MoneyDataProvider>{children}</MoneyDataProvider>
+            <MoneyDataProvider>
+              <FinancialDataProvider>{children}</FinancialDataProvider>
+            </MoneyDataProvider>
           </HighlightProvider>
         </ToastProvider>
       </body>

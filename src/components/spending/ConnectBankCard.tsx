@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { usePlaidLink } from "react-plaid-link";
 import { Button } from "@/components/ui/button";
-import { usePlaid } from "@/components/spending/plaid-context";
+import { PlaidConsentDialog } from "@/components/plaid/PlaidConsentDialog";
+import { useFinancialData } from "@/hooks/useFinancialData";
 
 type LinkTokenState =
   | { status: "loading" }
@@ -19,7 +20,8 @@ type LinkTokenState =
   | { status: "error"; message: string };
 
 export function ConnectBankCard() {
-  const plaid = usePlaid();
+  const fd = useFinancialData();
+  const [consentOpen, setConsentOpen] = useState(false);
   const [tokenState, setTokenState] = useState<LinkTokenState>({
     status: "loading",
   });
@@ -50,23 +52,22 @@ export function ConnectBankCard() {
   }, []);
 
   useEffect(() => {
-    // Only need a link token when not already connected.
-    if (plaid.status !== "connected") {
+    if (!fd.plaidConnected && fd.configured) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchLinkToken();
     }
-  }, [fetchLinkToken, plaid.status]);
+  }, [fetchLinkToken, fd.plaidConnected, fd.configured]);
 
   const token = tokenState.status === "ready" ? tokenState.token : null;
   const { open, ready } = usePlaidLink({
     token,
     onSuccess: (publicToken) => {
-      void plaid.handleLinkSuccess(publicToken);
+      setConsentOpen(false);
+      void fd.handleLinkSuccess(publicToken);
     },
   });
 
-  // Connected success state.
-  if (plaid.status === "connected") {
+  if (fd.plaidConnected) {
     return (
       <div className="rounded-[var(--radius)] border border-success/30 bg-success/5 p-5">
         <div className="flex items-start gap-3">
@@ -76,8 +77,8 @@ export function ConnectBankCard() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Sandbox bank connected</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Showing Plaid sandbox accounts and transactions below. This is test
-              data — not a live bank.
+              Dashboard and spending use Plaid sandbox data. Manage connection in
+              the header (top-right).
             </p>
           </div>
         </div>
@@ -86,55 +87,70 @@ export function ConnectBankCard() {
   }
 
   const notConfigured = tokenState.status === "not_configured";
-  const errored = tokenState.status === "error" || plaid.status === "error";
+  const errored =
+    tokenState.status === "error" || fd.plaidConnectionStatus === "error";
 
   return (
-    <div className="rounded-[var(--radius)] border border-dashed border-border bg-muted/10 p-5">
-      <div className="flex items-start gap-3">
-        <span
-          className={`flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] ${
-            errored ? "bg-destructive/10 text-destructive" : "bg-info/10 text-info"
-          }`}
-        >
-          {errored ? (
-            <TriangleAlert className="size-5" />
-          ) : (
-            <Landmark className="size-5" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Connect a sandbox bank</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {tokenState.status === "loading" && "Checking Plaid configuration…"}
-            {notConfigured && tokenState.message}
-            {tokenState.status === "error" && tokenState.message}
-            {plaid.error && tokenState.status !== "error" && plaid.error}
-            {tokenState.status === "ready" &&
-              !plaid.error &&
-              "Plaid sandbox is configured. Connect a test institution (use Plaid's sandbox credentials) to sync transactions."}
-          </p>
+    <>
+      <PlaidConsentDialog
+        open={consentOpen}
+        onClose={() => setConsentOpen(false)}
+        onAccept={() => {
+          setConsentOpen(false);
+          open();
+        }}
+        busy={fd.busy}
+      />
 
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button
-              size="sm"
-              variant={tokenState.status === "ready" ? "default" : "secondary"}
-              disabled={tokenState.status !== "ready" || !ready || plaid.busy}
-              onClick={() => open()}
-            >
-              <Lock className="size-3.5" />
-              {plaid.busy
-                ? "Connecting…"
-                : tokenState.status === "ready"
-                  ? "Connect sandbox bank"
-                  : "Plaid not configured"}
-            </Button>
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <ShieldCheck className="size-3.5 text-success" />
-              Tokens stay server-side — never stored in your browser.
-            </span>
+      <div className="rounded-[var(--radius)] border border-dashed border-border bg-muted/10 p-5">
+        <div className="flex items-start gap-3">
+          <span
+            className={`flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] ${
+              errored ? "bg-destructive/10 text-destructive" : "bg-info/10 text-info"
+            }`}
+          >
+            {errored ? (
+              <TriangleAlert className="size-5" />
+            ) : (
+              <Landmark className="size-5" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Connect a sandbox bank</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {tokenState.status === "loading" && "Checking Plaid configuration…"}
+              {notConfigured && tokenState.message}
+              {tokenState.status === "error" && tokenState.message}
+              {fd.error && tokenState.status !== "error" && fd.error}
+              {tokenState.status === "ready" &&
+                !fd.error &&
+                "Use the header “Connect bank” or connect here. Consent is required before Plaid Link opens."}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                variant={tokenState.status === "ready" ? "default" : "secondary"}
+                disabled={
+                  tokenState.status !== "ready" || !ready || fd.busy
+                }
+                onClick={() => setConsentOpen(true)}
+              >
+                <Lock className="size-3.5" />
+                {fd.busy
+                  ? "Connecting…"
+                  : tokenState.status === "ready"
+                    ? "Connect sandbox bank"
+                    : "Plaid not configured"}
+              </Button>
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <ShieldCheck className="size-3.5 text-success" />
+                Tokens stay server-side — never stored in your browser.
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

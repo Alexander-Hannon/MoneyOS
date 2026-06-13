@@ -8,7 +8,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 MoneyOS is a single-service Next.js 16 (App Router) + React 19 + Tailwind v4 app. It is AJ's private finance command center, organized around one question: "What is the next responsible financial action?"
 
-By design (per product spec) there is **no database, no auth, and no bank APIs yet** — data is local mock data that is now **editable in-browser and persisted to `localStorage`**. Don't add Prisma/Plaid/Teller/auth unless the spec changes.
+By design there is **no database and no production auth yet** — manual data is editable in-browser (`localStorage`). Plaid is **sandbox-only** with server-side in-memory tokens (dev). Don't add live Plaid, Prisma, or production auth unless the spec changes — but Phase 6 added security **scaffolding** in `docs/security/`.
 
 Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB scripts. Architecture / non-obvious notes:
 
@@ -38,3 +38,13 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - Client flow is orchestrated by `src/components/spending/plaid-context.tsx` (`PlaidProvider`/`usePlaid`): on mount it hits `/status`; if connected it loads `/accounts` + `/sync-transactions`. `ConnectBankCard` opens Plaid Link and posts the `public_token` to `/exchange-public-token`; `PlaidStatusCard` shows configured/status/source/last-sync + a Sync button. `SpendingDashboard` switches its data source: mock when not connected, sandbox transactions when connected, with a visible "Plaid sandbox data — not live bank data" label.
 - To run the live sandbox round-trip you need real `PLAID_CLIENT_ID`/`PLAID_SECRET` (free Plaid sandbox keys) — in cloud runs these are provided as **secrets** (injected as env vars), and locally they go in `.env.local`. Without them everything still works on mock data. NOTE: secrets are injected into the VM env, so a dev server started **before** they were available won't see them — restart `npm run dev` (or recreate the tmux server) so the process picks them up.
 - To test the connect flow, click "Connect sandbox bank" in the Spending section and use Plaid's sandbox login **`user_good` / `pass_good`** (institution e.g. "First Platypus Bank"); "Finish without saving" at the end. The token lives only in the in-memory store, so it resets when the dev server restarts.
+
+### Phase 6 (global data source + security foundation)
+
+- **Global provider:** `FinancialDataProvider` in `src/context/FinancialDataProvider.tsx` wraps the app in `layout.tsx` (inside `MoneyDataProvider`). Use `useFinancialData()` from `src/hooks/useFinancialData.ts` for data source, Plaid connection, accounts, transactions, and computed summaries. `src/lib/data-source.ts` holds pure helpers (`resolveAccounts`, `computeDashboardSummary`, etc.).
+- **Header bank control:** `BankConnectionControl` in `src/components/layout/Header.tsx` — Connect bank / Sandbox connected dropdown with sync + disconnect. Consent modal: `src/components/plaid/PlaidConsentDialog.tsx` (required before Plaid Link). Privacy/terms: `/privacy`, `/terms` + drafts in `docs/`.
+- **Plaid routes:** added `POST /api/plaid/disconnect` → `clearPlaidSession()`. Existing routes unchanged; all token-free in responses.
+- **When Plaid connected:** dashboard cash (depository balances), spending totals, cashflow chart, and review counts use sandbox data; bills/income/alerts stay manual/localStorage with "Mixed manual + sandbox" labels. When not connected: mock/manual as before.
+- **Transaction classification:** `TransactionClassification` on `MoneyTransaction`; `classifyTransaction()` / `normalizePlaidTransaction()` in `src/lib/transaction-utils.ts` + `src/lib/plaid/normalize.ts`. Monthly spending excludes transfers, credit card payments, loan payments, deposits, and income. Review = true uncategorized items only (`shouldCountAsReview`).
+- **Security docs (templates, not production claims):** `docs/security/` — policies, Plaid notes, production checklist, `SECURE_STORAGE_PLAN.md`. Production requires auth, MFA, encrypted DB, consent logging — not implemented yet.
+- **Deprecated:** `PlaidProvider` in `plaid-context.tsx` is a no-op passthrough; `usePlaid()` re-exports from financial data. Spending section still has `ConnectBankCard`/`PlaidStatusCard` but primary control is the header.

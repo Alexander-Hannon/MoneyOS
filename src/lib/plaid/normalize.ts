@@ -6,9 +6,8 @@ import type {
   LinkedAccount,
   LinkedAccountType,
   MoneyTransaction,
-  TransactionType,
 } from "@/types/transactions";
-import { categorizeMerchant } from "@/lib/transaction-utils";
+import { classifyTransaction } from "@/lib/transaction-utils";
 
 function mapAccountType(type: string, subtype: string | null): LinkedAccountType {
   switch (type) {
@@ -44,13 +43,20 @@ export function normalizeAccount(
   };
 }
 
-export function normalizeTransaction(txn: Transaction): MoneyTransaction {
+/** Classify and map a Plaid transaction into MoneyOS shape. */
+export function normalizePlaidTransaction(txn: Transaction): MoneyTransaction {
   const merchantName = txn.merchant_name ?? txn.name;
   // Plaid: positive amount = money leaving the account. MoneyOS: negative =
   // outflow, positive = inflow. So invert the sign.
   const amount = -txn.amount;
-  const type: TransactionType = amount < 0 ? "debit" : "income";
-  const { category, needsReview } = categorizeMerchant(merchantName);
+
+  const classified = classifyTransaction({
+    merchantName,
+    description: txn.name,
+    amount,
+    plaidPrimary: txn.personal_finance_category?.primary ?? null,
+    plaidDetailed: txn.personal_finance_category?.detailed ?? null,
+  });
 
   return {
     id: txn.transaction_id,
@@ -59,11 +65,15 @@ export function normalizeTransaction(txn: Transaction): MoneyTransaction {
     merchantName,
     description: txn.name,
     amount,
-    type,
-    category,
+    type: classified.type,
+    classification: classified.classification,
+    category: classified.category,
     subcategory: txn.personal_finance_category?.detailed ?? undefined,
     pending: txn.pending,
     source: "plaid_sandbox",
-    needsReview,
+    needsReview: classified.needsReview,
   };
 }
+
+/** @deprecated Use normalizePlaidTransaction */
+export const normalizeTransaction = normalizePlaidTransaction;

@@ -11,6 +11,7 @@ import type {
   IncomeSource,
   Subscription,
 } from "@/types/money";
+import type { DataSourceLabel } from "@/lib/data-source";
 import {
   billsDueThisMonth,
   formatCurrency,
@@ -25,12 +26,14 @@ function MiniCard({
   hint,
   icon: Icon,
   accent,
+  badge,
 }: {
   label: string;
   value: string;
   hint: string;
   icon: LucideIcon;
   accent: string;
+  badge?: string;
 }) {
   return (
     <Card className="flex items-center gap-3 p-4">
@@ -45,6 +48,11 @@ function MiniCard({
           {value}
         </p>
         <p className="truncate text-xs text-muted-foreground">{hint}</p>
+        {badge && (
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-info/80">
+            {badge}
+          </p>
+        )}
       </div>
     </Card>
   );
@@ -54,15 +62,28 @@ export function SummaryCards({
   bills,
   income,
   subscriptions,
+  transactionReviewCount = 0,
+  dataLabel,
+  plaidConnected = false,
 }: {
   bills: Bill[];
   income: IncomeSource[];
   subscriptions: Subscription[];
+  transactionReviewCount?: number;
+  dataLabel?: DataSourceLabel;
+  plaidConnected?: boolean;
 }) {
   const subsTotal = monthlySubscriptionTotal(subscriptions);
   const thisMonth = billsDueThisMonth(bills);
   const reviews = reviewCount(bills, subscriptions);
   const upcoming = upcomingIncomeSources(income);
+
+  const reviewHint =
+    transactionReviewCount > 0 && plaidConnected
+      ? `${reviews} manual · ${transactionReviewCount} txn review`
+      : reviews === 0
+        ? "all clear"
+        : "need a decision";
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -72,6 +93,7 @@ export function SummaryCards({
         value={formatCurrency(subsTotal, true)}
         hint={`${subscriptions.length} services`}
         accent="text-info"
+        badge={dataLabel === "Mixed manual + sandbox" ? "Manual estimate" : dataLabel}
       />
       <MiniCard
         icon={CalendarClock}
@@ -79,13 +101,15 @@ export function SummaryCards({
         value={formatCurrency(thisMonth.total)}
         hint={`${thisMonth.count} bill${thisMonth.count === 1 ? "" : "s"}`}
         accent="text-warning"
+        badge="Manual estimate"
       />
       <MiniCard
         icon={ClipboardCheck}
         label="Review items"
-        value={String(reviews)}
-        hint={reviews === 0 ? "all clear" : "need a decision"}
+        value={String(reviews + (plaidConnected ? transactionReviewCount : 0))}
+        hint={reviewHint}
         accent="text-destructive"
+        badge={plaidConnected ? "Mixed manual + sandbox" : "Manual estimate"}
       />
       <MiniCard
         icon={TrendingUp}
@@ -93,6 +117,7 @@ export function SummaryCards({
         value={String(upcoming.length)}
         hint={`${income.filter((i) => i.active).length} active now`}
         accent="text-success"
+        badge="Manual estimate"
       />
     </section>
   );

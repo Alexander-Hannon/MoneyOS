@@ -42,6 +42,18 @@ export type TransactionType =
   | "income"
   | "refund";
 
+/** Normalized transaction bucket for spending/income/review logic. */
+export type TransactionClassification =
+  | "spending"
+  | "income"
+  | "transfer"
+  | "credit_card_payment"
+  | "loan_payment"
+  | "investment"
+  | "refund"
+  | "fee"
+  | "review";
+
 /** High-level spending buckets used across the spending dashboard. */
 export type TransactionCategory =
   | "Food"
@@ -72,6 +84,8 @@ export interface MoneyTransaction {
   /** Positive = money in, negative = money out. */
   amount: number;
   type: TransactionType;
+  /** Normalized bucket — drives spending/income/review totals. */
+  classification: TransactionClassification;
   category: TransactionCategory;
   subcategory?: string;
   pending: boolean;
