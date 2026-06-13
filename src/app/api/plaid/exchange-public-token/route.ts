@@ -4,6 +4,7 @@ import {
   getPlaidClient,
   getPlaidConfig,
 } from "@/lib/plaid/client";
+import { setPlaidSession } from "@/lib/plaid/token-store";
 
 // POST /api/plaid/exchange-public-token  { public_token }
 // Exchanges a public token for an access token ENTIRELY server-side.
@@ -43,15 +44,21 @@ export async function POST(request: Request) {
       public_token: publicToken,
     });
 
-    // access_token stays on the server. Intentionally NOT returned/persisted.
-    const _accessToken = response.data.access_token;
-    void _accessToken;
+    // The access_token stays on the SERVER. We store it in a dev-only in-memory
+    // store (see token-store.ts). It is NEVER returned to the client or written
+    // to localStorage. (Production requires encrypted DB storage + auth.)
+    setPlaidSession({
+      accessToken: response.data.access_token,
+      itemId: response.data.item_id,
+      cursor: null,
+      lastSyncAt: null,
+    });
 
     return NextResponse.json({
       configured: true,
       ok: true,
       item_id: response.data.item_id,
-      note: "access_token was exchanged server-side and intentionally not returned or persisted.",
+      note: "access_token was exchanged and stored server-side only (never sent to the client).",
     });
   } catch (error) {
     return NextResponse.json(

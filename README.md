@@ -50,6 +50,8 @@ cp .env.example .env.local   # then fill PLAID_CLIENT_ID / PLAID_SECRET
 
 Without credentials, the Plaid API routes (`/api/plaid/*`) return safe "not configured" responses and the "Connect a sandbox bank" card says so. Tokens are exchanged server-side only and never stored in the browser.
 
+With sandbox credentials in `.env.local`, the Spending section's **Connect a sandbox bank** button opens Plaid Link; on success the dashboard switches to **Plaid sandbox** mode and shows sandbox accounts and transactions (labeled "Plaid sandbox data — not live bank data"). A Plaid connection status card shows configured/connection/source/last-sync and a Sync button. The sandbox access token is kept in a **dev-only in-memory server store** (`src/lib/plaid/token-store.ts`) — it must be replaced with an encrypted database + auth before any real/live usage. Sandbox only; no live banks.
+
 ## Editing data
 
 Bills, income, subscriptions, and alerts are **editable from the UI** (add / edit / delete, status changes). Edits are saved to your browser's `localStorage` — no account, server, or database. Use **Reset** in the header to restore the default mock data.
