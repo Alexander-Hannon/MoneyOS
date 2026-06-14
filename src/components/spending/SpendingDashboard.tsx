@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
   ClipboardList,
   CreditCard,
+  Info,
   Landmark,
   Repeat,
   Sparkles,
@@ -31,29 +32,18 @@ import {
 } from "@/components/spending/SpendingByCategoryChart";
 import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
-import { PlaidProvider, usePlaid } from "@/components/spending/plaid-context";
-import { getMockTransactions } from "@/lib/data/mock-transactions";
+import { useFinancialData } from "@/hooks/useFinancialData";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
   buildSpendingAlerts,
   incomeVsSpendingTrend,
-  monthlyIncomeTotal,
-  monthlySpendingTotal,
   recentTransactions,
   recurringChargeCandidates,
   spendingByCategory,
   topMerchants,
   transactionsNeedingReview,
+  transferPaymentTotal,
 } from "@/lib/transaction-utils";
-import type { MoneyTransaction } from "@/types/transactions";
-
-export function SpendingDashboard() {
-  return (
-    <PlaidProvider>
-      <SpendingDashboardContent />
-    </PlaidProvider>
-  );
-}
 
 function StatTile({
   label,
@@ -61,15 +51,17 @@ function StatTile({
   hint,
   icon: Icon,
   accent,
+  title,
 }: {
   label: string;
   value: string;
   hint: string;
   icon: LucideIcon;
   accent: string;
+  title?: string;
 }) {
   return (
-    <Card className="p-4">
+    <Card className="p-4" title={title}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
@@ -86,28 +78,29 @@ function StatTile({
 
 const alertTone = { low: "info", medium: "warning", high: "danger" } as const;
 
-function SpendingDashboardContent() {
-  const plaid = usePlaid();
-  const usingSandbox = plaid.status === "connected";
-
-  // Computed at render (not module load) to keep SSR/client dates aligned.
-  const mockTxns = useMemo(() => getMockTransactions(), []);
-  const txns: MoneyTransaction[] = usingSandbox ? plaid.transactions : mockTxns;
+export function SpendingDashboard() {
+  const fd = useFinancialData();
+  const usingSandbox = fd.plaidConnected;
+  const txns = fd.transactions;
   const hasData = txns.length > 0;
+  const [showTransferNote, setShowTransferNote] = useState(true);
 
-  const spending = monthlySpendingTotal(txns);
-  const income = monthlyIncomeTotal(txns);
-  const byCategory = spendingByCategory(txns);
-  const merchants = topMerchants(txns, 5);
-  const recent = recentTransactions(txns, 8);
-  const review = transactionsNeedingReview(txns);
-  const recurring = recurringChargeCandidates(txns);
-  const alerts = buildSpendingAlerts(txns);
-  const trend = incomeVsSpendingTrend(txns);
+  const spending = fd.spendingSummary.monthlySpending;
+  const income = fd.spendingSummary.monthlyIncome;
+  const byCategory = useMemo(() => spendingByCategory(txns), [txns]);
+  const merchants = useMemo(() => topMerchants(txns, 5), [txns]);
+  const recent = useMemo(() => recentTransactions(txns, 8), [txns]);
+  const review = useMemo(() => transactionsNeedingReview(txns), [txns]);
+  const recurring = useMemo(() => recurringChargeCandidates(txns), [txns]);
+  const alerts = useMemo(() => buildSpendingAlerts(txns), [txns]);
+  const trend = useMemo(() => incomeVsSpendingTrend(txns), [txns]);
+  const excludedTransfers = transferPaymentTotal(txns);
 
   const sourceLabel = usingSandbox
     ? "Plaid sandbox data — not live bank data"
     : "Manual / mock data — not connected to live accounts";
+
+  const reviewAmount = fd.spendingSummary.reviewAmount;
 
   return (
     <Card>
@@ -134,9 +127,27 @@ function SpendingDashboardContent() {
           <PlaidStatusCard />
         </div>
 
-        {usingSandbox && plaid.accounts.length > 0 && (
+        {usingSandbox && excludedTransfers > 0 && showTransferNote && (
+          <div className="flex items-start gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-4 shrink-0 text-info" />
+            <p className="flex-1">
+              Transfers, credit card payments, loan payments, and deposits (
+              {formatCurrency(excludedTransfers, true)}) are excluded from monthly
+              spending totals.
+            </p>
+            <button
+              type="button"
+              className="text-[10px] uppercase tracking-wide text-muted-foreground/70 hover:text-foreground"
+              onClick={() => setShowTransferNote(false)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {usingSandbox && fd.linkedAccounts.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {plaid.accounts.map((a) => (
+            {fd.linkedAccounts.map((a) => (
               <div
                 key={a.id}
                 className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-muted/20 p-3"
@@ -165,7 +176,7 @@ function SpendingDashboardContent() {
           <EmptyState
             icon={CreditCard}
             title="No sandbox transactions yet"
-            description="Sandbox transactions can take a moment to generate. Use “Sync transactions” to try again."
+            description="Sandbox transactions can take a moment to generate. Use “Sync transactions” in the header to try again."
           />
         ) : (
           <>
@@ -173,23 +184,28 @@ function SpendingDashboardContent() {
               <StatTile
                 label="Monthly spending"
                 value={formatCurrency(spending)}
-                hint={`${txns.length} transactions`}
+                hint="debit purchases only · this month"
                 icon={ArrowDownRight}
                 accent="text-destructive"
               />
               <StatTile
                 label="Income (this month)"
                 value={formatCurrency(income)}
-                hint={usingSandbox ? "sandbox" : "mock transactions"}
+                hint={usingSandbox ? "sandbox inflows" : "mock transactions"}
                 icon={ArrowUpRight}
                 accent="text-success"
               />
               <StatTile
-                label="Needs review"
+                label="Needs classification"
                 value={String(review.length)}
-                hint={review.length ? "uncategorized" : "all clear"}
+                hint={
+                  review.length
+                    ? `${formatCurrency(reviewAmount, true)} uncategorized`
+                    : "all clear"
+                }
                 icon={ClipboardList}
                 accent="text-warning"
+                title="Review includes uncategorized transactions that may need manual classification. Transfers and payments are excluded."
               />
               <StatTile
                 label="Recurring charges"
@@ -304,7 +320,11 @@ function SpendingDashboardContent() {
                         </TableCell>
                         <TableCell>
                           <StatusBadge
-                            label={t.category}
+                            label={
+                              t.classification === "review"
+                                ? "Review"
+                                : t.category
+                            }
                             tone={t.needsReview ? "warning" : "neutral"}
                           />
                         </TableCell>

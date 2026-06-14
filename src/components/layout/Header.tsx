@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleDollarSign, RotateCcw } from "lucide-react";
+import { BankConnectionControl } from "@/components/layout/BankConnectionControl";
 import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 
@@ -30,11 +31,9 @@ export function Header() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
-            Manual / mock data
-          </span>
-          <p className="hidden text-xs text-muted-foreground sm:block sm:text-sm">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <BankConnectionControl />
+          <p className="hidden text-xs text-muted-foreground md:block md:text-sm">
             {today}
           </p>
           <button
@@ -42,11 +41,11 @@ export function Header() {
             onClick={() => {
               if (
                 window.confirm(
-                  "Reset all data to the default mock values? Your local edits will be lost.",
+                  "Reset all manual data to the default mock values? Your local edits will be lost. Plaid sandbox connection is not affected.",
                 )
               ) {
                 resetAll();
-                toast("Data reset to defaults");
+                toast("Manual data reset to defaults");
               }
             }}
             className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
