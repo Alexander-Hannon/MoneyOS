@@ -67,7 +67,7 @@ export function IncomePipeline() {
         {income.length === 0 ? (
           <EmptyState
             icon={TrendingUp}
-            title="No income sources yet"
+            title="No income sources added yet."
             description="Add the places your money comes from."
           />
         ) : (

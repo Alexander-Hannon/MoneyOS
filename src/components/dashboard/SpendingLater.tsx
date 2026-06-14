@@ -1,5 +1,6 @@
 import { PiggyBank } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
@@ -25,6 +26,13 @@ export function SpendingLater({ items }: { items: PlannedExpense[] }) {
           description="Future obligations and money to set aside"
           meta={`${formatCurrency(known)} planned`}
         />
+        {items.length === 0 ? (
+          <EmptyState
+            icon={PiggyBank}
+            title="No planned spending yet."
+            description="Add future obligations or savings goals when you're ready."
+          />
+        ) : (
         <div className="grid gap-2.5 sm:grid-cols-2">
           {items.map((item) => (
             <div
@@ -54,6 +62,7 @@ export function SpendingLater({ items }: { items: PlannedExpense[] }) {
             </div>
           ))}
         </div>
+        )}
       </CardContent>
     </Card>
   );

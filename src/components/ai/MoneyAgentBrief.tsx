@@ -105,6 +105,12 @@ export function MoneyAgentBrief({ compact = false }: { compact?: boolean }) {
               <StatusBadge label="Review required" tone="warning" />
             </div>
 
+            {brief.modeNotice && (
+              <p className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+                {brief.modeNotice}
+              </p>
+            )}
+
             <section>
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Snapshot

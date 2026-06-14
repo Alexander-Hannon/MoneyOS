@@ -1,65 +1,7 @@
 import type { Subscription } from "@/types/money";
-import { daysFromNow } from "@/lib/money-utils";
+import { getDemoSubscriptions } from "@/lib/data/demo-user-data";
 
-// Function (not a constant) so renewal dates are computed at render time —
-// avoids SSR/client hydration mismatches from stale module-load timestamps.
+/** Demo subscriptions — see demo-user-data.ts. */
 export function getMockSubscriptions(): Subscription[] {
-  return [
-  {
-    id: "meal-tracker",
-    name: "Meal Tracker",
-    amount: 11.99,
-    frequency: "annual",
-    category: "Fitness",
-    status: "keep",
-    renewalDate: daysFromNow(120),
-  },
-  {
-    id: "sleep-tracker",
-    name: "Sleep Tracker",
-    amount: 2.99,
-    frequency: "monthly",
-    category: "Fitness",
-    status: "keep",
-    renewalDate: daysFromNow(10),
-  },
-  {
-    id: "cursor",
-    name: "Cursor",
-    amount: 20,
-    frequency: "monthly",
-    category: "Business / Productivity",
-    status: "keep",
-    renewalDate: daysFromNow(16),
-  },
-  {
-    id: "icloud",
-    name: "iCloud",
-    amount: 9.99,
-    frequency: "monthly",
-    category: "Tech",
-    status: "keep",
-    renewalDate: daysFromNow(20),
-  },
-  {
-    id: "amazon-prime",
-    name: "Amazon Prime",
-    amount: 14,
-    frequency: "monthly",
-    category: "Convenience",
-    status: "review",
-    renewalDate: daysFromNow(5),
-    notes: "Decide whether Prime still earns its keep.",
-  },
-  {
-    id: "capcut-outlook",
-    name: "CapCut + Outlook",
-    amount: 7.99,
-    frequency: "monthly",
-    category: "Business",
-    status: "review",
-    renewalDate: daysFromNow(12),
-    notes: "Review CapCut specifically.",
-  },
-  ];
+  return getDemoSubscriptions();
 }

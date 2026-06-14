@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import type { AppMode } from "@/types/app-mode";
 import type {
   Account,
   Alert,
@@ -66,6 +67,7 @@ export function MoneySnapshot({
   summary,
   incomeSummary,
   plaidConnected,
+  storedMode,
 }: {
   accounts: Account[];
   bills: Bill[];
@@ -75,6 +77,7 @@ export function MoneySnapshot({
   summary: DashboardSummary;
   incomeSummary: IncomeSummary;
   plaidConnected: boolean;
+  storedMode: AppMode;
 }) {
   void bills;
   void income;
@@ -82,14 +85,15 @@ export function MoneySnapshot({
   void alerts;
 
   const status = summary.status;
-  const cashBadge = plaidConnected ? "Plaid sandbox data" : "Manual estimate";
-  const billsBadge = "Manual estimate";
-  const incomeBadge = incomeSummary.sandboxDetected
-    ? "Mixed manual + sandbox"
-    : "Manual estimate";
-  const recurringBadge = plaidConnected
-    ? "Mixed manual + sandbox"
-    : "Manual estimate";
+  const label = summary.label;
+
+  const cashBadge = plaidConnected
+    ? "Plaid sandbox data"
+    : storedMode === "demo"
+      ? "Demo data"
+      : summary.isEmpty
+        ? "Empty — add accounts"
+        : "Local user data";
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -111,7 +115,7 @@ export function MoneySnapshot({
         }`}
         icon={CalendarClock}
         accent="text-warning"
-        badge={billsBadge}
+        badge={storedMode === "demo" ? "Demo data" : "Local user data"}
       />
       <StatCard
         label="Income (14 days)"
@@ -123,7 +127,7 @@ export function MoneySnapshot({
         }
         icon={TrendingUp}
         accent="text-success"
-        badge={incomeBadge}
+        badge={label}
       />
       <StatCard
         label="Monthly recurring"
@@ -131,7 +135,7 @@ export function MoneySnapshot({
         hint="bills + subscriptions + sandbox recurring"
         icon={Repeat}
         accent="text-info"
-        badge={recurringBadge}
+        badge={label}
       />
       <Card className="col-span-2 flex flex-col justify-between p-4 lg:col-span-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -144,7 +148,9 @@ export function MoneySnapshot({
             className="px-3 py-1 text-sm"
           />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {describeStatus(status)}
+            {summary.isEmpty && !plaidConnected
+              ? "Add bills or connect accounts to activate insights."
+              : describeStatus(status)}
           </p>
           {summary.transactionReviewCount > 0 && plaidConnected && (
             <p className="mt-1 text-[10px] text-warning">

@@ -37,6 +37,33 @@ function formatCurrency(n: number): string {
 }
 
 function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
+  const modeNotice = input.modeContext;
+
+  if (
+    input.modeContext.includes("Empty state") ||
+    (input.billsDue14Count === 0 &&
+      input.cashAvailable === 0 &&
+      input.activeAlerts.length === 0 &&
+      input.appMode === "local_user")
+  ) {
+    return {
+      snapshot:
+        "Not enough data yet for a meaningful brief. Add bills, income, subscriptions, or connect a sandbox bank.",
+      topRisks: ["Insufficient data — do not treat this as a financial assessment."],
+      opportunities: [
+        "Add your recurring bills and income sources in MoneyOS.",
+        "Or load demo data from Settings to explore features safely.",
+      ],
+      recommendedNextAction:
+        "Add at least one bill or income source, or connect Plaid sandbox, before acting on recommendations.",
+      reviewRequiredItems: [],
+      automationIdeas: [],
+      provider: "mock",
+      mock: true,
+      modeNotice,
+    };
+  }
+
   const runway = input.cashAvailable + input.incomeExpected14Days;
   const tight = input.billsDue14Days > runway * 0.6;
 
@@ -77,7 +104,7 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
   );
 
   return {
-    snapshot: `${input.dataSource} · Cash ${formatCurrency(input.cashAvailable)} · Bills due 14d ${formatCurrency(input.billsDue14Days)} (${input.billsDue14Count}) · Spending ${formatCurrency(input.monthlySpending)}/mo${tight ? " · Buffer is getting tight" : ""}.`,
+    snapshot: `${input.modeContext} · ${input.dataSource} · Cash ${formatCurrency(input.cashAvailable)} · Bills due 14d ${formatCurrency(input.billsDue14Days)} (${input.billsDue14Count}) · Spending ${formatCurrency(input.monthlySpending)}/mo${tight ? " · Buffer is getting tight" : ""}.`,
     topRisks,
     opportunities,
     recommendedNextAction:
@@ -92,10 +119,13 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
     automationIdeas: [
       "Set calendar reminders for variable bills 3 days before due dates.",
       "Review subscription list monthly — cancel before renewal when possible.",
-      "Sync sandbox transactions after connecting Plaid to refresh categories.",
+      input.appMode === "plaid_sandbox"
+        ? "Sync sandbox transactions after connecting Plaid to refresh categories."
+        : "Connect Plaid sandbox in Settings to explore live-style transaction data safely.",
     ],
     provider: "mock",
     mock: true,
+    modeNotice,
   };
 }
 
@@ -197,6 +227,8 @@ export function sanitizeMoneyBriefInput(
   const b = body as Record<string, unknown>;
   if (typeof b.dataSource !== "string") return null;
   return {
+    appMode: String(b.appMode ?? "local_user"),
+    modeContext: String(b.modeContext ?? ""),
     dataSource: b.dataSource,
     cashAvailable: Number(b.cashAvailable) || 0,
     billsDue14Days: Number(b.billsDue14Days) || 0,

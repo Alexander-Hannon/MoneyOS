@@ -1,11 +1,11 @@
 import type { Account } from "@/types/money";
-import type {
-  DataSource,
-  LinkedAccount,
-  MoneyTransaction,
-  PlaidConnectionStatus,
-} from "@/types/transactions";
-import { mockAccounts } from "@/lib/data/mock-accounts";
+import type { AppMode } from "@/types/app-mode";
+import {
+  getDataSourceLabel,
+  isManualDataEmpty,
+  type DataSourceLabel,
+} from "@/lib/app-mode";
+import { demoAccounts } from "@/lib/data/demo-user-data";
 import { getMockTransactions } from "@/lib/data/mock-transactions";
 import {
   billsDueWithin,
@@ -18,6 +18,12 @@ import {
   totalCashAvailable,
 } from "@/lib/money-utils";
 import type { Bill, Alert, IncomeSource, Subscription } from "@/types/money";
+import type {
+  DataSource,
+  LinkedAccount,
+  MoneyTransaction,
+  PlaidConnectionStatus,
+} from "@/types/transactions";
 import {
   isIncomeTransaction,
   monthlyIncomeTotal,
@@ -28,33 +34,27 @@ import {
   transferPaymentTotal,
 } from "@/lib/transaction-utils";
 
-export type DataSourceLabel =
-  | "Mock / Manual"
-  | "Plaid Sandbox"
-  | "Mixed manual + sandbox";
+export type { DataSourceLabel };
 
 export function resolveDataSource(
   plaidConnected: boolean,
+  storedMode: AppMode,
 ): DataSource {
-  return plaidConnected ? "plaid_sandbox" : "mock";
-}
-
-export function dataSourceLabel(
-  plaidConnected: boolean,
-): DataSourceLabel {
-  return plaidConnected ? "Mixed manual + sandbox" : "Mock / Manual";
+  if (plaidConnected) return "plaid_sandbox";
+  if (storedMode === "demo") return "mock";
+  return "manual";
 }
 
 export function dataSourceBadgeText(
+  storedMode: AppMode,
   plaidConnected: boolean,
+  manualEmpty: boolean,
 ): string {
-  if (plaidConnected) return "Plaid Sandbox";
-  return "Mock / Manual";
+  return getDataSourceLabel(storedMode, plaidConnected, manualEmpty);
 }
 
 const CASH_LIKE_TYPES = new Set(["checking", "savings", "cash"]);
 
-/** Map Plaid linked accounts to dashboard Account shape (depository/cash only). */
 export function linkedAccountsToDashboardAccounts(
   linked: LinkedAccount[],
 ): Account[] {
@@ -78,19 +78,24 @@ export function linkedAccountsToDashboardAccounts(
 export function resolveAccounts(
   plaidConnected: boolean,
   linkedAccounts: LinkedAccount[],
+  storedMode: AppMode,
 ): Account[] {
   if (plaidConnected && linkedAccounts.length > 0) {
     const plaidCash = linkedAccountsToDashboardAccounts(linkedAccounts);
     if (plaidCash.length > 0) return plaidCash;
   }
-  return mockAccounts;
+  if (storedMode === "demo") return demoAccounts;
+  return [];
 }
 
 export function resolveTransactions(
   plaidConnected: boolean,
   plaidTransactions: MoneyTransaction[],
+  storedMode: AppMode,
 ): MoneyTransaction[] {
-  return plaidConnected ? plaidTransactions : getMockTransactions();
+  if (plaidConnected) return plaidTransactions;
+  if (storedMode === "demo") return getMockTransactions();
+  return [];
 }
 
 export type IncomeSummary = {
@@ -102,8 +107,10 @@ export type IncomeSummary = {
 
 export function computeIncomeSummary(
   income: IncomeSource[],
+  storedMode: AppMode,
   plaidConnected: boolean,
   transactions: MoneyTransaction[],
+  manualEmpty: boolean,
 ): IncomeSummary {
   const expected14Days = expectedIncomeWithin(income, 14);
   const sandboxMonthlyTotal = monthlyIncomeTotal(transactions);
@@ -114,7 +121,7 @@ export function computeIncomeSummary(
     expected14Days,
     sandboxDetected,
     sandboxMonthlyTotal,
-    label: plaidConnected ? "Mixed manual + sandbox" : "Mock / Manual",
+    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
   };
 }
 
@@ -130,7 +137,9 @@ export type SpendingSummary = {
 
 export function computeSpendingSummary(
   transactions: MoneyTransaction[],
+  storedMode: AppMode,
   plaidConnected: boolean,
+  manualEmpty: boolean,
 ): SpendingSummary {
   return {
     monthlySpending: monthlySpendingTotal(transactions),
@@ -139,7 +148,7 @@ export function computeSpendingSummary(
     reviewAmount: reviewTotal(transactions),
     recurringCount: recurringChargeCandidates(transactions).length,
     transferPaymentTotal: transferPaymentTotal(transactions),
-    label: plaidConnected ? "Plaid Sandbox" : "Mock / Manual",
+    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
   };
 }
 
@@ -153,6 +162,7 @@ export type DashboardSummary = {
   transactionReviewCount: number;
   status: ReturnType<typeof computeDashboardStatus>;
   label: DataSourceLabel;
+  isEmpty: boolean;
 };
 
 export function computeDashboardSummary(args: {
@@ -161,6 +171,7 @@ export function computeDashboardSummary(args: {
   income: IncomeSource[];
   subscriptions: Subscription[];
   alerts: Alert[];
+  storedMode: AppMode;
   plaidConnected: boolean;
   transactions: MoneyTransaction[];
 }): DashboardSummary {
@@ -170,10 +181,12 @@ export function computeDashboardSummary(args: {
     income,
     subscriptions,
     alerts,
+    storedMode,
     plaidConnected,
     transactions,
   } = args;
 
+  const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
   const cashAvailable = totalCashAvailable(accounts);
   const billsDue14 = billsDueWithin(bills, 14);
   const income14 = expectedIncomeWithin(income, 14);
@@ -191,15 +204,16 @@ export function computeDashboardSummary(args: {
   const manualReviewItems = reviewCount(bills, subscriptions);
   const transactionReviewCount = transactionsNeedingReview(transactions).length;
 
-  const status = computeDashboardStatus({
+  const status = computeDashboardSummaryStatus({
     cashAvailable,
     billsDue14: billsDue14.total,
     incomeExpected14: income14.total,
     overdueUnpaid: overdueUnpaidCount(bills),
-    hasHighSeverityReview:
-      hasHighSeverityReview(alerts) ||
-      (plaidConnected && transactionReviewCount >= 5),
-    reviewItems: manualReviewItems + (transactionReviewCount > 0 ? 1 : 0),
+    alerts,
+    plaidConnected,
+    transactionReviewCount,
+    manualReviewItems,
+    manualEmpty,
   });
 
   return {
@@ -211,8 +225,34 @@ export function computeDashboardSummary(args: {
     manualReviewItems,
     transactionReviewCount,
     status,
-    label: plaidConnected ? "Mixed manual + sandbox" : "Mock / Manual",
+    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
+    isEmpty: manualEmpty && !plaidConnected && storedMode !== "demo",
   };
+}
+
+function computeDashboardSummaryStatus(args: {
+  cashAvailable: number;
+  billsDue14: number;
+  incomeExpected14: number;
+  overdueUnpaid: number;
+  alerts: Alert[];
+  plaidConnected: boolean;
+  transactionReviewCount: number;
+  manualReviewItems: number;
+  manualEmpty: boolean;
+}) {
+  if (args.manualEmpty && !args.plaidConnected) return "Stable" as const;
+
+  return computeDashboardStatus({
+    cashAvailable: args.cashAvailable,
+    billsDue14: args.billsDue14,
+    incomeExpected14: args.incomeExpected14,
+    overdueUnpaid: args.overdueUnpaid,
+    hasHighSeverityReview:
+      hasHighSeverityReview(args.alerts) ||
+      (args.plaidConnected && args.transactionReviewCount >= 5),
+    reviewItems: args.manualReviewItems + (args.transactionReviewCount > 0 ? 1 : 0),
+  });
 }
 
 export function formatLastSync(iso: string | null): string {
@@ -241,3 +281,6 @@ export function plaidStatusLabel(status: PlaidConnectionStatus): string {
       return "Not connected";
   }
 }
+
+// Re-export for callers that need empty check
+export { isManualDataEmpty };

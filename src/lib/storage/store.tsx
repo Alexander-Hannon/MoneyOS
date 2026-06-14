@@ -8,24 +8,28 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { AppMode } from "@/types/app-mode";
 import type {
   Alert,
   AlertStatus,
   Bill,
   BillStatus,
   IncomeSource,
+  PlannedExpense,
   Subscription,
   SubscriptionStatus,
 } from "@/types/money";
-import { getMockBills } from "@/lib/data/mock-bills";
-import { getMockIncome } from "@/lib/data/mock-income";
-import { getMockSubscriptions } from "@/lib/data/mock-subscriptions";
-import { mockAlerts } from "@/lib/data/mock-alerts";
+import { getDefaultsForMode } from "@/lib/app-mode";
+import {
+  emptySpendingLater,
+} from "@/lib/data/empty-user-data";
 import {
   STORAGE_KEYS,
-  clearAllCollections,
+  loadAppModeFromStorage,
   loadCollection,
   newId,
+  saveAppModeToStorage,
+  saveBoolean,
   saveCollection,
 } from "@/lib/storage/local-storage";
 
@@ -34,12 +38,25 @@ type DraftIncome = Omit<IncomeSource, "id">;
 type DraftSubscription = Omit<Subscription, "id">;
 type DraftAlert = Omit<Alert, "id" | "status">;
 
-interface MoneyDataContextValue {
-  hydrated: boolean;
+export type UserDataExport = {
+  version: 1;
+  exportedAt: string;
+  appMode: AppMode;
   bills: Bill[];
   income: IncomeSource[];
   subscriptions: Subscription[];
   alerts: Alert[];
+  spendingLater: PlannedExpense[];
+};
+
+interface MoneyDataContextValue {
+  hydrated: boolean;
+  appMode: AppMode;
+  bills: Bill[];
+  income: IncomeSource[];
+  subscriptions: Subscription[];
+  alerts: Alert[];
+  spendingLater: PlannedExpense[];
 
   addBill: (draft: DraftBill) => void;
   updateBill: (id: string, draft: DraftBill) => void;
@@ -61,33 +78,50 @@ interface MoneyDataContextValue {
   setAlertStatus: (id: string, status: AlertStatus) => void;
   deleteAlert: (id: string) => void;
 
-  resetAll: () => void;
+  applyModeData: (mode: AppMode) => void;
+  startFresh: () => void;
+  loadDemoData: () => void;
+  resetToModeDefaults: () => void;
+  exportData: () => UserDataExport;
+  importData: (bundle: UserDataExport) => void;
+  setAppMode: (mode: AppMode) => void;
 }
 
 const MoneyDataContext = createContext<MoneyDataContextValue | null>(null);
 
+function persistMode(mode: AppMode, data: ReturnType<typeof getDefaultsForMode>) {
+  saveAppModeToStorage(mode);
+  saveCollection(STORAGE_KEYS.bills, data.bills);
+  saveCollection(STORAGE_KEYS.income, data.income);
+  saveCollection(STORAGE_KEYS.subscriptions, data.subscriptions);
+  saveCollection(STORAGE_KEYS.alerts, data.alerts);
+  saveCollection(STORAGE_KEYS.spendingLater, data.spendingLater);
+}
+
 export function MoneyDataProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
-  // Lazy initializers compute the relative mock dates at render time (request
-  // time on the server, hydration time on the client) — same calendar day on
-  // both, so no hydration mismatch.
-  const [bills, setBills] = useState<Bill[]>(getMockBills);
-  const [income, setIncome] = useState<IncomeSource[]>(getMockIncome);
-  const [subscriptions, setSubscriptions] =
-    useState<Subscription[]>(getMockSubscriptions);
-  const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+  const [appMode, setAppModeState] = useState<AppMode>("local_user");
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [income, setIncome] = useState<IncomeSource[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [spendingLater, setSpendingLater] =
+    useState<PlannedExpense[]>(emptySpendingLater);
 
-  // Load any saved edits after mount. This intentionally calls setState inside
-  // an effect so the SSR/first-client render uses defaults (no hydration
-  // mismatch) and localStorage data is applied right after mount.
   useEffect(() => {
+    const mode = loadAppModeFromStorage() ?? "local_user";
+    const defaults = getDefaultsForMode(mode);
     /* eslint-disable react-hooks/set-state-in-effect */
-    setBills(loadCollection(STORAGE_KEYS.bills, getMockBills()));
-    setIncome(loadCollection(STORAGE_KEYS.income, getMockIncome()));
+    setAppModeState(mode);
+    setBills(loadCollection(STORAGE_KEYS.bills, defaults.bills));
+    setIncome(loadCollection(STORAGE_KEYS.income, defaults.income));
     setSubscriptions(
-      loadCollection(STORAGE_KEYS.subscriptions, getMockSubscriptions()),
+      loadCollection(STORAGE_KEYS.subscriptions, defaults.subscriptions),
     );
-    setAlerts(loadCollection(STORAGE_KEYS.alerts, mockAlerts));
+    setAlerts(loadCollection(STORAGE_KEYS.alerts, defaults.alerts));
+    setSpendingLater(
+      loadCollection(STORAGE_KEYS.spendingLater, defaults.spendingLater),
+    );
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -109,12 +143,81 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     saveCollection(STORAGE_KEYS.alerts, next);
   }, []);
 
+  const applyAll = useCallback(
+    (mode: AppMode, data: ReturnType<typeof getDefaultsForMode>) => {
+      setAppModeState(mode);
+      setBills(data.bills);
+      setIncome(data.income);
+      setSubscriptions(data.subscriptions);
+      setAlerts(data.alerts);
+      setSpendingLater(data.spendingLater);
+      persistMode(mode, data);
+    },
+    [],
+  );
+
+  const applyModeData = useCallback(
+    (mode: AppMode) => applyAll(mode, getDefaultsForMode(mode)),
+    [applyAll],
+  );
+
+  const startFresh = useCallback(() => {
+    applyModeData("local_user");
+    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
+  }, [applyModeData]);
+
+  const loadDemoData = useCallback(() => {
+    applyModeData("demo");
+    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
+  }, [applyModeData]);
+
+  const resetToModeDefaults = useCallback(() => {
+    applyModeData(appMode);
+  }, [applyModeData, appMode]);
+
+  const setAppMode = useCallback(
+    (mode: AppMode) => {
+      saveAppModeToStorage(mode);
+      setAppModeState(mode);
+    },
+    [],
+  );
+
+  const exportData = useCallback((): UserDataExport => {
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      appMode,
+      bills,
+      income,
+      subscriptions,
+      alerts,
+      spendingLater,
+    };
+  }, [appMode, bills, income, subscriptions, alerts, spendingLater]);
+
+  const importData = useCallback(
+    (bundle: UserDataExport) => {
+      const mode = bundle.appMode ?? "local_user";
+      applyAll(mode, {
+        bills: bundle.bills ?? [],
+        income: bundle.income ?? [],
+        subscriptions: bundle.subscriptions ?? [],
+        alerts: bundle.alerts ?? [],
+        spendingLater: bundle.spendingLater ?? [],
+      });
+    },
+    [applyAll],
+  );
+
   const value: MoneyDataContextValue = {
     hydrated,
+    appMode,
     bills,
     income,
     subscriptions,
     alerts,
+    spendingLater,
 
     addBill: (draft) => commitBills([...bills, { ...draft, id: newId("bill") }]),
     updateBill: (id, draft) =>
@@ -152,20 +255,18 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
         ...alerts,
       ]),
     updateAlert: (id, draft) =>
-      commitAlerts(
-        alerts.map((a) => (a.id === id ? { ...a, ...draft } : a)),
-      ),
+      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, ...draft } : a))),
     setAlertStatus: (id, status) =>
       commitAlerts(alerts.map((a) => (a.id === id ? { ...a, status } : a))),
     deleteAlert: (id) => commitAlerts(alerts.filter((a) => a.id !== id)),
 
-    resetAll: () => {
-      clearAllCollections();
-      setBills(getMockBills());
-      setIncome(getMockIncome());
-      setSubscriptions(getMockSubscriptions());
-      setAlerts(mockAlerts);
-    },
+    applyModeData,
+    startFresh,
+    loadDemoData,
+    resetToModeDefaults,
+    exportData,
+    importData,
+    setAppMode,
   };
 
   return (

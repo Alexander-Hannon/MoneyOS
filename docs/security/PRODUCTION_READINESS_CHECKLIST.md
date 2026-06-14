@@ -64,3 +64,38 @@ Legend: ✅ done · 🟡 scaffolded · 🔲 not started
 ## Honest statement
 
 **MoneyOS does not yet meet production security or Plaid production requirements.** This checklist tracks gaps; completing it is required before live launch.
+
+## Phase map (MoneyOS roadmap)
+
+### Before personal live use (single operator)
+
+- [ ] Authentication (even for solo use — protect deployed instance)
+- [ ] Encrypted server-side Plaid token storage (replace in-memory dev store)
+- [ ] HTTPS deployment (TLS everywhere)
+- [ ] Real Plaid production connection (separate from sandbox)
+- [ ] Backup / export verified (local export exists; server backup TBD)
+- [ ] Onboarding + mode selection (Phase 8 — local only)
+- [ ] Settings: reset, export, disconnect (Phase 8 — local only)
+
+### Before public beta
+
+- [ ] Privacy policy finalized (legal review)
+- [ ] Terms of use finalized (legal review)
+- [ ] Consent tracking server-side (replace localStorage dev records)
+- [ ] User data isolation (auth + per-user database)
+- [ ] MFA on internal systems (GitHub, cloud, Plaid dashboard)
+- [ ] Vulnerability scanning in CI
+- [ ] Logging / monitoring (structured logs, alerts)
+- [ ] Data deletion workflow (API + admin process)
+- [ ] App modes: demo vs user vs sandbox clearly labeled (Phase 8)
+
+### Before public launch
+
+- [ ] Compliance review (Plaid + applicable privacy laws)
+- [ ] Security review (internal or third-party)
+- [ ] Incident response tested (`INCIDENT_RESPONSE_PLAN.md`)
+- [ ] Support process documented
+- [ ] Cost controls (AI API, Plaid, hosting)
+- [ ] Rate limits on API routes
+- [ ] Production Plaid approval complete
+- [ ] Live mode enabled (`future_plaid_live`) with full controls

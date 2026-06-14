@@ -114,7 +114,7 @@ export function MoneyAgentAlerts() {
         {visible.length === 0 ? (
           <EmptyState
             icon={CircleCheck}
-            title={`No ${filter} alerts`}
+            title={filter === "active" ? "No alerts yet." : `No ${filter} alerts`}
             description={
               filter === "active"
                 ? "Nothing needs a decision right now."

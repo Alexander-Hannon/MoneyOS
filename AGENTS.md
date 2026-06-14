@@ -56,3 +56,14 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - **AI layer (server-side):** `src/lib/ai/` — types, prompts, `money-agent-service.ts`. Routes: `/api/ai/money-brief`, `/api/ai/explain-alert`, `/api/ai/classify-transaction`. Env: `AI_PROVIDER=mock` (default), `AI_API_KEY`, `AI_MODEL` in `.env.local` — never client-side.
 - **UI:** `MoneyAgentBrief` (dashboard + alerts header), `ExplainAlertButton` on alerts, `SuggestCategoryButton` on review transactions (session-only approve). Disclaimer: "AI-generated guidance. Review before making financial decisions."
 - **Safety:** `docs/security/AI_MONEY_AGENT_SAFETY.md` — AI never moves/spends/invests or makes final decisions. Mock responses when no API key.
+
+### Phase 8 (user data architecture + modes)
+
+- **App modes:** `demo` | `local_user` | `plaid_sandbox` | `future_plaid_live` (disabled). Types in `src/types/app-mode.ts`; helpers in `src/lib/app-mode.ts`. `AppModeProvider` + `useAppMode()` wrap onboarding, consent, pending Plaid connect.
+- **Onboarding:** `OnboardingDialog` on first run (no `moneyos:onboarding-completed`). Choices: Start fresh (empty), Load demo data, Connect sandbox bank. Existing localStorage users auto-migrate.
+- **Data separation:** Demo in `demo-user-data.ts`; empty defaults in `empty-user-data.ts`. `MoneyDataProvider` starts empty until hydrated; mode-aware defaults. No demo data in fresh user mode.
+- **Settings:** `/settings` — mode, export/import JSON, reset, demo load, clear all, disconnect sandbox, consent history (localStorage dev-only), privacy/terms links.
+- **Header:** `ModeBadge` shows Demo Mode / Local User Data / Plaid Sandbox. Settings gear link. Reset removed from header (use Settings).
+- **Consent:** `recordPlaidConsent()` on Plaid consent accept → `moneyos:consent-history` localStorage. Production must move server-side.
+- **User types (future auth):** `src/types/user.ts` — UserProfile, ConsentRecord, etc. Not wired to auth yet.
+- **AI brief:** mode-aware via `modeContext` in brief input; empty state returns cautious guidance.

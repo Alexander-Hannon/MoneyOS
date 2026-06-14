@@ -72,7 +72,7 @@ export function BillsCommandCenter() {
         {bills.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title="No bills yet"
+            title="No bills added yet."
             description="Add your recurring bills to start tracking what's due."
           />
         ) : (

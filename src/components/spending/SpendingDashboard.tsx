@@ -103,7 +103,9 @@ export function SpendingDashboard() {
 
   const sourceLabel = usingSandbox
     ? "Plaid sandbox data — not live bank data"
-    : "Manual / mock data — not connected to live accounts";
+    : fd.storedMode === "demo"
+      ? "Demo data — sample transactions for exploration"
+      : "Local user data — add accounts or connect Plaid sandbox";
 
   const reviewAmount = fd.spendingSummary.reviewAmount;
 

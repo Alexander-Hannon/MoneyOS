@@ -11,6 +11,8 @@ export interface AIConfig {
 
 /** Sanitized financial snapshot — no tokens, account numbers, or secrets. */
 export interface MoneyBriefInput {
+  appMode: string;
+  modeContext: string;
   dataSource: string;
   cashAvailable: number;
   billsDue14Days: number;
@@ -39,6 +41,7 @@ export interface MoneyBriefOutput {
   automationIdeas: string[];
   provider: AIProvider;
   mock: boolean;
+  modeNotice?: string;
 }
 
 export interface ExplainAlertInput {

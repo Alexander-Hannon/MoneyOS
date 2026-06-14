@@ -59,7 +59,7 @@ export function SubscriptionWatchlist() {
         {subscriptions.length === 0 ? (
           <EmptyState
             icon={Repeat}
-            title="No subscriptions yet"
+            title="No subscriptions added yet."
             description="Add recurring services to keep an eye on them."
           />
         ) : (

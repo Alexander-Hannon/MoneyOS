@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
 import { NextResponsibleAction } from "@/components/dashboard/NextResponsibleAction";
@@ -13,7 +14,6 @@ import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
 import { mockFinancials } from "@/lib/data/mock-financials";
-import { mockSpendingLater } from "@/lib/data/mock-spending-later";
 import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
 import { useFinancialData } from "@/hooks/useFinancialData";
@@ -24,9 +24,24 @@ export function Dashboard() {
   const action = nextResponsibleAction(fd.alerts);
   const { dashboardSummary, spendingSummary, incomeSummary } = fd;
 
-  const cashflowData = fd.plaidConnected
-    ? incomeVsSpendingTrend(fd.transactions)
-    : undefined;
+  const cashflowData =
+    fd.plaidConnected || fd.storedMode === "demo"
+      ? incomeVsSpendingTrend(fd.transactions)
+      : undefined;
+
+  const cashflowIncome =
+    fd.plaidConnected || fd.storedMode === "demo"
+      ? spendingSummary.monthlyIncome
+      : fd.isManualEmpty
+        ? 0
+        : mockFinancials.monthlyIncomeEstimate;
+
+  const cashflowSpending =
+    fd.plaidConnected || fd.storedMode === "demo"
+      ? spendingSummary.monthlySpending
+      : fd.isManualEmpty
+        ? 0
+        : mockFinancials.monthlySpendingEstimate;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -54,6 +69,7 @@ export function Dashboard() {
             transactionReviewCount={dashboardSummary.transactionReviewCount}
             dataLabel={dashboardSummary.label}
             plaidConnected={fd.plaidConnected}
+            storedMode={fd.storedMode}
           />
 
           <MoneySnapshot
@@ -65,21 +81,16 @@ export function Dashboard() {
             summary={dashboardSummary}
             incomeSummary={incomeSummary}
             plaidConnected={fd.plaidConnected}
+            storedMode={fd.storedMode}
           />
 
           <CashflowCard
             financials={mockFinancials}
             plaidConnected={fd.plaidConnected}
-            monthlyIncome={
-              fd.plaidConnected
-                ? spendingSummary.monthlyIncome
-                : mockFinancials.monthlyIncomeEstimate
-            }
-            monthlySpending={
-              fd.plaidConnected
-                ? spendingSummary.monthlySpending
-                : mockFinancials.monthlySpendingEstimate
-            }
+            storedMode={fd.storedMode}
+            isEmpty={fd.isManualEmpty && !fd.plaidConnected}
+            monthlyIncome={cashflowIncome}
+            monthlySpending={cashflowSpending}
             chartData={cashflowData}
           />
         </section>
@@ -106,12 +117,16 @@ export function Dashboard() {
         </section>
 
         <section id="spending-later" className="scroll-mt-20">
-          <SpendingLater items={mockSpendingLater} />
+          <SpendingLater items={fd.spendingLater} />
         </section>
 
-        <footer className="pt-2 text-center text-xs text-muted-foreground/60">
-          MoneyOS by Apalym · Development / Sandbox mode
-          {fd.plaidConnected ? " · Plaid sandbox data" : " · Demo / manual data"}
+        <footer className="flex flex-col items-center gap-1 pt-2 text-center text-xs text-muted-foreground/60">
+          <p>
+            MoneyOS by Apalym · Development / Sandbox mode · {fd.modeLabel}
+          </p>
+          <Link href="/settings" className="hover:text-muted-foreground">
+            Settings
+          </Link>
         </footer>
       </main>
     </div>
