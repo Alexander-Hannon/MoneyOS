@@ -40,7 +40,7 @@ export function categorizeMerchant(name: string): {
 } {
   const n = name.toLowerCase();
 
-  if (/rumble|payroll|paycheck|salary|gusto|direct dep|ach credit/.test(n))
+  if (/rumble|payroll|paycheck|salary|gusto|direct dep|ach credit|employer payroll/.test(n))
     return { category: "Income", needsReview: false };
   if (/amazon|amzn|target|walmart|etsy|ebay/.test(n))
     return { category: "Convenience / Shopping", needsReview: false };
@@ -148,7 +148,7 @@ export function classifyTransaction(input: ClassifyInput): ClassifyResult {
   // Payroll / ACH income
   if (
     isInflow &&
-    /payroll|paycheck|salary|gusto pay|gusto|direct dep|ach credit|rumble boxing|employer/.test(
+    /payroll|paycheck|salary|gusto pay|gusto|direct dep|ach credit|employer payroll|primary employer/.test(
       text,
     )
   ) {

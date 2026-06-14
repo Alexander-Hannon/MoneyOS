@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Cursor Cloud specific instructions
 
-MoneyOS is a single-service Next.js 16 (App Router) + React 19 + Tailwind v4 app. It is AJ's private finance command center, organized around one question: "What is the next responsible financial action?"
+MoneyOS is a single-service Next.js 16 (App Router) + React 19 + Tailwind v4 app — a personal finance command center by Apalym, organized around one question: "What is the next responsible financial action?"
 
 By design there is **no database and no production auth yet** — manual data is editable in-browser (`localStorage`). Plaid is **sandbox-only** with server-side in-memory tokens (dev). Don't add live Plaid, Prisma, or production auth unless the spec changes — but Phase 6 added security **scaffolding** in `docs/security/`.
 
@@ -48,3 +48,11 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - **Transaction classification:** `TransactionClassification` on `MoneyTransaction`; `classifyTransaction()` / `normalizePlaidTransaction()` in `src/lib/transaction-utils.ts` + `src/lib/plaid/normalize.ts`. Monthly spending excludes transfers, credit card payments, loan payments, deposits, and income. Review = true uncategorized items only (`shouldCountAsReview`).
 - **Security docs (templates, not production claims):** `docs/security/` — policies, Plaid notes, production checklist, `SECURE_STORAGE_PLAN.md`. Production requires auth, MFA, encrypted DB, consent logging — not implemented yet.
 - **Deprecated:** `PlaidProvider` in `plaid-context.tsx` is a no-op passthrough; `usePlaid()` re-exports from financial data. Spending section still has `ConnectBankCard`/`PlaidStatusCard` but primary control is the header.
+
+### Phase 7 (productization + AI Money Agent)
+
+- **Branding:** Header tagline "Personal finance command center"; footer "MoneyOS by Apalym · Development / Sandbox mode". No personal names in UI.
+- **Demo seed data:** centralized in `src/lib/data/demo-user-data.ts` (generic labels); mock-* files re-export. Marked as demo/local development data.
+- **AI layer (server-side):** `src/lib/ai/` — types, prompts, `money-agent-service.ts`. Routes: `/api/ai/money-brief`, `/api/ai/explain-alert`, `/api/ai/classify-transaction`. Env: `AI_PROVIDER=mock` (default), `AI_API_KEY`, `AI_MODEL` in `.env.local` — never client-side.
+- **UI:** `MoneyAgentBrief` (dashboard + alerts header), `ExplainAlertButton` on alerts, `SuggestCategoryButton` on review transactions (session-only approve). Disclaimer: "AI-generated guidance. Review before making financial decisions."
+- **Safety:** `docs/security/AI_MONEY_AGENT_SAFETY.md` — AI never moves/spends/invests or makes final decisions. Mock responses when no API key.

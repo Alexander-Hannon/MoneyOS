@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Terms of Use · MoneyOS",
-  description: "Draft terms of use for MoneyOS (development phase).",
+  description: "Terms of use draft for MoneyOS by Apalym.",
 };
 
 export default function TermsPage() {
@@ -17,8 +17,8 @@ export default function TermsPage() {
         Terms of Use (Draft)
       </h1>
       <p className="mt-2 rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
-        Development draft — not legal advice. Features and security controls may
-        change. Sandbox only — not live bank data.
+        Development draft for MoneyOS by Apalym — not legal advice. Sandbox /
+        demo mode only.
       </p>
 
       <article className="prose prose-invert mt-8 max-w-none space-y-4 text-sm text-muted-foreground [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground">

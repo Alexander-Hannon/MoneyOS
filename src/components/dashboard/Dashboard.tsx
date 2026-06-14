@@ -14,6 +14,7 @@ import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
 import { mockFinancials } from "@/lib/data/mock-financials";
 import { mockSpendingLater } from "@/lib/data/mock-spending-later";
+import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { incomeVsSpendingTrend } from "@/lib/transaction-utils";
@@ -40,6 +41,9 @@ export function Dashboard() {
             </p>
             <div className="mt-2">
               <NextResponsibleAction action={action} />
+            </div>
+            <div className="mt-3">
+              <MoneyAgentBrief />
             </div>
           </div>
 
@@ -106,10 +110,8 @@ export function Dashboard() {
         </section>
 
         <footer className="pt-2 text-center text-xs text-muted-foreground/60">
-          MoneyOS · {fd.dataSourceBadge}
-          {fd.plaidConnected
-            ? " · Plaid sandbox — not live bank data"
-            : " · local manual data, editable in your browser"}
+          MoneyOS by Apalym · Development / Sandbox mode
+          {fd.plaidConnected ? " · Plaid sandbox data" : " · Demo / manual data"}
         </footer>
       </main>
     </div>

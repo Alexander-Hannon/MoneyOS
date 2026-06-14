@@ -1,6 +1,6 @@
 import type { PlannedExpense } from "@/types/money";
 
-// Future / planned spending AJ wants to stay ahead of. Mock values.
+// Future / planned spending — demo seed data.
 export const mockSpendingLater: PlannedExpense[] = [
   {
     id: "home-insurance-balance",
@@ -28,12 +28,12 @@ export const mockSpendingLater: PlannedExpense[] = [
     notes: "Tires + service later this year.",
   },
   {
-    id: "ta-onboarding",
-    name: "TA start-up costs",
+    id: "secondary-onboarding",
+    name: "Secondary job start-up costs",
     amount: null,
     targetDate: "2026-08-12",
     category: "Work",
     status: "planned",
-    notes: "Possible upfront costs when the TA role begins.",
+    notes: "Possible upfront costs when secondary income begins (demo).",
   },
 ];

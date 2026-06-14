@@ -70,7 +70,7 @@ export function IncomeForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       <Field label="Source" required error={errors.source}>
-        <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Rumble Boxing" />
+        <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Primary job income" />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">

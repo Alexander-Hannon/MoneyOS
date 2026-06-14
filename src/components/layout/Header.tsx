@@ -27,7 +27,7 @@ export function Header() {
               Money<span className="text-primary">OS</span>
             </p>
             <p className="text-xs text-muted-foreground">
-              AJ Money Command Center
+              Personal finance command center
             </p>
           </div>
         </div>
@@ -41,11 +41,11 @@ export function Header() {
             onClick={() => {
               if (
                 window.confirm(
-                  "Reset all manual data to the default mock values? Your local edits will be lost. Plaid sandbox connection is not affected.",
+                  "Reset demo manual data to defaults? Your local edits will be lost. Plaid sandbox connection is not affected.",
                 )
               ) {
                 resetAll();
-                toast("Manual data reset to defaults");
+                toast("Demo data reset to defaults");
               }
             }}
             className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
