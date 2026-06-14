@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Privacy Policy · MoneyOS",
-  description: "Draft privacy policy for MoneyOS (development phase).",
+  description: "Privacy policy draft for MoneyOS by Apalym.",
 };
 
 export default function PrivacyPage() {
@@ -17,9 +17,8 @@ export default function PrivacyPage() {
         Privacy Policy (Draft)
       </h1>
       <p className="mt-2 rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
-        Development draft — not legal advice. MoneyOS is not yet in production.
-        Live consumer financial data should not be used until production controls
-        are complete.
+        Development draft for MoneyOS by Apalym — not legal advice. Sandbox /
+        demo mode only until production controls are complete.
       </p>
 
       <article className="prose prose-invert mt-8 max-w-none space-y-4 text-sm text-muted-foreground [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground">

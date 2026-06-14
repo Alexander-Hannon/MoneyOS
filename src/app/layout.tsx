@@ -18,8 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MoneyOS",
-  description:
-    "Private personal finance dashboard for bills, income, subscriptions, spending alerts, and Money Agent reviews.",
+  description: "Personal finance command center by Apalym",
 };
 
 export default function RootLayout({

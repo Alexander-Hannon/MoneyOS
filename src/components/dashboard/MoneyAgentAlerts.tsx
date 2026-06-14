@@ -20,6 +20,8 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RowActions } from "@/components/shared/RowActions";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ExplainAlertButton } from "@/components/ai/ExplainAlertButton";
+import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { AlertForm } from "@/components/forms/AlertForm";
 import { sortAlerts, toneForAlertSeverity } from "@/lib/money-utils";
 import { useMoneyData } from "@/lib/storage/store";
@@ -74,15 +76,18 @@ export function MoneyAgentAlerts() {
           description="Decisions and watch-items, ranked by urgency"
           meta={`${activeReviewCount} need review`}
           action={
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              <Plus /> Add
-            </Button>
+            <div className="flex items-center gap-2">
+              <MoneyAgentBrief compact />
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
+                <Plus /> Add
+              </Button>
+            </div>
           }
         />
 
@@ -173,6 +178,7 @@ export function MoneyAgentAlerts() {
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-border/50 pt-2.5">
+                    <ExplainAlertButton alert={alert} />
                     {alert.status !== "active" && (
                       <button
                         type="button"
@@ -221,7 +227,7 @@ export function MoneyAgentAlerts() {
         open={open}
         onClose={() => setOpen(false)}
         title={editing ? "Edit alert" : "Add alert"}
-        description="Stored locally in your browser."
+        description="Stored locally in your browser (demo / manual data)."
       >
         <AlertForm
           initial={editing ?? undefined}

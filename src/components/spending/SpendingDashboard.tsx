@@ -32,6 +32,7 @@ import {
 } from "@/components/spending/SpendingByCategoryChart";
 import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
+import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
@@ -44,6 +45,7 @@ import {
   transactionsNeedingReview,
   transferPaymentTotal,
 } from "@/lib/transaction-utils";
+import type { TransactionCategory } from "@/types/transactions";
 
 function StatTile({
   label,
@@ -84,6 +86,9 @@ export function SpendingDashboard() {
   const txns = fd.transactions;
   const hasData = txns.length > 0;
   const [showTransferNote, setShowTransferNote] = useState(true);
+  const [categoryOverrides, setCategoryOverrides] = useState<
+    Record<string, TransactionCategory>
+  >({});
 
   const spending = fd.spendingSummary.monthlySpending;
   const income = fd.spendingSummary.monthlyIncome;
@@ -305,7 +310,14 @@ export function SpendingDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recent.map((t) => (
+                    {recent.map((t) => {
+                      const displayCategory =
+                        categoryOverrides[t.id] ??
+                        (t.classification === "review" ? "Review" : t.category);
+                      const needsReview =
+                        t.classification === "review" && !categoryOverrides[t.id];
+
+                      return (
                       <TableRow key={t.id}>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                           {formatDate(t.date)}
@@ -320,13 +332,20 @@ export function SpendingDashboard() {
                         </TableCell>
                         <TableCell>
                           <StatusBadge
-                            label={
-                              t.classification === "review"
-                                ? "Review"
-                                : t.category
-                            }
-                            tone={t.needsReview ? "warning" : "neutral"}
+                            label={displayCategory}
+                            tone={needsReview ? "warning" : "neutral"}
                           />
+                          {needsReview && (
+                            <SuggestCategoryButton
+                              transaction={t}
+                              onApprove={(cat) =>
+                                setCategoryOverrides((prev) => ({
+                                  ...prev,
+                                  [t.id]: cat,
+                                }))
+                              }
+                            />
+                          )}
                         </TableCell>
                         <TableCell
                           className={`text-right tabular-nums whitespace-nowrap ${
@@ -337,7 +356,7 @@ export function SpendingDashboard() {
                           {formatCurrency(Math.abs(t.amount), true)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );})}
                   </TableBody>
                 </Table>
               </div>
