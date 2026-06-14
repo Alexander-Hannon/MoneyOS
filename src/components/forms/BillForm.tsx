@@ -33,6 +33,14 @@ export function BillForm({
   const [paidFrom, setPaidFrom] = useState(initial?.paidFrom ?? "");
   const [status, setStatus] = useState<BillStatus>(initial?.status ?? "unpaid");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [paymentUrl, setPaymentUrl] = useState(initial?.paymentUrl ?? "");
+  const [paymentInstructions, setPaymentInstructions] = useState(
+    initial?.paymentInstructions ?? "",
+  );
+  const [paymentMethod, setPaymentMethod] = useState(
+    initial?.paymentMethod ?? "",
+  );
+  const [payeeName, setPayeeName] = useState(initial?.payeeName ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const amountRequired = amountType !== "variable";
@@ -61,6 +69,10 @@ export function BillForm({
       paidFrom: paidFrom.trim() || "Unassigned",
       status,
       notes: notes.trim() || undefined,
+      paymentUrl: paymentUrl.trim() || undefined,
+      paymentInstructions: paymentInstructions.trim() || undefined,
+      paymentMethod: paymentMethod.trim() || undefined,
+      payeeName: payeeName.trim() || undefined,
     });
   }
 
@@ -143,6 +155,44 @@ export function BillForm({
       <Field label="Notes">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional context" />
       </Field>
+
+      <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3 space-y-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          Payment details (optional)
+        </p>
+        <Field label="Payment URL" hint="Opens in a new tab — MoneyOS does not pay automatically">
+          <Input
+            type="url"
+            value={paymentUrl}
+            onChange={(e) => setPaymentUrl(e.target.value)}
+            placeholder="https://pay.example.com"
+          />
+        </Field>
+        <Field label="Payee name">
+          <Input
+            value={payeeName}
+            onChange={(e) => setPayeeName(e.target.value)}
+            placeholder="Utility company"
+          />
+        </Field>
+        <Field label="Payment method">
+          <Input
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            placeholder="ACH / card / check"
+          />
+        </Field>
+        <Field label="Payment instructions">
+          <Textarea
+            value={paymentInstructions}
+            onChange={(e) => setPaymentInstructions(e.target.value)}
+            placeholder="Login steps, account number last 4, etc."
+          />
+        </Field>
+        <p className="text-[11px] text-muted-foreground">
+          MoneyOS opens payment links only. It does not pay bills automatically.
+        </p>
+      </div>
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" onClick={onCancel}>

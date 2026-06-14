@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Minus, Plus, Receipt } from "lucide-react";
+import { Check, ExternalLink, Minus, Plus, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -85,6 +85,7 @@ export function BillsCommandCenter() {
                 <TableHead>Autopay</TableHead>
                 <TableHead>Paid From</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Payment</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -146,6 +147,36 @@ export function BillsCommandCenter() {
                         </select>
                       </div>
                     </TableCell>
+                    <TableCell>
+                      {bill.paymentUrl ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() =>
+                            window.open(
+                              bill.paymentUrl,
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }
+                        >
+                          <ExternalLink className="size-3" />
+                          Open payment
+                        </Button>
+                      ) : bill.paymentInstructions ? (
+                        <span
+                          className="max-w-[140px] truncate text-xs text-muted-foreground"
+                          title={bill.paymentInstructions}
+                        >
+                          Payment notes
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          No payment link
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end">
                         <RowActions
@@ -167,6 +198,10 @@ export function BillsCommandCenter() {
             </TableBody>
           </Table>
         )}
+
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          MoneyOS opens payment links only. It does not pay bills automatically.
+        </p>
       </CardContent>
 
       <Dialog

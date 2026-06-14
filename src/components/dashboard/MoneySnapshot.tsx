@@ -3,9 +3,11 @@ import {
   CalendarClock,
   Repeat,
   TrendingUp,
-  type LucideIcon,
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import {
+  ClickableStatCard,
+  ClickableStatusCard,
+} from "@/components/shared/ClickableStatCard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { AppMode } from "@/types/app-mode";
 import type {
@@ -22,48 +24,8 @@ import {
   toneForDashboardStatus,
 } from "@/lib/money-utils";
 
-function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  accent,
-  badge,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: LucideIcon;
-  accent: string;
-  badge?: string;
-}) {
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-        <Icon className={`size-4 shrink-0 ${accent}`} />
-      </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
-        {value}
-      </p>
-      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-      {badge && (
-        <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-info/80">
-          {badge}
-        </p>
-      )}
-    </Card>
-  );
-}
-
 export function MoneySnapshot({
   accounts,
-  bills,
-  income,
-  subscriptions,
-  alerts,
   summary,
   incomeSummary,
   plaidConnected,
@@ -79,11 +41,6 @@ export function MoneySnapshot({
   plaidConnected: boolean;
   storedMode: AppMode;
 }) {
-  void bills;
-  void income;
-  void subscriptions;
-  void alerts;
-
   const status = summary.status;
   const label = summary.label;
 
@@ -107,7 +64,8 @@ export function MoneySnapshot({
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-      <StatCard
+      <ClickableStatCard
+        layout="vertical"
         label="Total cash available"
         value={formatCurrency(summary.cashAvailable)}
         hint={
@@ -118,8 +76,10 @@ export function MoneySnapshot({
         icon={Banknote}
         accent="text-primary"
         badge={cashBadge}
+        sectionId="accounts"
       />
-      <StatCard
+      <ClickableStatCard
+        layout="vertical"
         label="Bills due (14 days)"
         value={formatCurrency(summary.billsDue14.total)}
         hint={`${summary.billsDue14.count} bill${summary.billsDue14.count === 1 ? "" : "s"}${
@@ -130,8 +90,10 @@ export function MoneySnapshot({
         icon={CalendarClock}
         accent="text-warning"
         badge={storedMode === "demo" ? "Demo data" : "Local user data"}
+        sectionId="bills"
       />
-      <StatCard
+      <ClickableStatCard
+        layout="vertical"
         label="Income (14 days)"
         value={formatCurrency(summary.income14.total)}
         hint={
@@ -142,41 +104,43 @@ export function MoneySnapshot({
         icon={TrendingUp}
         accent="text-success"
         badge={label}
+        sectionId="income"
       />
-      <StatCard
+      <ClickableStatCard
+        layout="vertical"
         label="Monthly recurring"
         value={formatCurrency(summary.monthlyRecurring)}
         hint="bills + subscriptions + sandbox recurring"
         icon={Repeat}
         accent="text-info"
         badge={label}
+        sectionId="recurring-detected"
       />
-      <Card className="col-span-2 flex flex-col justify-between p-4 lg:col-span-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Current status
-        </span>
-        <div className="mt-2">
-          <StatusBadge
-            label={status}
-            tone={toneForDashboardStatus(status)}
-            className="px-3 py-1 text-sm"
-          />
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            {statusDescription}
+      <ClickableStatusCard
+        label="Current status"
+        sectionId="action-center"
+        className="col-span-2 lg:col-span-1"
+      >
+        <StatusBadge
+          label={status}
+          tone={toneForDashboardStatus(status)}
+          className="px-3 py-1 text-sm"
+        />
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {statusDescription}
+        </p>
+        {summary.cashDataSource === "missing" && !plaidConnected && (
+          <span className="mt-1 inline-block text-xs text-primary">
+            Add accounts →
+          </span>
+        )}
+        {summary.transactionReviewCount > 0 && plaidConnected && (
+          <p className="mt-1 text-[10px] text-warning">
+            {summary.transactionReviewCount} sandbox transaction
+            {summary.transactionReviewCount === 1 ? "" : "s"} need classification
           </p>
-          {summary.cashDataSource === "missing" && !plaidConnected && (
-            <a href="#accounts" className="mt-1 inline-block text-xs text-primary hover:underline">
-              Add accounts
-            </a>
-          )}
-          {summary.transactionReviewCount > 0 && plaidConnected && (
-            <p className="mt-1 text-[10px] text-warning">
-              {summary.transactionReviewCount} sandbox transaction
-              {summary.transactionReviewCount === 1 ? "" : "s"} need classification
-            </p>
-          )}
-        </div>
-      </Card>
+        )}
+      </ClickableStatusCard>
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/form";
+import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/form";
 import type {
   Subscription,
   SubscriptionFrequency,
@@ -33,6 +33,25 @@ export function SubscriptionForm({
     initial?.renewalDate?.slice(0, 10) ?? "",
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [isTrial, setIsTrial] = useState(initial?.isTrial ?? false);
+  const [trialStartDate, setTrialStartDate] = useState(
+    initial?.trialStartDate?.slice(0, 10) ?? "",
+  );
+  const [trialEndDate, setTrialEndDate] = useState(
+    initial?.trialEndDate?.slice(0, 10) ?? "",
+  );
+  const [reminderDaysBeforeTrialEnds, setReminderDaysBeforeTrialEnds] =
+    useState(
+      initial?.reminderDaysBeforeTrialEnds != null
+        ? String(initial.reminderDaysBeforeTrialEnds)
+        : "7",
+    );
+  const [cancellationUrl, setCancellationUrl] = useState(
+    initial?.cancellationUrl ?? "",
+  );
+  const [reminderEnabled, setReminderEnabled] = useState(
+    initial?.reminderEnabled ?? true,
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function submit(e: React.FormEvent) {
@@ -54,6 +73,14 @@ export function SubscriptionForm({
       status,
       renewalDate: renewalDate || undefined,
       notes: notes.trim() || undefined,
+      isTrial,
+      trialStartDate: isTrial && trialStartDate ? trialStartDate : undefined,
+      trialEndDate: isTrial && trialEndDate ? trialEndDate : undefined,
+      reminderDaysBeforeTrialEnds: isTrial
+        ? Number(reminderDaysBeforeTrialEnds) || 7
+        : undefined,
+      cancellationUrl: cancellationUrl.trim() || undefined,
+      reminderEnabled,
     });
   }
 
@@ -114,6 +141,58 @@ export function SubscriptionForm({
           onChange={(e) => setRenewalDate(e.target.value)}
         />
       </Field>
+
+      <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3 space-y-3">
+        <Checkbox
+          label="This is a free trial"
+          checked={isTrial}
+          onChange={(e) => setIsTrial(e.target.checked)}
+        />
+        {isTrial && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Trial start">
+                <Input
+                  type="date"
+                  value={trialStartDate}
+                  onChange={(e) => setTrialStartDate(e.target.value)}
+                />
+              </Field>
+              <Field label="Trial end" required={isTrial}>
+                <Input
+                  type="date"
+                  value={trialEndDate}
+                  onChange={(e) => setTrialEndDate(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Field label="Remind days before trial ends">
+              <Input
+                type="number"
+                min="1"
+                max="30"
+                value={reminderDaysBeforeTrialEnds}
+                onChange={(e) =>
+                  setReminderDaysBeforeTrialEnds(e.target.value)
+                }
+              />
+            </Field>
+          </>
+        )}
+        <Field label="Cancel / manage URL" hint="Opens in a new tab — MoneyOS does not cancel automatically">
+          <Input
+            type="url"
+            value={cancellationUrl}
+            onChange={(e) => setCancellationUrl(e.target.value)}
+            placeholder="https://account.example.com/cancel"
+          />
+        </Field>
+        <Checkbox
+          label="Enable renewal reminders"
+          checked={reminderEnabled}
+          onChange={(e) => setReminderEnabled(e.target.checked)}
+        />
+      </div>
 
       <Field label="Notes">
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional context" />

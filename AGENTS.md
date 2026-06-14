@@ -78,3 +78,22 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - **Consent:** Plaid consent still saved locally; also POSTs to `/api/user/consent` when signed in + DB configured.
 - **Plaid sandbox:** unchanged — in-memory token store; no encrypted token persistence in Phase 9.
 - **Local mode preserved:** localStorage CRUD, demo mode, export/import, onboarding all still work without auth/DB.
+
+### Phase 9.1 (hotfix — Prisma env + honest charts + manual accounts)
+
+- **Prisma env:** `docs/development/DATABASE_SETUP.md`; `npm run db:push` / `db:studio` load `.env.local` via dotenv-cli.
+- **Chart honesty:** `src/lib/chart-data.ts` — `hasHistoricalTransactionData`, mode-aware `CashflowCard`, manual projection card (no fake Jan–Jun trends in local mode).
+- **Manual accounts:** `moneyos:manual-accounts` in localStorage; `ManualAccountsSection` + `AccountForm`; cash totals from manual accounts in local_user mode.
+- **Income/status fixes:** improved `expectedIncomeWithin`, `expectedMonthlyIncome`, `Setup Needed` status when cash accounts missing; AI brief includes chart/projection context.
+
+### Phase 9.2 (product utility + actionability)
+
+- **Clickable summary cards:** `ClickableStatCard` + `scrollToSection()` navigate to bills, income, subscriptions, alerts, accounts, action center.
+- **Bill payment fields:** optional `paymentUrl`, instructions, etc.; Bills Command Center shows Open payment / Payment notes.
+- **Subscription trials:** trial fields + Trial badge; `trial_ending` synced alerts.
+- **Alert sync engine:** `src/lib/alert-sync.ts` — deterministic `sync:*` ids; merges with user alerts; review count from active synced alerts.
+- **Recurring detection:** `src/lib/recurring-detection.ts` + `DetectedRecurringItems` — suggestions only, user approval required.
+- **Action Center:** `src/lib/action-center.ts` + `#action-center` section + nav item.
+- **Spending Later CRUD:** `SpendingLaterForm` + store CRUD; extended `PlannedExpense` fields.
+- **Multi-institution UI:** `ConnectedInstitutionsSection` + header dropdown (institution/account counts, sync all, connect another).
+- **Simpler AI brief:** `brief-simple.ts` — status, top 3, risk, next action, visual snapshot; details behind Show details.

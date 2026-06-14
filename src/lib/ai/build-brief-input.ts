@@ -75,9 +75,7 @@ export function buildMoneyBriefInput(
       ? spendingSummary.monthlyIncome
       : dashboardSummary.expectedMonthlyIncome,
     topCategories,
-    reviewItemsCount:
-      dashboardSummary.manualReviewItems +
-      dashboardSummary.transactionReviewCount,
+    reviewItemsCount: fd.syncedReviewCount,
     recurringChargesCount: spendingSummary.recurringCount,
     upcomingObligations,
     activeAlerts: activeAlerts(fd.alerts).map((a) => ({

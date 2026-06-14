@@ -15,6 +15,7 @@ import {
   geminiExplainAlert,
   geminiMoneyBrief,
 } from "@/lib/ai/providers/gemini";
+import { buildSimpleBriefFields } from "@/lib/ai/brief-simple";
 import { categorizeMerchant } from "@/lib/transaction-utils";
 import type { TransactionCategory } from "@/types/transactions";
 
@@ -54,6 +55,7 @@ function formatCurrency(n: number): string {
 
 function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
   const modeNotice = input.modeContext;
+  const simple = buildSimpleBriefFields(input);
 
   if (
     input.modeContext.includes("Empty state") ||
@@ -64,8 +66,18 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
       input.appMode === "local_user")
   ) {
     return {
-    snapshot:
-      "Not enough data yet for a meaningful brief. Add cash accounts, bills, income, or connect a sandbox bank.",
+      ...simple,
+      statusLabel: "Setup Needed",
+      topThreeThings: [
+        "Add cash accounts to see available funds.",
+        "Add bills and income for projections.",
+        "Connect sandbox or load demo data to explore.",
+      ],
+      mainRisk: "Not enough data for a meaningful assessment yet.",
+      bestNextAction:
+        "Add at least one bill or income source, or connect Plaid sandbox.",
+      snapshot:
+        "Not enough data yet for a meaningful brief. Add cash accounts, bills, income, or connect a sandbox bank.",
       topRisks: ["Insufficient data — do not treat this as a financial assessment."],
       opportunities: [
         "Add your recurring bills and income sources in MoneyOS.",
@@ -127,6 +139,7 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
       : "No historical transaction chart — do not describe past trends.";
 
   return {
+    ...simple,
     snapshot: `${input.modeContext} · ${input.dataSource} · Cash (${input.cashDataSource}): ${formatCurrency(input.cashAvailable)} · Bills due 14d ${formatCurrency(input.billsDue14Days)} (${input.billsDue14Count}) · ${input.isProjection ? `Projected monthly income ${formatCurrency(input.expectedMonthlyIncome)}` : `Spending ${formatCurrency(input.monthlySpending)}/mo`}${tight ? " · Buffer is getting tight" : ""}. ${trendNote}`,
     topRisks,
     opportunities,

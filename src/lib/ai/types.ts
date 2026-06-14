@@ -38,7 +38,21 @@ export interface MoneyBriefInput {
   expectedMonthlyIncome: number;
 }
 
+export interface MoneyBriefVisualSnapshot {
+  cashAvailable: number;
+  billsDue14: number;
+  income14: number;
+  monthlySpending: number;
+  reviewItemsCount: number;
+  upcomingObligationsCount: number;
+}
+
 export interface MoneyBriefOutput {
+  statusLabel: string;
+  topThreeThings: string[];
+  mainRisk: string;
+  bestNextAction: string;
+  visualSnapshot: MoneyBriefVisualSnapshot;
   snapshot: string;
   topRisks: string[];
   opportunities: string[];

@@ -7,6 +7,7 @@ import {
 } from "@/lib/app-mode";
 import { demoAccounts } from "@/lib/data/demo-user-data";
 import { getMockTransactions } from "@/lib/data/mock-transactions";
+import { countActiveReviewAlerts } from "@/lib/alert-sync";
 import {
   billsDueWithin,
   computeDashboardStatus,
@@ -15,7 +16,6 @@ import {
   hasHighSeverityReview,
   monthlyRecurringCost,
   overdueUnpaidCount,
-  reviewCount,
   totalCashAvailable,
 } from "@/lib/money-utils";
 import type { Bill, Alert, IncomeSource, Subscription } from "@/types/money";
@@ -174,6 +174,7 @@ export type DashboardSummary = {
   monthlyRecurring: number;
   expectedMonthlyIncome: number;
   manualReviewItems: number;
+  syncedReviewCount: number;
   transactionReviewCount: number;
   status: ReturnType<typeof computeDashboardSummaryStatus>;
   label: DataSourceLabel;
@@ -221,7 +222,8 @@ export function computeDashboardSummary(args: {
     monthlyRecurring += sandboxRecurring;
   }
 
-  const manualReviewItems = reviewCount(bills, subscriptions);
+  const manualReviewItems = countActiveReviewAlerts(alerts);
+  const syncedReviewCount = manualReviewItems;
   const transactionReviewCount = transactionsNeedingReview(transactions).length;
 
   const setupIncomplete =
@@ -263,6 +265,7 @@ export function computeDashboardSummary(args: {
     monthlyRecurring,
     expectedMonthlyIncome: monthlyIncomeEstimate,
     manualReviewItems,
+    syncedReviewCount,
     transactionReviewCount,
     status,
     label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
@@ -309,7 +312,7 @@ function computeDashboardSummaryStatus(args: {
     hasHighSeverityReview:
       hasHighSeverityReview(args.alerts) ||
       (args.plaidConnected && args.transactionReviewCount >= 5),
-    reviewItems: args.manualReviewItems + (args.transactionReviewCount > 0 ? 1 : 0),
+    reviewItems: args.manualReviewItems,
   });
 }
 

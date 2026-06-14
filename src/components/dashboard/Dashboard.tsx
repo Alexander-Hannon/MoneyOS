@@ -13,6 +13,9 @@ import { IncomePipeline } from "@/components/dashboard/IncomePipeline";
 import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchlist";
 import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
+import { ActionCenter } from "@/components/dashboard/ActionCenter";
+import { DetectedRecurringItems } from "@/components/dashboard/DetectedRecurringItems";
+import { ConnectedInstitutionsSection } from "@/components/dashboard/ConnectedInstitutionsSection";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
 import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
@@ -88,7 +91,7 @@ export function Dashboard() {
             bills={fd.bills}
             income={fd.income}
             subscriptions={fd.subscriptions}
-            transactionReviewCount={dashboardSummary.transactionReviewCount}
+            reviewCount={fd.syncedReviewCount}
             dataLabel={dashboardSummary.label}
             plaidConnected={fd.plaidConnected}
             storedMode={fd.storedMode}
@@ -133,12 +136,24 @@ export function Dashboard() {
           <SpendingDashboard />
         </section>
 
+        <section id="action-center" className="scroll-mt-20">
+          <ActionCenter />
+        </section>
+
         <section id="alerts" className="scroll-mt-20">
           <MoneyAgentAlerts />
         </section>
 
+        <section id="recurring-detected" className="scroll-mt-20">
+          <DetectedRecurringItems />
+        </section>
+
+        <section id="institutions" className="scroll-mt-20">
+          <ConnectedInstitutionsSection />
+        </section>
+
         <section id="spending-later" className="scroll-mt-20">
-          <SpendingLater items={fd.spendingLater} />
+          <SpendingLater />
         </section>
 
         <footer className="flex flex-col items-center gap-1 pt-2 text-center text-xs text-muted-foreground/60">

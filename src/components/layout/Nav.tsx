@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarClock,
   LayoutDashboard,
+  ListChecks,
   PiggyBank,
   Repeat,
   TrendingUp,
@@ -21,6 +22,7 @@ const items: NavItem[] = [
   { label: "Income", id: "income", icon: TrendingUp },
   { label: "Subscriptions", id: "subscriptions", icon: Repeat },
   { label: "Spending", id: "spending", icon: Wallet },
+  { label: "Action Center", id: "action-center", icon: ListChecks },
   { label: "Alerts", id: "alerts", icon: Bell },
   { label: "Spending Later", id: "spending-later", icon: PiggyBank },
 ];

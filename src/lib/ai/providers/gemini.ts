@@ -16,6 +16,7 @@ import {
   MONEY_BRIEF_USER_PROMPT,
 } from "@/lib/ai/money-agent-prompts";
 import { generateGeminiJson } from "@/lib/ai/providers/gemini-client";
+import { buildSimpleBriefFields } from "@/lib/ai/brief-simple";
 import type { TransactionCategory } from "@/types/transactions";
 
 const TRANSACTION_CATEGORIES: TransactionCategory[] = [
@@ -176,6 +177,7 @@ export async function geminiMoneyBrief(
   });
 
   return {
+    ...buildSimpleBriefFields(input),
     snapshot: payload.snapshot,
     topRisks: payload.topRisks.slice(0, 6),
     opportunities: payload.opportunities.slice(0, 6),

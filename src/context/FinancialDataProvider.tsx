@@ -23,12 +23,16 @@ import {
   type IncomeSummary,
   type SpendingSummary,
 } from "@/lib/data-source";
+import { syncAlerts, countActiveReviewAlerts } from "@/lib/alert-sync";
+import { buildActionItems } from "@/lib/action-center";
+import { detectRecurringSuggestions } from "@/lib/recurring-detection";
 import {
   getModeDisplayLabel,
   resolveEffectiveMode,
 } from "@/lib/app-mode";
 import { useMoneyData } from "@/lib/storage/store";
 import type { Account, Alert, Bill, IncomeSource, PlannedExpense, Subscription } from "@/types/money";
+import type { ActionItem, ConnectedInstitutionDisplay, RecurringSuggestion } from "@/types/actions";
 import type {
   DataSource,
   LinkedAccount,
@@ -67,6 +71,10 @@ export interface FinancialDataContextValue {
   incomeSummary: IncomeSummary;
   dashboardSummary: DashboardSummary;
   spendingSummary: SpendingSummary;
+  syncedReviewCount: number;
+  recurringSuggestions: RecurringSuggestion[];
+  actionItems: ActionItem[];
+  connectedInstitutions: ConnectedInstitutionDisplay[];
 
   plaidConnected: boolean;
 
@@ -91,8 +99,19 @@ async function postJson(url: string, body?: unknown) {
 
 export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const money = useMoneyData();
-  const { bills, income, subscriptions, alerts, spendingLater, appMode: storedMode, manualAccounts } =
-    money;
+  const {
+    bills,
+    income,
+    subscriptions,
+    alerts: storedAlerts,
+    spendingLater,
+    appMode: storedMode,
+    manualAccounts,
+    hydrated,
+    dismissedRecurringIds,
+    dismissedActionIds,
+    replaceAlerts,
+  } = money;
 
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
@@ -109,7 +128,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const plaidConnected = plaidConnectionStatus === "connected";
   const effectiveMode = resolveEffectiveMode(storedMode, plaidConnected);
   const modeLabel = getModeDisplayLabel(storedMode, plaidConnected);
-  const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
+  const manualEmpty = isManualDataEmpty({
+    bills,
+    income,
+    subscriptions,
+    alerts: storedAlerts,
+  });
 
   const loadSandboxData = useCallback(async () => {
     setBusy(true);
@@ -225,6 +249,38 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     storedMode,
   );
 
+  const recurringSuggestions = useMemo(
+    () =>
+      detectRecurringSuggestions({
+        transactions,
+        bills,
+        subscriptions,
+        income,
+        dismissedIds: dismissedRecurringIds,
+      }),
+    [transactions, bills, subscriptions, income, dismissedRecurringIds],
+  );
+
+  const connectedInstitutions = useMemo((): ConnectedInstitutionDisplay[] => {
+    if (!plaidConnected || linkedAccounts.length === 0) return [];
+    const byInstitution = new Map<string, typeof linkedAccounts>();
+    for (const account of linkedAccounts) {
+      const key = account.institution || "Connected bank";
+      const list = byInstitution.get(key) ?? [];
+      list.push(account);
+      byInstitution.set(key, list);
+    }
+    return [...byInstitution.entries()].map(([institutionName, accounts], i) => ({
+      id: `inst-${i}-${institutionName}`,
+      institutionName,
+      accountCount: accounts.length,
+      status: "connected" as const,
+      connectedAt: lastSyncAt ?? new Date().toISOString(),
+      lastSyncAt,
+      source: "plaid_sandbox" as const,
+    }));
+  }, [plaidConnected, linkedAccounts, lastSyncAt]);
+
   const incomeSummary = useMemo(
     () =>
       computeIncomeSummary(
@@ -255,7 +311,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         bills,
         income,
         subscriptions,
-        alerts,
+        alerts: storedAlerts,
         storedMode,
         plaidConnected,
         transactions,
@@ -265,10 +321,92 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       bills,
       income,
       subscriptions,
-      alerts,
+      storedAlerts,
       storedMode,
       plaidConnected,
       transactions,
+    ],
+  );
+
+  const syncedAlerts = useMemo(
+    () =>
+      syncAlerts({
+        bills,
+        income,
+        subscriptions,
+        spendingLater,
+        accounts,
+        transactions,
+        recurringSuggestions,
+        dashboardStatus: dashboardSummary.status,
+        cashAvailable: dashboardSummary.cashAvailable,
+        existingAlerts: storedAlerts,
+      }),
+    [
+      bills,
+      income,
+      subscriptions,
+      spendingLater,
+      accounts,
+      transactions,
+      recurringSuggestions,
+      dashboardSummary.status,
+      dashboardSummary.cashAvailable,
+      storedAlerts,
+    ],
+  );
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const storedSynced = storedAlerts.filter(
+      (a) => a.id.startsWith("sync:") || a.syncType,
+    );
+    const nextSynced = syncedAlerts.filter(
+      (a) => a.id.startsWith("sync:") || a.syncType,
+    );
+    const userAlerts = storedAlerts.filter(
+      (a) => !a.id.startsWith("sync:") && !a.syncType,
+    );
+    const nextUser = syncedAlerts.filter(
+      (a) => !a.id.startsWith("sync:") && !a.syncType,
+    );
+    const same =
+      storedSynced.length === nextSynced.length &&
+      userAlerts.length === nextUser.length &&
+      storedSynced.every((a, i) => {
+        const b = nextSynced[i];
+        return (
+          b &&
+          a.id === b.id &&
+          a.status === b.status &&
+          a.title === b.title
+        );
+      });
+    if (!same) {
+      replaceAlerts(syncedAlerts);
+    }
+  }, [hydrated, syncedAlerts, storedAlerts, replaceAlerts]);
+
+  const alerts = syncedAlerts;
+  const syncedReviewCount = countActiveReviewAlerts(alerts);
+
+  const actionItems = useMemo(
+    () =>
+      buildActionItems({
+        alerts,
+        bills,
+        subscriptions,
+        spendingLater,
+        recurringSuggestions,
+        dismissedActionIds,
+      }),
+    [
+      alerts,
+      bills,
+      subscriptions,
+      spendingLater,
+      recurringSuggestions,
+      dismissedActionIds,
     ],
   );
 
@@ -298,6 +436,10 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       incomeSummary,
       dashboardSummary,
       spendingSummary,
+      syncedReviewCount,
+      recurringSuggestions,
+      actionItems,
+      connectedInstitutions,
       plaidConnected,
       handleLinkSuccess,
       syncTransactions,
@@ -328,6 +470,10 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       incomeSummary,
       dashboardSummary,
       spendingSummary,
+      syncedReviewCount,
+      recurringSuggestions,
+      actionItems,
+      connectedInstitutions,
       plaidConnected,
       handleLinkSuccess,
       syncTransactions,

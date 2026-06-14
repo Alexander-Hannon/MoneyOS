@@ -46,11 +46,18 @@ export interface Bill {
   amountType: BillAmountType;
   /** ISO date string (YYYY-MM-DD). */
   dueDate: string;
+  nextDueDate?: string;
   frequency: BillFrequency;
   autopay: boolean;
   paidFrom: string;
   status: BillStatus;
   notes?: string;
+  paymentUrl?: string;
+  paymentMethod?: string;
+  paymentInstructions?: string;
+  payeeName?: string;
+  reminderDaysBeforeDue?: number;
+  lastPaidAt?: string;
 }
 
 export type IncomeAmountType = "fixed" | "variable" | "commission" | "unknown";
@@ -93,6 +100,12 @@ export interface Subscription {
   /** ISO date of the next renewal. */
   renewalDate?: string;
   notes?: string;
+  isTrial?: boolean;
+  trialStartDate?: string;
+  trialEndDate?: string;
+  reminderDaysBeforeTrialEnds?: number;
+  cancellationUrl?: string;
+  reminderEnabled?: boolean;
 }
 
 export type AlertSeverity = "low" | "medium" | "high";
@@ -107,6 +120,18 @@ export type AlertCategory =
 
 export type AlertStatus = "active" | "reviewed" | "archived";
 
+export type SyncedAlertType =
+  | "bill_due_soon"
+  | "bill_overdue"
+  | "variable_bill_review"
+  | "subscription_review"
+  | "trial_ending"
+  | "recurring_candidate_detected"
+  | "transaction_needs_classification"
+  | "spending_later_due"
+  | "low_cash_coverage"
+  | "setup_needed";
+
 export interface Alert {
   id: string;
   title: string;
@@ -116,6 +141,10 @@ export interface Alert {
   suggestedAction: string;
   reviewRequired: boolean;
   status: AlertStatus;
+  /** Deterministic id for synced alerts — prefix sync: */
+  syncType?: SyncedAlertType;
+  userCreated?: boolean;
+  sourceId?: string;
 }
 
 export type DashboardStatus =
@@ -126,18 +155,31 @@ export type DashboardStatus =
   | "Review Needed"
   | "Setup Needed";
 
-export type PlannedExpenseStatus = "planned" | "saving" | "scheduled";
+export type PlannedExpensePriority = "low" | "medium" | "high";
+
+export type PlannedExpenseStatus =
+  | "planned"
+  | "saving"
+  | "scheduled"
+  | "funded"
+  | "completed"
+  | "paused";
 
 export interface PlannedExpense {
   id: string;
+  /** Display title (legacy field name: name). */
   name: string;
+  title?: string;
   /** null = amount not yet known. */
   amount: number | null;
   /** ISO date the money is needed, if known. */
   targetDate?: string;
   category: string;
   status: PlannedExpenseStatus;
+  priority?: PlannedExpensePriority;
   notes?: string;
+  fundingSource?: string;
+  reminderDate?: string;
 }
 
 /** Manual, mock financial estimates (not from live accounts). */
