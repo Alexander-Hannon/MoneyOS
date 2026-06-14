@@ -1,5 +1,6 @@
 "use client";
 
+import { LocalDataMigrationDialog } from "@/components/auth/LocalDataMigrationDialog";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
 import { AppModeProvider } from "@/context/AppModeProvider";
 import { FinancialDataProvider } from "@/context/FinancialDataProvider";
@@ -11,6 +12,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <AppModeProvider>
         <FinancialDataProvider>
           <OnboardingDialog />
+          <LocalDataMigrationDialog />
           {children}
         </FinancialDataProvider>
       </AppModeProvider>

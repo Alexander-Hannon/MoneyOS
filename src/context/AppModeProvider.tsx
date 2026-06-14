@@ -99,6 +99,22 @@ export function AppModeProvider({
     const next = [record, ...loadConsentHistory()].slice(0, 20);
     saveConsentHistory(next);
     setConsentHistory(next);
+
+    void fetch("/api/user/consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        consentType: record.consentType,
+        acceptedAt: record.acceptedAt,
+        version: record.version,
+        textSummary: record.textSummary,
+        dataScopes: record.dataScopes,
+        plaidProducts: record.plaidProducts,
+      }),
+    }).catch(() => {
+      // Local-only when auth/database is unavailable or user is signed out.
+    });
+
     return record;
   }, []);
 

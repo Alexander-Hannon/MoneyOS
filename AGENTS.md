@@ -67,3 +67,14 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - **Consent:** `recordPlaidConsent()` on Plaid consent accept → `moneyos:consent-history` localStorage. Production must move server-side.
 - **User types (future auth):** `src/types/user.ts` — UserProfile, ConsentRecord, etc. Not wired to auth yet.
 - **AI brief:** mode-aware via `modeContext` in brief input; empty state returns cautious guidance.
+
+### Phase 9 (auth + database foundation)
+
+- **Auth (optional):** Clerk via `AuthProvider` when `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` set. Routes: `/sign-in`, `/sign-up`. Header `AuthHeaderControls` (Local Mode / Sign in / UserButton). App works without Clerk.
+- **Database (optional):** Prisma + Postgres (`DATABASE_URL`). Schema in `prisma/schema.prisma`. Client: `src/lib/db/prisma.ts` (`getPrisma()` returns null when unset).
+- **DB services:** `src/lib/db/users.ts`, `bills.ts`, `income.ts`, `subscriptions.ts`, `alerts.ts`, `consent.ts`, `accounts.ts`, `transactions.ts` — all scoped by authenticated user id.
+- **API routes:** `/api/user/status`, `profile`, `settings`, `bills`, `income`, `subscriptions`, `alerts`, `consent`, `migrate` — require auth when Clerk+DB configured; return 503 when not.
+- **Migration:** `LocalDataMigrationDialog` on first sign-in with local data — save to account / keep local / use account data (user confirmation required).
+- **Consent:** Plaid consent still saved locally; also POSTs to `/api/user/consent` when signed in + DB configured.
+- **Plaid sandbox:** unchanged — in-memory token store; no encrypted token persistence in Phase 9.
+- **Local mode preserved:** localStorage CRUD, demo mode, export/import, onboarding all still work without auth/DB.

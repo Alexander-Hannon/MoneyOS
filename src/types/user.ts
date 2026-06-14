@@ -1,6 +1,6 @@
 import type { AppMode } from "@/types/app-mode";
 
-/** Future authenticated user profile — not wired to auth yet. */
+/** Authenticated user profile — synced to Postgres when Clerk + DATABASE_URL configured. */
 export interface UserProfile {
   id: string;
   email?: string;
