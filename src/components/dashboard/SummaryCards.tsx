@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import type { AppMode } from "@/types/app-mode";
 import type {
   Bill,
   IncomeSource,
@@ -65,6 +66,7 @@ export function SummaryCards({
   transactionReviewCount = 0,
   dataLabel,
   plaidConnected = false,
+  storedMode = "local_user",
 }: {
   bills: Bill[];
   income: IncomeSource[];
@@ -72,11 +74,19 @@ export function SummaryCards({
   transactionReviewCount?: number;
   dataLabel?: DataSourceLabel;
   plaidConnected?: boolean;
+  storedMode?: AppMode;
 }) {
   const subsTotal = monthlySubscriptionTotal(subscriptions);
   const thisMonth = billsDueThisMonth(bills);
   const reviews = reviewCount(bills, subscriptions);
   const upcoming = upcomingIncomeSources(income);
+
+  const manualBadge =
+    storedMode === "demo"
+      ? "Demo data"
+      : dataLabel === "Empty — add your data"
+        ? "Local user data"
+        : "Local user data";
 
   const reviewHint =
     transactionReviewCount > 0 && plaidConnected
@@ -93,7 +103,7 @@ export function SummaryCards({
         value={formatCurrency(subsTotal, true)}
         hint={`${subscriptions.length} services`}
         accent="text-info"
-        badge={dataLabel === "Mixed manual + sandbox" ? "Manual estimate" : dataLabel}
+        badge={dataLabel ?? manualBadge}
       />
       <MiniCard
         icon={CalendarClock}
@@ -101,7 +111,7 @@ export function SummaryCards({
         value={formatCurrency(thisMonth.total)}
         hint={`${thisMonth.count} bill${thisMonth.count === 1 ? "" : "s"}`}
         accent="text-warning"
-        badge="Manual estimate"
+        badge={manualBadge}
       />
       <MiniCard
         icon={ClipboardCheck}
@@ -109,7 +119,7 @@ export function SummaryCards({
         value={String(reviews + (plaidConnected ? transactionReviewCount : 0))}
         hint={reviewHint}
         accent="text-destructive"
-        badge={plaidConnected ? "Mixed manual + sandbox" : "Manual estimate"}
+        badge={plaidConnected ? (dataLabel ?? "Plaid Sandbox") : manualBadge}
       />
       <MiniCard
         icon={TrendingUp}
@@ -117,7 +127,7 @@ export function SummaryCards({
         value={String(upcoming.length)}
         hint={`${income.filter((i) => i.active).length} active now`}
         accent="text-success"
-        badge="Manual estimate"
+        badge={manualBadge}
       />
     </section>
   );

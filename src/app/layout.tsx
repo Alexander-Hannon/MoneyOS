@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { MoneyDataProvider } from "@/lib/storage/store";
+import { AppProviders } from "@/components/providers/AppProviders";
 import { ToastProvider } from "@/components/ui/toast";
 import { HighlightProvider } from "@/components/providers/highlight";
-import { FinancialDataProvider } from "@/context/FinancialDataProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,9 +33,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ToastProvider>
           <HighlightProvider>
-            <MoneyDataProvider>
-              <FinancialDataProvider>{children}</FinancialDataProvider>
-            </MoneyDataProvider>
+            <AppProviders>{children}</AppProviders>
           </HighlightProvider>
         </ToastProvider>
       </body>

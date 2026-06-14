@@ -1,11 +1,19 @@
 // Thin, framework-agnostic localStorage layer. Safe to import on the server
 // (every function no-ops when `window` is undefined).
 
+import type { AppMode } from "@/types/app-mode";
+import type { ConsentRecord } from "@/types/user";
+
 export const STORAGE_KEYS = {
   bills: "moneyos:bills",
   income: "moneyos:income",
   subscriptions: "moneyos:subscriptions",
   alerts: "moneyos:alerts",
+  spendingLater: "moneyos:spending-later",
+  appMode: "moneyos:app-mode",
+  onboardingCompleted: "moneyos:onboarding-completed",
+  consentHistory: "moneyos:consent-history",
+  pendingPlaidConnect: "moneyos:pending-plaid-connect",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -35,8 +43,90 @@ export function saveCollection<T>(key: StorageKey, data: T[]): void {
   }
 }
 
-/** Remove all MoneyOS data so defaults are loaded again. */
+export function loadString(key: StorageKey): string | null {
+  if (!isBrowser()) return null;
+  return window.localStorage.getItem(key);
+}
+
+export function saveString(key: StorageKey, value: string): void {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(key, value);
+}
+
+export function loadBoolean(key: StorageKey): boolean {
+  return loadString(key) === "true";
+}
+
+export function saveBoolean(key: StorageKey, value: boolean): void {
+  saveString(key, value ? "true" : "false");
+}
+
+export function loadAppModeFromStorage(): AppMode | null {
+  const raw = loadString(STORAGE_KEYS.appMode);
+  if (
+    raw === "demo" ||
+    raw === "local_user" ||
+    raw === "plaid_sandbox" ||
+    raw === "future_plaid_live"
+  ) {
+    return raw;
+  }
+  return null;
+}
+
+export function saveAppModeToStorage(mode: AppMode): void {
+  saveString(STORAGE_KEYS.appMode, mode);
+}
+
+export function loadConsentHistory(): ConsentRecord[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEYS.consentHistory);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ConsentRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveConsentHistory(records: ConsentRecord[]): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEYS.consentHistory,
+      JSON.stringify(records),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+/** True if any user-editable collection has been saved. */
+export function hasExistingUserData(): boolean {
+  if (!isBrowser()) return false;
+  return [
+    STORAGE_KEYS.bills,
+    STORAGE_KEYS.income,
+    STORAGE_KEYS.subscriptions,
+    STORAGE_KEYS.alerts,
+  ].some((key) => window.localStorage.getItem(key) !== null);
+}
+
+/** Remove all MoneyOS data collections (not app config). */
 export function clearAllCollections(): void {
+  if (!isBrowser()) return;
+  [
+    STORAGE_KEYS.bills,
+    STORAGE_KEYS.income,
+    STORAGE_KEYS.subscriptions,
+    STORAGE_KEYS.alerts,
+    STORAGE_KEYS.spendingLater,
+  ].forEach((key) => window.localStorage.removeItem(key));
+}
+
+/** Remove everything including mode and onboarding flags. */
+export function clearAllMoneyOSData(): void {
   if (!isBrowser()) return;
   Object.values(STORAGE_KEYS).forEach((key) =>
     window.localStorage.removeItem(key),

@@ -3,11 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinancialData } from "@/hooks/useFinancialData";
-import {
-  dataSourceBadgeText,
-  formatLastSync,
-  plaidStatusLabel,
-} from "@/lib/data-source";
+import { formatLastSync, plaidStatusLabel } from "@/lib/data-source";
 
 export function PlaidStatusCard() {
   const fd = useFinancialData();
@@ -32,7 +28,7 @@ export function PlaidStatusCard() {
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Data source</dt>
-          <dd className="font-medium">{dataSourceBadgeText(fd.plaidConnected)}</dd>
+          <dd className="font-medium">{fd.dataSourceBadge}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Last sync</dt>

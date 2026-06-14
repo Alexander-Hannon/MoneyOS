@@ -5,7 +5,7 @@
  * Production data will come from user input, Plaid, and a database later.
  */
 
-import type { Account, Alert, Bill, IncomeSource } from "@/types/money";
+import type { Account, Alert, Bill, IncomeSource, PlannedExpense, Subscription } from "@/types/money";
 import { daysFromNow, nextMonthlyDate } from "@/lib/money-utils";
 
 export const DEMO_DATA_NOTICE =
@@ -286,5 +286,103 @@ export const demoAlerts: Alert[] = [
     suggestedAction: "Re-balance the budget once secondary income begins.",
     reviewRequired: false,
     status: "active",
+  },
+];
+
+export function getDemoSubscriptions(): Subscription[] {
+  return [
+    {
+      id: "meal-tracker",
+      name: "Meal Tracker",
+      amount: 11.99,
+      frequency: "annual",
+      category: "Fitness",
+      status: "keep",
+      renewalDate: daysFromNow(120),
+    },
+    {
+      id: "sleep-tracker",
+      name: "Sleep Tracker",
+      amount: 2.99,
+      frequency: "monthly",
+      category: "Fitness",
+      status: "keep",
+      renewalDate: daysFromNow(10),
+    },
+    {
+      id: "cursor",
+      name: "Cursor",
+      amount: 20,
+      frequency: "monthly",
+      category: "Business / Productivity",
+      status: "keep",
+      renewalDate: daysFromNow(16),
+    },
+    {
+      id: "icloud",
+      name: "iCloud",
+      amount: 9.99,
+      frequency: "monthly",
+      category: "Tech",
+      status: "keep",
+      renewalDate: daysFromNow(20),
+    },
+    {
+      id: "amazon-prime",
+      name: "Amazon Prime",
+      amount: 14,
+      frequency: "monthly",
+      category: "Convenience",
+      status: "review",
+      renewalDate: daysFromNow(5),
+      notes: "Decide whether Prime still earns its keep.",
+    },
+    {
+      id: "capcut-outlook",
+      name: "CapCut + Outlook",
+      amount: 7.99,
+      frequency: "monthly",
+      category: "Business",
+      status: "review",
+      renewalDate: daysFromNow(12),
+      notes: "Review CapCut specifically.",
+    },
+  ];
+}
+
+export const demoSpendingLater: PlannedExpense[] = [
+  {
+    id: "home-insurance-balance",
+    name: "Home Insurance — full year",
+    amount: 688,
+    targetDate: "2026-09-03",
+    category: "Insurance",
+    status: "saving",
+    notes: "$688 due 9/3, remaining balance due end of year.",
+  },
+  {
+    id: "emergency-buffer",
+    name: "Emergency buffer top-up",
+    amount: 1000,
+    category: "Safety net",
+    status: "saving",
+    notes: "Goal: keep one month of bills in reserve.",
+  },
+  {
+    id: "car-maintenance",
+    name: "Car maintenance fund",
+    amount: 400,
+    category: "Transport",
+    status: "planned",
+    notes: "Tires + service later this year.",
+  },
+  {
+    id: "secondary-onboarding",
+    name: "Secondary job start-up costs",
+    amount: null,
+    targetDate: "2026-08-12",
+    category: "Work",
+    status: "planned",
+    notes: "Possible upfront costs when secondary income begins (demo).",
   },
 ];

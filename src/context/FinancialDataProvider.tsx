@@ -9,11 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { AppMode, ModeDisplayLabel } from "@/types/app-mode";
 import {
   computeDashboardSummary,
   computeIncomeSummary,
   computeSpendingSummary,
   dataSourceBadgeText,
+  isManualDataEmpty,
   resolveAccounts,
   resolveDataSource,
   resolveTransactions,
@@ -21,8 +23,12 @@ import {
   type IncomeSummary,
   type SpendingSummary,
 } from "@/lib/data-source";
+import {
+  getModeDisplayLabel,
+  resolveEffectiveMode,
+} from "@/lib/app-mode";
 import { useMoneyData } from "@/lib/storage/store";
-import type { Account, Alert, Bill, IncomeSource, Subscription } from "@/types/money";
+import type { Account, Alert, Bill, IncomeSource, PlannedExpense, Subscription } from "@/types/money";
 import type {
   DataSource,
   LinkedAccount,
@@ -36,8 +42,13 @@ export interface FinancialDataContextValue {
   busy: boolean;
   error: string | null;
 
+  storedMode: AppMode;
+  effectiveMode: AppMode;
+  modeLabel: ModeDisplayLabel;
+
   dataSource: DataSource;
   dataSourceBadge: string;
+  isManualEmpty: boolean;
 
   plaidConnectionStatus: PlaidConnectionStatus;
   lastSyncAt: string | null;
@@ -50,6 +61,7 @@ export interface FinancialDataContextValue {
   income: IncomeSource[];
   subscriptions: Subscription[];
   alerts: Alert[];
+  spendingLater: PlannedExpense[];
 
   incomeSummary: IncomeSummary;
   dashboardSummary: DashboardSummary;
@@ -77,7 +89,9 @@ async function postJson(url: string, body?: unknown) {
 }
 
 export function FinancialDataProvider({ children }: { children: ReactNode }) {
-  const { bills, income, subscriptions, alerts } = useMoneyData();
+  const money = useMoneyData();
+  const { bills, income, subscriptions, alerts, spendingLater, appMode: storedMode } =
+    money;
 
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
@@ -92,6 +106,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const plaidConnected = plaidConnectionStatus === "connected";
+  const effectiveMode = resolveEffectiveMode(storedMode, plaidConnected);
+  const modeLabel = getModeDisplayLabel(storedMode, plaidConnected);
+  const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
 
   const loadSandboxData = useCallback(async () => {
     setBusy(true);
@@ -194,18 +211,35 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const dataSource = resolveDataSource(plaidConnected);
-  const accounts = resolveAccounts(plaidConnected, linkedAccounts);
-  const transactions = resolveTransactions(plaidConnected, plaidTransactions);
+  const dataSource = resolveDataSource(plaidConnected, storedMode);
+  const accounts = resolveAccounts(plaidConnected, linkedAccounts, storedMode);
+  const transactions = resolveTransactions(
+    plaidConnected,
+    plaidTransactions,
+    storedMode,
+  );
 
   const incomeSummary = useMemo(
-    () => computeIncomeSummary(income, plaidConnected, transactions),
-    [income, plaidConnected, transactions],
+    () =>
+      computeIncomeSummary(
+        income,
+        storedMode,
+        plaidConnected,
+        transactions,
+        manualEmpty,
+      ),
+    [income, storedMode, plaidConnected, transactions, manualEmpty],
   );
 
   const spendingSummary = useMemo(
-    () => computeSpendingSummary(transactions, plaidConnected),
-    [transactions, plaidConnected],
+    () =>
+      computeSpendingSummary(
+        transactions,
+        storedMode,
+        plaidConnected,
+        manualEmpty,
+      ),
+    [transactions, storedMode, plaidConnected, manualEmpty],
   );
 
   const dashboardSummary = useMemo(
@@ -216,10 +250,20 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         income,
         subscriptions,
         alerts,
+        storedMode,
         plaidConnected,
         transactions,
       }),
-    [accounts, bills, income, subscriptions, alerts, plaidConnected, transactions],
+    [
+      accounts,
+      bills,
+      income,
+      subscriptions,
+      alerts,
+      storedMode,
+      plaidConnected,
+      transactions,
+    ],
   );
 
   const value = useMemo<FinancialDataContextValue>(
@@ -228,8 +272,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       configured,
       busy,
       error,
+      storedMode,
+      effectiveMode,
+      modeLabel,
       dataSource,
-      dataSourceBadge: dataSourceBadgeText(plaidConnected),
+      dataSourceBadge: dataSourceBadgeText(storedMode, plaidConnected, manualEmpty),
+      isManualEmpty: manualEmpty,
       plaidConnectionStatus,
       lastSyncAt,
       accounts,
@@ -239,6 +287,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       income,
       subscriptions,
       alerts,
+      spendingLater,
       incomeSummary,
       dashboardSummary,
       spendingSummary,
@@ -253,8 +302,11 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       configured,
       busy,
       error,
+      storedMode,
+      effectiveMode,
+      modeLabel,
       dataSource,
-      plaidConnected,
+      manualEmpty,
       plaidConnectionStatus,
       lastSyncAt,
       accounts,
@@ -264,9 +316,11 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       income,
       subscriptions,
       alerts,
+      spendingLater,
       incomeSummary,
       dashboardSummary,
       spendingSummary,
+      plaidConnected,
       handleLinkSuccess,
       syncTransactions,
       disconnectSandbox,
@@ -303,7 +357,10 @@ export function usePlaidFromFinancialData() {
         : fd.plaidConnectionStatus === "error"
           ? ("error" as const)
           : ("not_connected" as const),
-    source: fd.dataSource === "plaid_sandbox" ? ("plaid_sandbox" as const) : ("mock" as const),
+    source:
+      fd.dataSource === "plaid_sandbox"
+        ? ("plaid_sandbox" as const)
+        : ("mock" as const),
     accounts: fd.linkedAccounts,
     transactions: fd.transactions,
     lastSyncAt: fd.lastSyncAt,

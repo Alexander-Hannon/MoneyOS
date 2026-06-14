@@ -1,13 +1,13 @@
 "use client";
 
-import { CircleDollarSign, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { CircleDollarSign, Settings } from "lucide-react";
 import { BankConnectionControl } from "@/components/layout/BankConnectionControl";
-import { useMoneyData } from "@/lib/storage/store";
-import { useToast } from "@/components/ui/toast";
+import { ModeBadge } from "@/components/layout/ModeBadge";
+import { useFinancialData } from "@/hooks/useFinancialData";
 
 export function Header() {
-  const { resetAll } = useMoneyData();
-  const toast = useToast();
+  const fd = useFinancialData();
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -32,27 +32,18 @@ export function Header() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <ModeBadge label={fd.modeLabel} />
           <BankConnectionControl />
-          <p className="hidden text-xs text-muted-foreground md:block md:text-sm">
+          <Link
+            href="/settings"
+            className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label="Settings"
+          >
+            <Settings className="size-4" />
+          </Link>
+          <p className="hidden text-xs text-muted-foreground lg:block lg:text-sm">
             {today}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              if (
-                window.confirm(
-                  "Reset demo manual data to defaults? Your local edits will be lost. Plaid sandbox connection is not affected.",
-                )
-              ) {
-                resetAll();
-                toast("Demo data reset to defaults");
-              }
-            }}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <RotateCcw className="size-3.5" />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
         </div>
       </div>
     </header>
