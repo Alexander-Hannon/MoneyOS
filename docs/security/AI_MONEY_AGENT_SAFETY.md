@@ -40,7 +40,7 @@ The following require explicit human approval — AI may suggest, never execute:
 
 | Control | Implementation |
 |---------|----------------|
-| Server-side only | `/api/ai/*` routes; `AI_API_KEY` never sent to client |
+| Server-side only | `/api/ai/*` routes; `GEMINI_API_KEY` never sent to client |
 | Sanitized inputs | Aggregated summaries only — no tokens or account numbers |
 | Mock fallback | `AI_PROVIDER=mock` when key missing — app never crashes |
 | No auto-apply | Suggest Category requires user “Approve” click |
@@ -49,8 +49,9 @@ The following require explicit human approval — AI may suggest, never execute:
 ## Provider configuration
 
 - Default: `AI_PROVIDER=mock` (deterministic demo responses)
-- Future: `openai`, `gemini`, `groq` with `AI_API_KEY` server-side only
-- Real providers wired only when env vars present; mock remains fallback
+- Gemini: `AI_PROVIDER=gemini`, `GEMINI_API_KEY`, optional `AI_MODEL` (default `gemini-2.0-flash`) — server-side only
+- Future: `openai`, `groq` with provider-specific keys
+- Real providers wired only when env vars present; mock remains fallback on missing config or API errors
 
 ## Incident response
 

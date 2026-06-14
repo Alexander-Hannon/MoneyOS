@@ -10,15 +10,31 @@ import type {
   MoneyBriefInput,
   MoneyBriefOutput,
 } from "@/lib/ai/types";
+import {
+  geminiClassifyTransaction,
+  geminiExplainAlert,
+  geminiMoneyBrief,
+} from "@/lib/ai/providers/gemini";
 import { categorizeMerchant } from "@/lib/transaction-utils";
 import type { TransactionCategory } from "@/types/transactions";
+
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+
+function resolveApiKey(provider: AIProvider): string | null {
+  if (provider === "gemini") {
+    return process.env.GEMINI_API_KEY?.trim() || null;
+  }
+  return process.env.AI_API_KEY?.trim() || null;
+}
 
 export function getAIConfig(): AIConfig {
   const raw = (process.env.AI_PROVIDER ?? "mock").toLowerCase();
   const provider: AIProvider =
     raw === "openai" || raw === "gemini" || raw === "groq" ? raw : "mock";
-  const apiKey = process.env.AI_API_KEY?.trim() || null;
-  const model = process.env.AI_MODEL?.trim() || null;
+  const apiKey = resolveApiKey(provider);
+  const model =
+    process.env.AI_MODEL?.trim() ||
+    (provider === "gemini" ? DEFAULT_GEMINI_MODEL : null);
 
   return {
     provider,
@@ -178,45 +194,46 @@ function mockClassifyTransaction(
   };
 }
 
-async function callRealProvider<T>(
-  _config: AIConfig,
-  _prompt: string,
-  fallback: () => T,
-): Promise<T> {
-  // Real provider wiring deferred until AI_API_KEY is configured.
-  return fallback();
-}
-
 export async function generateMoneyBrief(
   input: MoneyBriefInput,
 ): Promise<MoneyBriefOutput> {
   const config = getAIConfig();
-  if (!config.configured) {
+  if (!config.configured || config.provider !== "gemini") {
     return mockMoneyBrief(input);
   }
-  return callRealProvider(config, "money-brief", () => mockMoneyBrief(input));
+  try {
+    return await geminiMoneyBrief(config, input);
+  } catch {
+    return mockMoneyBrief(input);
+  }
 }
 
 export async function explainAlert(
   input: ExplainAlertInput,
 ): Promise<ExplainAlertOutput> {
   const config = getAIConfig();
-  if (!config.configured) {
+  if (!config.configured || config.provider !== "gemini") {
     return mockExplainAlert(input);
   }
-  return callRealProvider(config, "explain-alert", () => mockExplainAlert(input));
+  try {
+    return await geminiExplainAlert(config, input);
+  } catch {
+    return mockExplainAlert(input);
+  }
 }
 
 export async function classifyTransactionSuggestion(
   input: ClassifyTransactionInput,
 ): Promise<ClassifyTransactionOutput> {
   const config = getAIConfig();
-  if (!config.configured) {
+  if (!config.configured || config.provider !== "gemini") {
     return mockClassifyTransaction(input);
   }
-  return callRealProvider(config, "classify-transaction", () =>
-    mockClassifyTransaction(input),
-  );
+  try {
+    return await geminiClassifyTransaction(config, input);
+  } catch {
+    return mockClassifyTransaction(input);
+  }
 }
 
 /** Build sanitized brief input shape (usable from API validation). */

@@ -53,7 +53,7 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 
 - **Branding:** Header tagline "Personal finance command center"; footer "MoneyOS by Apalym · Development / Sandbox mode". No personal names in UI.
 - **Demo seed data:** centralized in `src/lib/data/demo-user-data.ts` (generic labels); mock-* files re-export. Marked as demo/local development data.
-- **AI layer (server-side):** `src/lib/ai/` — types, prompts, `money-agent-service.ts`. Routes: `/api/ai/money-brief`, `/api/ai/explain-alert`, `/api/ai/classify-transaction`. Env: `AI_PROVIDER=mock` (default), `AI_API_KEY`, `AI_MODEL` in `.env.local` — never client-side.
+- **AI layer (server-side):** `src/lib/ai/` — types, prompts, `money-agent-service.ts`, Gemini provider in `providers/gemini.ts`. Routes: `/api/ai/money-brief`, `/api/ai/explain-alert`, `/api/ai/classify-transaction`. Env: `AI_PROVIDER=mock` (default) or `gemini` with `GEMINI_API_KEY` + optional `AI_MODEL` in `.env.local` — never client-side. Mock fallback when env vars missing or Gemini errors.
 - **UI:** `MoneyAgentBrief` (dashboard + alerts header), `ExplainAlertButton` on alerts, `SuggestCategoryButton` on review transactions (session-only approve). Disclaimer: "AI-generated guidance. Review before making financial decisions."
 - **Safety:** `docs/security/AI_MONEY_AGENT_SAFETY.md` — AI never moves/spends/invests or makes final decisions. Mock responses when no API key.
 
