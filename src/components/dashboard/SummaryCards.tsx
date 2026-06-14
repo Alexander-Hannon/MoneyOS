@@ -14,11 +14,11 @@ import type {
 } from "@/types/money";
 import type { DataSourceLabel } from "@/lib/data-source";
 import {
+  activeIncomeCount,
   billsDueThisMonth,
   formatCurrency,
   monthlySubscriptionTotal,
   reviewCount,
-  upcomingIncomeSources,
 } from "@/lib/money-utils";
 
 function MiniCard({
@@ -79,7 +79,7 @@ export function SummaryCards({
   const subsTotal = monthlySubscriptionTotal(subscriptions);
   const thisMonth = billsDueThisMonth(bills);
   const reviews = reviewCount(bills, subscriptions);
-  const upcoming = upcomingIncomeSources(income);
+  const activeCount = activeIncomeCount(income);
 
   const manualBadge =
     storedMode === "demo"
@@ -124,8 +124,8 @@ export function SummaryCards({
       <MiniCard
         icon={TrendingUp}
         label="Income sources"
-        value={String(upcoming.length)}
-        hint={`${income.filter((i) => i.active).length} active now`}
+        value={String(income.length)}
+        hint={`${activeCount} active now`}
         accent="text-success"
         badge={manualBadge}
       />

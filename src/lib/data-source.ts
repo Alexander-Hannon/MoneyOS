@@ -11,6 +11,7 @@ import {
   billsDueWithin,
   computeDashboardStatus,
   expectedIncomeWithin,
+  expectedMonthlyIncome,
   hasHighSeverityReview,
   monthlyRecurringCost,
   overdueUnpaidCount,
@@ -69,8 +70,11 @@ export function linkedAccountsToDashboardAccounts(
           : a.type === "cash"
             ? "cash"
             : "checking",
-      balance: a.availableBalance ?? a.currentBalance ?? 0,
+      institution: a.institution,
+      balance: a.currentBalance ?? a.availableBalance ?? 0,
+      availableBalance: a.availableBalance,
       accessible: true,
+      source: "plaid_sandbox" as const,
       notes: `${a.institution}${a.mask ? ` ••${a.mask}` : ""} · Plaid sandbox`,
     }));
 }
@@ -79,12 +83,22 @@ export function resolveAccounts(
   plaidConnected: boolean,
   linkedAccounts: LinkedAccount[],
   storedMode: AppMode,
+  manualAccounts: Account[] = [],
 ): Account[] {
+  const manual = manualAccounts.map((a) => ({
+    ...a,
+    source: a.source ?? ("manual" as const),
+  }));
+
   if (plaidConnected && linkedAccounts.length > 0) {
     const plaidCash = linkedAccountsToDashboardAccounts(linkedAccounts);
+    if (storedMode === "local_user" && manual.length > 0) {
+      return [...manual, ...plaidCash];
+    }
     if (plaidCash.length > 0) return plaidCash;
   }
   if (storedMode === "demo") return demoAccounts;
+  if (manual.length > 0) return manual;
   return [];
 }
 
@@ -158,11 +172,15 @@ export type DashboardSummary = {
   billsDue14: ReturnType<typeof billsDueWithin>;
   income14: ReturnType<typeof expectedIncomeWithin>;
   monthlyRecurring: number;
+  expectedMonthlyIncome: number;
   manualReviewItems: number;
   transactionReviewCount: number;
-  status: ReturnType<typeof computeDashboardStatus>;
+  status: ReturnType<typeof computeDashboardSummaryStatus>;
   label: DataSourceLabel;
   isEmpty: boolean;
+  setupIncomplete: boolean;
+  hasManualAccounts: boolean;
+  cashDataSource: "manual" | "plaid_sandbox" | "demo" | "mixed" | "missing";
 };
 
 export function computeDashboardSummary(args: {
@@ -187,9 +205,11 @@ export function computeDashboardSummary(args: {
   } = args;
 
   const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
+  const hasManualAccounts = accounts.some((a) => a.source === "manual" || !a.source);
   const cashAvailable = totalCashAvailable(accounts);
   const billsDue14 = billsDueWithin(bills, 14);
   const income14 = expectedIncomeWithin(income, 14);
+  const monthlyIncomeEstimate = expectedMonthlyIncome(income);
   let monthlyRecurring = monthlyRecurringCost(bills, subscriptions);
 
   if (plaidConnected) {
@@ -204,6 +224,22 @@ export function computeDashboardSummary(args: {
   const manualReviewItems = reviewCount(bills, subscriptions);
   const transactionReviewCount = transactionsNeedingReview(transactions).length;
 
+  const setupIncomplete =
+    !plaidConnected &&
+    storedMode !== "demo" &&
+    accounts.length === 0 &&
+    manualEmpty;
+
+  const cashDataSource: DashboardSummary["cashDataSource"] = plaidConnected
+    ? hasManualAccounts
+      ? "mixed"
+      : "plaid_sandbox"
+    : storedMode === "demo"
+      ? "demo"
+      : accounts.length > 0
+        ? "manual"
+        : "missing";
+
   const status = computeDashboardSummaryStatus({
     cashAvailable,
     billsDue14: billsDue14.total,
@@ -213,7 +249,10 @@ export function computeDashboardSummary(args: {
     plaidConnected,
     transactionReviewCount,
     manualReviewItems,
-    manualEmpty,
+    setupIncomplete,
+    hasAccounts: accounts.length > 0,
+    hasBillsOrIncome:
+      bills.length > 0 || income.length > 0 || subscriptions.length > 0,
   });
 
   return {
@@ -222,11 +261,15 @@ export function computeDashboardSummary(args: {
     billsDue14,
     income14,
     monthlyRecurring,
+    expectedMonthlyIncome: monthlyIncomeEstimate,
     manualReviewItems,
     transactionReviewCount,
     status,
     label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
     isEmpty: manualEmpty && !plaidConnected && storedMode !== "demo",
+    setupIncomplete,
+    hasManualAccounts,
+    cashDataSource,
   };
 }
 
@@ -239,9 +282,24 @@ function computeDashboardSummaryStatus(args: {
   plaidConnected: boolean;
   transactionReviewCount: number;
   manualReviewItems: number;
-  manualEmpty: boolean;
+  setupIncomplete: boolean;
+  hasAccounts: boolean;
+  hasBillsOrIncome: boolean;
 }) {
-  if (args.manualEmpty && !args.plaidConnected) return "Stable" as const;
+  if (args.setupIncomplete) return "Setup Needed" as const;
+
+  if (
+    !args.hasAccounts &&
+    !args.plaidConnected &&
+    args.hasBillsOrIncome &&
+    args.cashAvailable === 0
+  ) {
+    return "Setup Needed" as const;
+  }
+
+  if (!args.hasAccounts && !args.plaidConnected && !args.hasBillsOrIncome) {
+    return "Setup Needed" as const;
+  }
 
   return computeDashboardStatus({
     cashAvailable: args.cashAvailable,

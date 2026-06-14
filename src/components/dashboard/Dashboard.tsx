@@ -7,41 +7,63 @@ import { NextResponsibleAction } from "@/components/dashboard/NextResponsibleAct
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { MoneySnapshot } from "@/components/dashboard/MoneySnapshot";
 import { CashflowCard } from "@/components/dashboard/CashflowCard";
+import { ManualAccountsSection } from "@/components/dashboard/ManualAccountsSection";
 import { BillsCommandCenter } from "@/components/dashboard/BillsCommandCenter";
 import { IncomePipeline } from "@/components/dashboard/IncomePipeline";
 import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchlist";
 import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
-import { mockFinancials } from "@/lib/data/mock-financials";
 import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { incomeVsSpendingTrend } from "@/lib/transaction-utils";
+import {
+  computeManualMonthlyProjection,
+  hasHistoricalTransactionData,
+  resolveChartDataSource,
+  resolveChartPresentation,
+} from "@/lib/chart-data";
 
 export function Dashboard() {
   const fd = useFinancialData();
   const action = nextResponsibleAction(fd.alerts);
-  const { dashboardSummary, spendingSummary, incomeSummary } = fd;
+  const { dashboardSummary } = fd;
 
-  const cashflowData =
-    fd.plaidConnected || fd.storedMode === "demo"
+  const hasManualIncomeOrBills =
+    fd.income.length > 0 || fd.bills.length > 0 || fd.subscriptions.length > 0;
+
+  const hasHistorical = hasHistoricalTransactionData(
+    fd.transactions,
+    fd.storedMode,
+    fd.plaidConnected,
+  );
+
+  const chartDataSource = resolveChartDataSource({
+    storedMode: fd.storedMode,
+    plaidConnected: fd.plaidConnected,
+    transactions: fd.transactions,
+    hasManualIncomeOrBills,
+  });
+
+  const chartPresentation = resolveChartPresentation({
+    chartDataSource,
+    hasHistorical,
+  });
+
+  const trendData =
+    hasHistorical && (fd.plaidConnected || fd.storedMode === "demo")
       ? incomeVsSpendingTrend(fd.transactions)
       : undefined;
 
-  const cashflowIncome =
-    fd.plaidConnected || fd.storedMode === "demo"
-      ? spendingSummary.monthlyIncome
-      : fd.isManualEmpty
-        ? 0
-        : mockFinancials.monthlyIncomeEstimate;
-
-  const cashflowSpending =
-    fd.plaidConnected || fd.storedMode === "demo"
-      ? spendingSummary.monthlySpending
-      : fd.isManualEmpty
-        ? 0
-        : mockFinancials.monthlySpendingEstimate;
+  const projection =
+    chartPresentation === "manual_projection"
+      ? computeManualMonthlyProjection({
+          income: fd.income,
+          bills: fd.bills,
+          subscriptions: fd.subscriptions,
+        })
+      : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -79,20 +101,19 @@ export function Dashboard() {
             subscriptions={fd.subscriptions}
             alerts={fd.alerts}
             summary={dashboardSummary}
-            incomeSummary={incomeSummary}
+            incomeSummary={fd.incomeSummary}
             plaidConnected={fd.plaidConnected}
             storedMode={fd.storedMode}
           />
 
           <CashflowCard
-            financials={mockFinancials}
-            plaidConnected={fd.plaidConnected}
-            storedMode={fd.storedMode}
-            isEmpty={fd.isManualEmpty && !fd.plaidConnected}
-            monthlyIncome={cashflowIncome}
-            monthlySpending={cashflowSpending}
-            chartData={cashflowData}
+            presentation={chartPresentation}
+            chartDataSource={chartDataSource}
+            trendData={trendData}
+            projection={projection}
           />
+
+          <ManualAccountsSection />
         </section>
 
         <section id="bills" className="scroll-mt-20">

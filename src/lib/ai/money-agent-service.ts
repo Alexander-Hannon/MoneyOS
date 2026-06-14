@@ -57,14 +57,15 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
 
   if (
     input.modeContext.includes("Empty state") ||
+    input.setupIncomplete ||
     (input.billsDue14Count === 0 &&
       input.cashAvailable === 0 &&
       input.activeAlerts.length === 0 &&
       input.appMode === "local_user")
   ) {
     return {
-      snapshot:
-        "Not enough data yet for a meaningful brief. Add bills, income, subscriptions, or connect a sandbox bank.",
+    snapshot:
+      "Not enough data yet for a meaningful brief. Add cash accounts, bills, income, or connect a sandbox bank.",
       topRisks: ["Insufficient data — do not treat this as a financial assessment."],
       opportunities: [
         "Add your recurring bills and income sources in MoneyOS.",
@@ -119,8 +120,14 @@ function mockMoneyBrief(input: MoneyBriefInput): MoneyBriefOutput {
     (a) => a.severity === "high" && a.reviewRequired,
   );
 
+  const trendNote = input.isProjection
+    ? "Manual monthly projection only — not historical transaction data."
+    : input.hasHistoricalTransactionData
+      ? `Chart: ${input.chartDataSource}`
+      : "No historical transaction chart — do not describe past trends.";
+
   return {
-    snapshot: `${input.modeContext} · ${input.dataSource} · Cash ${formatCurrency(input.cashAvailable)} · Bills due 14d ${formatCurrency(input.billsDue14Days)} (${input.billsDue14Count}) · Spending ${formatCurrency(input.monthlySpending)}/mo${tight ? " · Buffer is getting tight" : ""}.`,
+    snapshot: `${input.modeContext} · ${input.dataSource} · Cash (${input.cashDataSource}): ${formatCurrency(input.cashAvailable)} · Bills due 14d ${formatCurrency(input.billsDue14Days)} (${input.billsDue14Count}) · ${input.isProjection ? `Projected monthly income ${formatCurrency(input.expectedMonthlyIncome)}` : `Spending ${formatCurrency(input.monthlySpending)}/mo`}${tight ? " · Buffer is getting tight" : ""}. ${trendNote}`,
     topRisks,
     opportunities,
     recommendedNextAction:
@@ -264,5 +271,11 @@ export function sanitizeMoneyBriefInput(
     activeAlerts: Array.isArray(b.activeAlerts)
       ? (b.activeAlerts as MoneyBriefInput["activeAlerts"]).slice(0, 10)
       : [],
+    chartDataSource: String(b.chartDataSource ?? "none"),
+    hasHistoricalTransactionData: Boolean(b.hasHistoricalTransactionData),
+    isProjection: Boolean(b.isProjection),
+    cashDataSource: String(b.cashDataSource ?? "missing"),
+    setupIncomplete: Boolean(b.setupIncomplete),
+    expectedMonthlyIncome: Number(b.expectedMonthlyIncome) || 0,
   };
 }

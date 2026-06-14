@@ -87,20 +87,34 @@ export function MoneySnapshot({
   const status = summary.status;
   const label = summary.label;
 
-  const cashBadge = plaidConnected
-    ? "Plaid sandbox data"
-    : storedMode === "demo"
-      ? "Demo data"
-      : summary.isEmpty
-        ? "Empty — add accounts"
-        : "Local user data";
+  const cashBadge =
+    summary.cashDataSource === "plaid_sandbox"
+      ? "Plaid sandbox data"
+      : summary.cashDataSource === "mixed"
+        ? "Manual + Plaid sandbox"
+        : summary.cashDataSource === "demo"
+          ? "Demo data"
+          : summary.cashDataSource === "manual"
+            ? "Manual accounts"
+            : "Add cash accounts";
+
+  const statusDescription =
+    status === "Setup Needed"
+      ? describeStatus(status)
+      : summary.isEmpty && !plaidConnected
+        ? "Add bills or connect accounts to activate insights."
+        : describeStatus(status);
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       <StatCard
         label="Total cash available"
         value={formatCurrency(summary.cashAvailable)}
-        hint={`${accounts.filter((a) => a.accessible).length} accessible accounts`}
+        hint={
+          accounts.filter((a) => a.accessible).length === 0
+            ? "No cash accounts added yet."
+            : `${accounts.filter((a) => a.accessible).length} accessible account${accounts.filter((a) => a.accessible).length === 1 ? "" : "s"}`
+        }
         icon={Banknote}
         accent="text-primary"
         badge={cashBadge}
@@ -148,10 +162,13 @@ export function MoneySnapshot({
             className="px-3 py-1 text-sm"
           />
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {summary.isEmpty && !plaidConnected
-              ? "Add bills or connect accounts to activate insights."
-              : describeStatus(status)}
+            {statusDescription}
           </p>
+          {summary.cashDataSource === "missing" && !plaidConnected && (
+            <a href="#accounts" className="mt-1 inline-block text-xs text-primary hover:underline">
+              Add accounts
+            </a>
+          )}
           {summary.transactionReviewCount > 0 && plaidConnected && (
             <p className="mt-1 text-[10px] text-warning">
               {summary.transactionReviewCount} sandbox transaction

@@ -3,16 +3,30 @@
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 
-export type AccountType = "checking" | "savings" | "cash" | "external";
+export type AccountType =
+  | "checking"
+  | "savings"
+  | "cash"
+  | "credit"
+  | "investment"
+  | "loan"
+  | "other"
+  | "external";
 
 export interface Account {
   id: string;
   name: string;
   type: AccountType;
+  institution?: string;
+  /** Current balance (primary display amount). */
   balance: number;
-  /** Whether this balance counts toward "total cash available". */
+  availableBalance?: number;
+  /** Whether this balance counts toward total cash available. */
   accessible: boolean;
+  source?: "manual" | "plaid_sandbox";
   notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type BillAmountType = "fixed" | "variable" | "estimate";
@@ -109,7 +123,8 @@ export type DashboardStatus =
   | "Watch"
   | "Tight"
   | "Danger"
-  | "Review Needed";
+  | "Review Needed"
+  | "Setup Needed";
 
 export type PlannedExpenseStatus = "planned" | "saving" | "scheduled";
 
