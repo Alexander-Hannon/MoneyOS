@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Repeat } from "lucide-react";
+import { ExternalLink, Plus, Repeat } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -13,6 +13,7 @@ import { SubscriptionForm } from "@/components/forms/SubscriptionForm";
 import {
   formatCurrency,
   formatDate,
+  daysUntil,
   frequencyLabel,
   monthlySubscriptionTotal,
   toneForSubscriptionStatus,
@@ -76,13 +77,37 @@ export function SubscriptionWatchlist() {
                       label={sub.status}
                       tone={toneForSubscriptionStatus(sub.status)}
                     />
+                    {sub.isTrial && (
+                      <StatusBadge label="Trial" tone="warning" />
+                    )}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {sub.category} · {frequencyLabel(sub.frequency)}
-                    {sub.renewalDate ? ` · renews ${formatDate(sub.renewalDate)}` : ""}
+                    {sub.isTrial && sub.trialEndDate
+                      ? ` · trial ends ${formatDate(sub.trialEndDate)} (${daysUntil(sub.trialEndDate)}d)`
+                      : sub.renewalDate
+                        ? ` · renews ${formatDate(sub.renewalDate)}`
+                        : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {sub.cancellationUrl && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 gap-1 text-xs"
+                      onClick={() =>
+                        window.open(
+                          sub.cancellationUrl,
+                          "_blank",
+                          "noopener,noreferrer",
+                        )
+                      }
+                    >
+                      <ExternalLink className="size-3.5" />
+                      Cancel/manage
+                    </Button>
+                  )}
                   <span className="text-sm font-semibold tabular-nums">
                     {formatCurrency(sub.amount, true)}
                   </span>

@@ -195,6 +195,8 @@ export function BankConnectionControl() {
               </div>
 
               <p className="text-muted-foreground">
+                {fd.connectedInstitutions.length} institution
+                {fd.connectedInstitutions.length === 1 ? "" : "s"} ·{" "}
                 {fd.linkedAccounts.length} account
                 {fd.linkedAccounts.length === 1 ? "" : "s"} · {badge}
               </p>
@@ -214,7 +216,19 @@ export function BankConnectionControl() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-2.5 py-2 text-left font-medium transition-colors hover:bg-accent"
                 >
                   <RefreshCw className="size-3.5" />
-                  Sync transactions
+                  Sync all
+                </button>
+                <button
+                  type="button"
+                  disabled={fd.busy || !fd.configured}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    startConnect();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-2.5 py-2 text-left font-medium transition-colors hover:bg-accent"
+                >
+                  <Lock className="size-3.5" />
+                  Connect another institution
                 </button>
                 <button
                   type="button"

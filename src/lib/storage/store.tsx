@@ -40,6 +40,7 @@ type DraftIncome = Omit<IncomeSource, "id">;
 type DraftSubscription = Omit<Subscription, "id">;
 type DraftAlert = Omit<Alert, "id" | "status">;
 type DraftAccount = Omit<Account, "id" | "createdAt" | "updatedAt">;
+type DraftSpendingLater = Omit<PlannedExpense, "id">;
 
 export type UserDataExport = {
   version: 1;
@@ -82,6 +83,16 @@ interface MoneyDataContextValue {
   updateAlert: (id: string, draft: DraftAlert) => void;
   setAlertStatus: (id: string, status: AlertStatus) => void;
   deleteAlert: (id: string) => void;
+  replaceAlerts: (alerts: Alert[]) => void;
+
+  addSpendingLater: (draft: DraftSpendingLater) => void;
+  updateSpendingLater: (id: string, draft: DraftSpendingLater) => void;
+  deleteSpendingLater: (id: string) => void;
+
+  dismissRecurringSuggestion: (id: string) => void;
+  dismissActionItem: (id: string) => void;
+  dismissedRecurringIds: string[];
+  dismissedActionIds: string[];
 
   addManualAccount: (draft: DraftAccount) => void;
   updateManualAccount: (id: string, draft: DraftAccount) => void;
@@ -125,6 +136,10 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
   const [spendingLater, setSpendingLater] =
     useState<PlannedExpense[]>(emptySpendingLater);
   const [manualAccounts, setManualAccounts] = useState<Account[]>([]);
+  const [dismissedRecurringIds, setDismissedRecurringIds] = useState<string[]>(
+    [],
+  );
+  const [dismissedActionIds, setDismissedActionIds] = useState<string[]>([]);
 
   useEffect(() => {
     const mode = loadAppModeFromStorage() ?? "local_user";
@@ -141,6 +156,10 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
       loadCollection(STORAGE_KEYS.spendingLater, defaults.spendingLater),
     );
     setManualAccounts(loadCollection(STORAGE_KEYS.manualAccounts, []));
+    setDismissedRecurringIds(
+      loadCollection(STORAGE_KEYS.dismissedRecurring, []),
+    );
+    setDismissedActionIds(loadCollection(STORAGE_KEYS.dismissedActions, []));
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -160,6 +179,18 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
   const commitAlerts = useCallback((next: Alert[]) => {
     setAlerts(next);
     saveCollection(STORAGE_KEYS.alerts, next);
+  }, []);
+  const commitSpendingLater = useCallback((next: PlannedExpense[]) => {
+    setSpendingLater(next);
+    saveCollection(STORAGE_KEYS.spendingLater, next);
+  }, []);
+  const commitDismissedRecurring = useCallback((next: string[]) => {
+    setDismissedRecurringIds(next);
+    saveCollection(STORAGE_KEYS.dismissedRecurring, next);
+  }, []);
+  const commitDismissedActions = useCallback((next: string[]) => {
+    setDismissedActionIds(next);
+    saveCollection(STORAGE_KEYS.dismissedActions, next);
   }, []);
   const commitManualAccounts = useCallback((next: Account[]) => {
     setManualAccounts(next);
@@ -289,7 +320,12 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
 
     addAlert: (draft) =>
       commitAlerts([
-        { ...draft, id: newId("alert"), status: "active" },
+        {
+          ...draft,
+          id: newId("alert"),
+          status: "active",
+          userCreated: true,
+        },
         ...alerts,
       ]),
     updateAlert: (id, draft) =>
@@ -297,6 +333,34 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     setAlertStatus: (id, status) =>
       commitAlerts(alerts.map((a) => (a.id === id ? { ...a, status } : a))),
     deleteAlert: (id) => commitAlerts(alerts.filter((a) => a.id !== id)),
+    replaceAlerts: commitAlerts,
+
+    addSpendingLater: (draft) =>
+      commitSpendingLater([
+        ...spendingLater,
+        { ...draft, id: newId("spend-later"), title: draft.title ?? draft.name },
+      ]),
+    updateSpendingLater: (id, draft) =>
+      commitSpendingLater(
+        spendingLater.map((item) =>
+          item.id === id
+            ? { ...draft, id, title: draft.title ?? draft.name }
+            : item,
+        ),
+      ),
+    deleteSpendingLater: (id) =>
+      commitSpendingLater(spendingLater.filter((item) => item.id !== id)),
+
+    dismissRecurringSuggestion: (id) => {
+      if (dismissedRecurringIds.includes(id)) return;
+      commitDismissedRecurring([...dismissedRecurringIds, id]);
+    },
+    dismissActionItem: (id) => {
+      if (dismissedActionIds.includes(id)) return;
+      commitDismissedActions([...dismissedActionIds, id]);
+    },
+    dismissedRecurringIds,
+    dismissedActionIds,
 
     addManualAccount: (draft) => {
       const now = new Date().toISOString();
