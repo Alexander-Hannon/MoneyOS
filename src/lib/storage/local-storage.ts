@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   onboardingCompleted: "moneyos:onboarding-completed",
   consentHistory: "moneyos:consent-history",
   pendingPlaidConnect: "moneyos:pending-plaid-connect",
+  migrationCompleted: "moneyos:migration-completed",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

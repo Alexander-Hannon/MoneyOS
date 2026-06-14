@@ -1,0 +1,214 @@
+// MoneyOS Phase 9 — Postgres schema (Neon-compatible).
+// Plaid access tokens must be encrypted before production; accessTokenEncrypted
+// is nullable/placeholder in Phase 9.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  clerkUserId          String   @unique
+  email                String?
+  displayName          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  onboardingCompleted  Boolean  @default(false)
+  appMode              String   @default("local_user")
+  dataSourcePreference String?
+  migrationCompletedAt DateTime?
+
+  settings              UserSettings?
+  bills                 Bill[]
+  incomeSources         IncomeSource[]
+  subscriptions         Subscription[]
+  alerts                MoneyAlert[]
+  consentRecords        ConsentRecord[]
+  connectedInstitutions ConnectedInstitution[]
+  plaidItems            PlaidItem[]
+  accounts              Account[]
+  transactions          MoneyTransaction[]
+}
+
+model UserSettings {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme                String   @default("dark")
+  defaultMode          String   @default("local_user")
+  aiProviderPreference String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Bill {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  amount     Float?
+  amountType String
+  dueDate    DateTime?
+  dueDay     Int?
+  frequency  String
+  autopay    Boolean   @default(false)
+  paidFrom   String?
+  status     String
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model IncomeSource {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source         String
+  expectedAmount Float?
+  amountType     String
+  frequency      String
+  reliability    String
+  startDate      DateTime?
+  nextDate       DateTime?
+  active         Boolean   @default(true)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Subscription {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  amount       Float
+  frequency    String
+  category     String
+  status       String
+  renewalDate  DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model MoneyAlert {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  severity        String
+  category        String
+  suggestedAction String?
+  reviewRequired  Boolean  @default(true)
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ConsentRecord {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentType   String
+  acceptedAt    DateTime
+  version       String
+  textSummary   String
+  dataScopes    Json
+  plaidProducts Json?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model ConnectedInstitution {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionName String
+  plaidItemIdHash String?
+  status          String
+  source          String
+  connectedAt     DateTime
+  disconnectedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model PlaidItem {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId         String?
+  institutionName       String?
+  itemIdHash            String?
+  /// Encrypted access token — MUST be encrypted before production live use.
+  /// Phase 9: nullable placeholder; sandbox tokens stay in-memory only.
+  accessTokenEncrypted  String?
+  environment           String   @default("sandbox")
+  status                String   @default("disconnected")
+  syncCursor            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Account {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidAccountIdHash String?
+  name             String
+  institution      String
+  type             String
+  subtype          String?
+  mask             String?
+  currentBalance   Float?
+  availableBalance Float?
+  source           String
+  connectionStatus String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model MoneyTransaction {
+  id                     String   @id @default(cuid())
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidTransactionIdHash String?
+  accountId              String?
+  date                   DateTime
+  merchantName           String?
+  description            String
+  amount                 Float
+  type                   String
+  category               String
+  subcategory            String?
+  pending                Boolean  @default(false)
+  source                 String
+  needsReview            Boolean  @default(false)
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([userId])
+}

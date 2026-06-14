@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Download,
@@ -10,23 +10,50 @@ import {
   Rocket,
   Unplug,
   AlertTriangle,
+  CloudUpload,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
+import { useUserStatus } from "@/hooks/useUserStatus";
 import { useMoneyData, type UserDataExport } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 import { clearAllMoneyOSData } from "@/lib/storage/local-storage";
+import type { ConsentRecord } from "@/types/user";
+import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 
 export function SettingsPanel() {
   const appMode = useAppMode();
   const fd = useFinancialData();
   const money = useMoneyData();
   const toast = useToast();
+  const { status } = useUserStatus();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [accountConsent, setAccountConsent] = useState<ConsentRecord[]>([]);
+  const [syncBusy, setSyncBusy] = useState(false);
+
+  useEffect(() => {
+    if (!status.signedIn) return;
+    let cancelled = false;
+    fetch("/api/user/consent")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data.consentHistory)) {
+          setAccountConsent(data.consentHistory);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAccountConsent([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status.signedIn]);
 
   const exportJson = () => {
     const data = money.exportData();
@@ -61,15 +88,123 @@ export function SettingsPanel() {
   };
 
   const latestConsent = appMode.consentHistory[0];
+  const latestAccountConsent = status.signedIn ? accountConsent[0] : undefined;
+  const storageModeLabel =
+    status.signedIn && status.databaseConfigured
+      ? status.storageMode === "database"
+        ? "database"
+        : "mixed"
+      : "localStorage";
+
+  const syncToAccount = async () => {
+    if (
+      !window.confirm(
+        "Upload your current local MoneyOS data to your signed-in account?",
+      )
+    ) {
+      return;
+    }
+    setSyncBusy(true);
+    try {
+      const res = await fetch("/api/user/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_local",
+          data: {
+            ...money.exportData(),
+            consentHistory: appMode.consentHistory,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Sync failed");
+      toast("Local data synced to account");
+    } catch {
+      toast("Could not sync to account");
+    } finally {
+      setSyncBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Data source, privacy controls, and local data management.
+          Data source, account, privacy controls, and local data management.
         </p>
       </div>
+
+      <Card>
+        <CardContent className="space-y-4 pt-5">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
+            <User className="size-4" /> Account
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={status.signedIn ? "Signed in" : "Local mode"}
+              tone={status.signedIn ? "success" : "neutral"}
+            />
+            {status.user?.email && (
+              <StatusBadge label={status.user.email} tone="info" />
+            )}
+          </div>
+          {status.signedIn ? (
+            <p className="text-xs text-muted-foreground">
+              Signed in as {status.user?.displayName ?? status.user?.email ?? "user"}.
+            </p>
+          ) : isClerkPublishableConfigured() ? (
+            <p className="text-xs text-muted-foreground">
+              Sign in to save your MoneyOS data securely across devices.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Authentication is not configured — running in local development mode.
+            </p>
+          )}
+          {status.signedIn && status.databaseConfigured && (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={syncBusy}
+              onClick={() => void syncToAccount()}
+            >
+              <CloudUpload className="size-3.5" /> Sync local data to account
+            </Button>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            Future: request account deletion workflow (not implemented in Phase 9).
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 pt-5">
+          <h2 className="text-sm font-medium">Database & auth</h2>
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Auth configured</dt>
+              <dd className="font-medium">
+                {status.authConfigured ? "Yes" : "No"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Database configured</dt>
+              <dd className="font-medium">
+                {status.databaseConfigured ? "Yes" : "No"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2 sm:col-span-2">
+              <dt className="text-muted-foreground">Storage mode</dt>
+              <dd className="font-medium">{storageModeLabel}</dd>
+            </div>
+          </dl>
+          <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
+            Plaid tokens are not persisted for live use yet. Production live mode
+            requires encrypted token storage before launch.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="space-y-4 pt-5">
@@ -211,27 +346,59 @@ export function SettingsPanel() {
           <h2 className="text-sm font-medium">Consent history</h2>
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
-            Local development consent record only. Production consent must be
-            stored server-side in an encrypted database.
+            Local development consent records are stored in this browser.
+            Signed-in account consent is stored in the database when configured.
           </p>
-          {latestConsent ? (
-            <dl className="space-y-1 text-xs">
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Latest consent</dt>
-                <dd>{new Date(latestConsent.acceptedAt).toLocaleString()}</dd>
-              </div>
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Version</dt>
-                <dd>{latestConsent.version}</dd>
-              </div>
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1 text-xs font-medium">Local consent</p>
+              {latestConsent ? (
+                <dl className="space-y-1 text-xs">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-muted-foreground">Latest consent</dt>
+                    <dd>{new Date(latestConsent.acceptedAt).toLocaleString()}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-muted-foreground">Version</dt>
+                    <dd>{latestConsent.version}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Scopes</dt>
+                    <dd className="mt-0.5">
+                      {latestConsent.dataScopes.join(", ")}
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No local consent recorded yet.
+                </p>
+              )}
+            </div>
+            {status.signedIn && (
               <div>
-                <dt className="text-muted-foreground">Scopes</dt>
-                <dd className="mt-0.5">{latestConsent.dataScopes.join(", ")}</dd>
+                <p className="mb-1 text-xs font-medium">Account consent</p>
+                {latestAccountConsent ? (
+                  <dl className="space-y-1 text-xs">
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-muted-foreground">Latest consent</dt>
+                      <dd>
+                        {new Date(latestAccountConsent.acceptedAt).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-muted-foreground">Version</dt>
+                      <dd>{latestAccountConsent.version}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No account consent recorded yet.
+                  </p>
+                )}
               </div>
-            </dl>
-          ) : (
-            <p className="text-xs text-muted-foreground">No consent recorded yet.</p>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 

@@ -99,3 +99,29 @@ Legend: ✅ done · 🟡 scaffolded · 🔲 not started
 - [ ] Rate limits on API routes
 - [ ] Production Plaid approval complete
 - [ ] Live mode enabled (`future_plaid_live`) with full controls
+
+## Phase 9 (auth + database foundation) — scaffolded
+
+Phase 9 adds production-shaped foundations without requiring them for local development:
+
+- [x] Clerk auth foundation (optional — app runs without env vars)
+- [x] Prisma + Postgres schema and client (optional — `DATABASE_URL`)
+- [x] User-specific database models (User, Bill, Income, Subscription, Alert, Consent, PlaidItem scaffold, Account/Transaction scaffold)
+- [x] Database service layer scoped per authenticated user
+- [x] API routes for signed-in user data (`/api/user/*`)
+- [x] Local-to-account migration with user confirmation
+- [x] Database-backed consent records when signed in
+- [x] Settings: account, database status, sync to account
+
+### Still missing before production
+
+- [ ] Encrypted Plaid token storage (Phase 9 leaves `accessTokenEncrypted` null; sandbox stays in-memory)
+- [ ] Live Plaid mode
+- [ ] MFA enforcement for users and internal systems
+- [ ] Production deployment hardening (HTTPS, secrets manager)
+- [ ] Logging / monitoring
+- [ ] Vulnerability scanning automation in CI
+- [ ] Data deletion workflow (API + admin process)
+- [ ] Final privacy / terms legal review
+
+**MoneyOS remains usable locally without Clerk or DATABASE_URL configured.**
