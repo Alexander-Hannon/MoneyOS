@@ -62,6 +62,7 @@ export interface FinancialDataContextValue {
   subscriptions: Subscription[];
   alerts: Alert[];
   spendingLater: PlannedExpense[];
+  manualAccounts: Account[];
 
   incomeSummary: IncomeSummary;
   dashboardSummary: DashboardSummary;
@@ -90,7 +91,7 @@ async function postJson(url: string, body?: unknown) {
 
 export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const money = useMoneyData();
-  const { bills, income, subscriptions, alerts, spendingLater, appMode: storedMode } =
+  const { bills, income, subscriptions, alerts, spendingLater, appMode: storedMode, manualAccounts } =
     money;
 
   const [loading, setLoading] = useState(true);
@@ -212,7 +213,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dataSource = resolveDataSource(plaidConnected, storedMode);
-  const accounts = resolveAccounts(plaidConnected, linkedAccounts, storedMode);
+  const accounts = resolveAccounts(
+    plaidConnected,
+    linkedAccounts,
+    storedMode,
+    manualAccounts,
+  );
   const transactions = resolveTransactions(
     plaidConnected,
     plaidTransactions,
@@ -288,6 +294,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       subscriptions,
       alerts,
       spendingLater,
+      manualAccounts,
       incomeSummary,
       dashboardSummary,
       spendingSummary,
@@ -317,6 +324,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       subscriptions,
       alerts,
       spendingLater,
+      manualAccounts,
       incomeSummary,
       dashboardSummary,
       spendingSummary,

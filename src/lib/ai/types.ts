@@ -30,6 +30,12 @@ export interface MoneyBriefInput {
     category: string;
     reviewRequired: boolean;
   }[];
+  chartDataSource: string;
+  hasHistoricalTransactionData: boolean;
+  isProjection: boolean;
+  cashDataSource: string;
+  setupIncomplete: boolean;
+  expectedMonthlyIncome: number;
 }
 
 export interface MoneyBriefOutput {

@@ -114,7 +114,12 @@ Financial summary (sanitized):
 - Recurring charge candidates: ${input.recurringChargesCount}
 - Top categories: ${JSON.stringify(input.topCategories)}
 - Upcoming obligations: ${JSON.stringify(input.upcomingObligations)}
-- Active alerts: ${JSON.stringify(input.activeAlerts)}
+- Chart: ${input.chartDataSource}
+- Has historical transaction data: ${input.hasHistoricalTransactionData}
+- Is projection (not history): ${input.isProjection}
+- Cash data source: ${input.cashDataSource}
+- Setup incomplete: ${input.setupIncomplete}
+- Expected monthly income (manual): ${input.expectedMonthlyIncome}
 
 Return JSON only. Frame all guidance as review-required. Never instruct the user to move, spend, or invest money automatically.`;
 }

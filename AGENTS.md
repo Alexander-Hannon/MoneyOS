@@ -71,7 +71,7 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 ### Phase 9 (auth + database foundation)
 
 - **Auth (optional):** Clerk via `AuthProvider` when `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` set. Routes: `/sign-in`, `/sign-up`. Header `AuthHeaderControls` (Local Mode / Sign in / UserButton). App works without Clerk.
-- **Database (optional):** Prisma + Postgres (`DATABASE_URL`). Schema in `prisma/schema.prisma`. Client: `src/lib/db/prisma.ts` (`getPrisma()` returns null when unset).
+- **Database (optional):** Prisma + Postgres (`DATABASE_URL`). Schema in `prisma/schema.prisma`. Client: `src/lib/db/prisma.ts` (`getPrisma()` returns null when unset). Setup: `docs/development/DATABASE_SETUP.md` — use `npm run db:push` (loads `.env.local` via dotenv-cli).
 - **DB services:** `src/lib/db/users.ts`, `bills.ts`, `income.ts`, `subscriptions.ts`, `alerts.ts`, `consent.ts`, `accounts.ts`, `transactions.ts` — all scoped by authenticated user id.
 - **API routes:** `/api/user/status`, `profile`, `settings`, `bills`, `income`, `subscriptions`, `alerts`, `consent`, `migrate` — require auth when Clerk+DB configured; return 503 when not.
 - **Migration:** `LocalDataMigrationDialog` on first sign-in with local data — save to account / keep local / use account data (user confirmation required).

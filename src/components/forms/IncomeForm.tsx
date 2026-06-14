@@ -35,6 +35,7 @@ export function IncomeForm({
     initial?.reliability ?? "medium",
   );
   const [startDate, setStartDate] = useState(initial?.startDate?.slice(0, 10) ?? "");
+  const [nextDate, setNextDate] = useState(initial?.nextDate?.slice(0, 10) ?? "");
   const [active, setActive] = useState(initial?.active ?? true);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,7 +63,7 @@ export function IncomeForm({
       reliability,
       active,
       startDate: startDate || undefined,
-      nextDate: initial?.nextDate,
+      nextDate: nextDate || undefined,
       notes: notes.trim() || undefined,
     });
   }
@@ -131,6 +132,10 @@ export function IncomeForm({
 
       <Field label="Start date" hint="Leave blank if already active">
         <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      </Field>
+
+      <Field label="Next expected pay date" hint="Used for 14-day income estimates">
+        <Input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
       </Field>
 
       <Checkbox

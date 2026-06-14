@@ -101,7 +101,80 @@ export function monthlyRecurringCost(
 export function totalCashAvailable(accounts: Account[]): number {
   return accounts
     .filter((a) => a.accessible)
-    .reduce((sum, a) => sum + a.balance, 0);
+    .reduce(
+      (sum, a) => sum + (a.availableBalance ?? a.balance),
+      0,
+    );
+}
+
+/** Parse base guaranteed amount from numeric or text like "$350 + commission". */
+export function parseIncomeBaseAmount(
+  expectedAmount: number | null,
+  amountType: IncomeSource["amountType"],
+  notes?: string,
+): number | null {
+  if (expectedAmount != null && Number.isFinite(expectedAmount)) {
+    return expectedAmount;
+  }
+  if (notes) {
+    const match = notes.match(/\$?\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (match) {
+      const parsed = Number(match[1].replace(/,/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  if (amountType === "unknown" || amountType === "variable") return null;
+  return null;
+}
+
+/** Infer next pay date from frequency when not explicitly set. */
+export function inferNextIncomeDate(source: IncomeSource): string | undefined {
+  if (source.nextDate) return source.nextDate;
+  if (!source.active) return source.startDate;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  switch (source.frequency) {
+    case "biweekly":
+      return daysFromNow(7);
+    case "weekly":
+      return daysFromNow(7);
+    case "monthly":
+      return nextMonthlyDate(1);
+    default:
+      return undefined;
+  }
+}
+
+/** Monthly-equivalent income from active sources (base/guaranteed only). */
+export function expectedMonthlyIncome(income: IncomeSource[]): number {
+  return income
+    .filter((i) => i.active)
+    .reduce((sum, i) => {
+      const base = parseIncomeBaseAmount(
+        i.expectedAmount,
+        i.amountType,
+        i.notes,
+      );
+      if (base == null) return sum;
+      switch (i.frequency) {
+        case "weekly":
+          return sum + (base * 52) / 12;
+        case "biweekly":
+          return sum + (base * 26) / 12;
+        case "annual":
+          return sum + base / 12;
+        case "semester":
+          return sum + base / 4;
+        default:
+          return sum + base;
+      }
+    }, 0);
+}
+
+export function activeIncomeCount(income: IncomeSource[]): number {
+  return income.filter((i) => i.active).length;
 }
 
 export type DueWindow = {
@@ -135,13 +208,53 @@ export function expectedIncomeWithin(
   days: number,
 ): IncomeWindow {
   const items = income.filter((i) => {
-    if (!i.active || !i.nextDate || i.expectedAmount == null) return false;
-    const d = daysUntil(i.nextDate);
-    return d >= 0 && d <= days;
+    if (!i.active) return false;
+
+    const base = parseIncomeBaseAmount(i.expectedAmount, i.amountType, i.notes);
+    if (base == null) return false;
+
+    // Commission/variable upside is excluded unless explicitly expected in 14d window
+    if (
+      (i.amountType === "variable" || i.reliability === "variable") &&
+      !i.nextDate
+    ) {
+      return false;
+    }
+
+    const nextDate = inferNextIncomeDate(i);
+
+    if (i.frequency === "biweekly") {
+      // One pay period in the next 14 days when active
+      if (nextDate) {
+        const d = daysUntil(nextDate);
+        return d >= 0 && d <= days;
+      }
+      return true;
+    }
+
+    if (i.frequency === "monthly") {
+      if (!nextDate) return false;
+      const d = daysUntil(nextDate);
+      return d >= 0 && d <= days;
+    }
+
+    if (nextDate) {
+      const d = daysUntil(nextDate);
+      return d >= 0 && d <= days;
+    }
+
+    return false;
   });
 
   return {
-    total: items.reduce((sum, i) => sum + (i.expectedAmount ?? 0), 0),
+    total: items.reduce((sum, i) => {
+      const base = parseIncomeBaseAmount(
+        i.expectedAmount,
+        i.amountType,
+        i.notes,
+      );
+      return sum + (base ?? 0);
+    }, 0),
     count: items.length,
     items,
   };
@@ -213,6 +326,8 @@ export function describeStatus(status: DashboardStatus): string {
       return "Upcoming bills exceed available cash and expected income.";
     case "Review Needed":
       return "Cash is fine, but flagged items need a decision.";
+    case "Setup Needed":
+      return "Add cash accounts to assess bill coverage.";
   }
 }
 
@@ -283,8 +398,12 @@ export function monthlySubscriptionTotal(subscriptions: Subscription[]): number 
   );
 }
 
+export function defaultIncludeInCashAvailable(type: Account["type"]): boolean {
+  return type === "checking" || type === "savings" || type === "cash";
+}
+
 /* ------------------------------------------------------------------ */
-/* Cashflow trend (manual estimate, deterministic)                     */
+/* Cashflow trend (demo only — do not use for local_user projection)   */
 /* ------------------------------------------------------------------ */
 
 export function cashflowTrend(monthlyIncome: number, monthlySpending: number) {
@@ -314,6 +433,8 @@ export function toneForDashboardStatus(status: DashboardStatus): Tone {
       return "danger";
     case "Review Needed":
       return "warning";
+    case "Setup Needed":
+      return "neutral";
   }
 }
 

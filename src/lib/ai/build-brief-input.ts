@@ -1,10 +1,17 @@
 import type { FinancialDataContextValue } from "@/context/FinancialDataProvider";
 import type { MoneyBriefInput } from "@/lib/ai/types";
 import { canGenerateUsefulBrief } from "@/lib/app-mode";
+import {
+  hasHistoricalTransactionData,
+  resolveChartDataSource,
+} from "@/lib/chart-data";
 import { activeAlerts } from "@/lib/money-utils";
 import { spendingByCategory } from "@/lib/transaction-utils";
 
 function buildModeContext(fd: FinancialDataContextValue): string {
+  if (fd.dashboardSummary.setupIncomplete) {
+    return "Setup incomplete — add cash accounts, income, and bills before drawing strong conclusions.";
+  }
   if (fd.effectiveMode === "future_plaid_live") {
     return "Live mode is disabled in this build.";
   }
@@ -16,6 +23,9 @@ function buildModeContext(fd: FinancialDataContextValue): string {
   }
   if (fd.storedMode === "demo") {
     return "This is demo data.";
+  }
+  if (fd.dashboardSummary.cashDataSource === "missing") {
+    return "This is based on your local manual data, but cash accounts are not set up yet.";
   }
   return "This is based on your local manual data.";
 }
@@ -33,6 +43,25 @@ export function buildMoneyBriefInput(
     .slice(0, 5)
     .map((b) => `${b.name}${b.amount != null ? ` ($${b.amount})` : ""} due ${b.dueDate}`);
 
+  const hasManualIncomeOrBills =
+    fd.income.length > 0 || fd.bills.length > 0 || fd.subscriptions.length > 0;
+
+  const chartDataSource = resolveChartDataSource({
+    storedMode: fd.storedMode,
+    plaidConnected: fd.plaidConnected,
+    transactions: fd.transactions,
+    hasManualIncomeOrBills,
+  });
+
+  const hasHistorical = hasHistoricalTransactionData(
+    fd.transactions,
+    fd.storedMode,
+    fd.plaidConnected,
+  );
+
+  const isProjection =
+    chartDataSource === "manual_projection" && !hasHistorical;
+
   return {
     appMode: fd.effectiveMode,
     modeContext: buildModeContext(fd),
@@ -42,7 +71,9 @@ export function buildMoneyBriefInput(
     billsDue14Count: dashboardSummary.billsDue14.count,
     incomeExpected14Days: dashboardSummary.income14.total,
     monthlySpending: spendingSummary.monthlySpending,
-    monthlyIncome: spendingSummary.monthlyIncome,
+    monthlyIncome: hasHistorical
+      ? spendingSummary.monthlyIncome
+      : dashboardSummary.expectedMonthlyIncome,
     topCategories,
     reviewItemsCount:
       dashboardSummary.manualReviewItems +
@@ -55,6 +86,12 @@ export function buildMoneyBriefInput(
       category: a.category,
       reviewRequired: a.reviewRequired,
     })),
+    chartDataSource,
+    hasHistoricalTransactionData: hasHistorical,
+    isProjection,
+    cashDataSource: dashboardSummary.cashDataSource,
+    setupIncomplete: dashboardSummary.setupIncomplete,
+    expectedMonthlyIncome: dashboardSummary.expectedMonthlyIncome,
   };
 }
 

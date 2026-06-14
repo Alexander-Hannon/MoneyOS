@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   subscriptions: "moneyos:subscriptions",
   alerts: "moneyos:alerts",
   spendingLater: "moneyos:spending-later",
+  manualAccounts: "moneyos:manual-accounts",
   appMode: "moneyos:app-mode",
   onboardingCompleted: "moneyos:onboarding-completed",
   consentHistory: "moneyos:consent-history",
@@ -111,6 +112,8 @@ export function hasExistingUserData(): boolean {
     STORAGE_KEYS.income,
     STORAGE_KEYS.subscriptions,
     STORAGE_KEYS.alerts,
+    STORAGE_KEYS.spendingLater,
+    STORAGE_KEYS.manualAccounts,
   ].some((key) => window.localStorage.getItem(key) !== null);
 }
 
@@ -123,6 +126,7 @@ export function clearAllCollections(): void {
     STORAGE_KEYS.subscriptions,
     STORAGE_KEYS.alerts,
     STORAGE_KEYS.spendingLater,
+    STORAGE_KEYS.manualAccounts,
   ].forEach((key) => window.localStorage.removeItem(key));
 }
 
