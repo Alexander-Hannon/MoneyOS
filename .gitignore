@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files — keep real env files (incl. .env.local) out of git...
 .env*
+.env
+.env.local
+.env*.local
+
 # ...but commit the example template so contributors know what's needed.
 !.env.example
 
