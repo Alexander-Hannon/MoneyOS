@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 export type UserStatus = {
   authConfigured: boolean;
   databaseConfigured: boolean;
+  encryptionConfigured: boolean;
+  persistentPlaidEnabled: boolean;
+  plaidStorageMode: "memory" | "database" | "none";
   signedIn: boolean;
   storageMode: "localStorage" | "database" | "mixed";
   user: { email: string | null; displayName: string | null } | null;
@@ -13,6 +16,9 @@ export type UserStatus = {
 const defaultStatus: UserStatus = {
   authConfigured: false,
   databaseConfigured: false,
+  encryptionConfigured: false,
+  persistentPlaidEnabled: false,
+  plaidStorageMode: "none",
   signedIn: false,
   storageMode: "localStorage",
   user: null,
@@ -31,6 +37,9 @@ export function useUserStatus() {
         setStatus({
           authConfigured: Boolean(data.authConfigured),
           databaseConfigured: Boolean(data.databaseConfigured),
+          encryptionConfigured: Boolean(data.encryptionConfigured),
+          persistentPlaidEnabled: Boolean(data.persistentPlaidEnabled),
+          plaidStorageMode: data.plaidStorageMode ?? "none",
           signedIn: Boolean(data.signedIn),
           storageMode: data.storageMode ?? "localStorage",
           user: data.user ?? null,

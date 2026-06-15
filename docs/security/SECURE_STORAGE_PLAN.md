@@ -1,12 +1,30 @@
 # Secure Storage Plan (Technical Draft)
 
 **Product:** MoneyOS  
-**Status:** Planning document — not implemented  
+**Status:** Phase 10 implements encrypted sandbox persistence — live mode still disabled  
 **Goal:** Replace dev-only in-memory Plaid token store with production-safe persistence
 
-## Problem
+## Phase 10 implementation (sandbox)
 
-Today, Plaid sandbox `access_token` values live in `globalThis.__moneyosPlaidSession` (see `src/lib/plaid/token-store.ts`). This is acceptable for **local sandbox development only** and fails requirements for:
+When **Clerk auth + DATABASE_URL + PLAID_TOKEN_ENCRYPTION_KEY** are configured and the user is signed in:
+
+- Plaid `access_token` values are encrypted with **AES-256-GCM** (`src/lib/security/encryption.ts`)
+- Stored in `PlaidItem.accessTokenEncrypted` (never returned to client)
+- External Plaid IDs stored as SHA-256 hashes where possible (`itemIdHash`, `plaidAccountIdHash`, `plaidTransactionIdHash`)
+- Accounts and transactions upserted on sync — survive server restart
+- Multiple Plaid Items per user supported
+
+Generate encryption key:
+
+```bash
+openssl rand -base64 32
+```
+
+Set in `.env.local` as `PLAID_TOKEN_ENCRYPTION_KEY=` (server-side only).
+
+## Problem (legacy dev mode)
+
+Without persistence prerequisites, Plaid sandbox `access_token` values still live in `globalThis.__moneyosPlaidSession` (see `src/lib/plaid/token-store.ts`). This remains acceptable for **local sandbox development only** and fails requirements for:
 
 - Multi-user isolation
 - Durability across restarts

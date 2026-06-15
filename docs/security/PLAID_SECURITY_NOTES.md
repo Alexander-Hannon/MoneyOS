@@ -3,23 +3,25 @@
 **Status:** Development / sandbox only  
 **Product:** MoneyOS
 
-## Current integration
+## Current integration (Phase 10)
 
 - **Environment:** Plaid sandbox only — no live mode
-- **Server routes:** `/api/plaid/*` (link token, exchange, accounts, sync, status, disconnect)
-- **Token storage:** `src/lib/plaid/token-store.ts` — in-memory on `globalThis`, single session, lost on restart
+- **Server routes:** `/api/plaid/*` (link token, exchange, accounts, sync, status, disconnect, institutions)
+- **Token storage (signed-in + DB + encryption key):** Encrypted in Postgres `PlaidItem.accessTokenEncrypted` via AES-256-GCM (`src/lib/security/encryption.ts`)
+- **Token storage (local/unauthenticated dev):** `src/lib/plaid/token-store.ts` — in-memory on `globalThis`, lost on restart
 - **Client:** `react-plaid-link` for Link UI; **no access tokens in responses or localStorage**
+- **Multi-item:** Multiple sandbox institutions per authenticated user when persistence is enabled
 
 ## Security requirements (Plaid-aligned)
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
 | Secrets server-side | ✅ | `PLAID_CLIENT_ID` / `PLAID_SECRET` in env only |
-| Access tokens server-side | ✅ (dev) | In-memory — **replace with encrypted DB** |
+| Access tokens server-side | ✅ (sandbox) | Encrypted in Postgres when auth+DB+`PLAID_TOKEN_ENCRYPTION_KEY`; in-memory fallback for local dev |
 | HTTPS in production | 🔲 | Required before live |
 | User auth before Link | 🔲 | Placeholder consent modal exists; MFA TBD |
 | Consent tracking | 🔲 | Log consent timestamp + version before Link |
-| Data deletion on disconnect | 🟡 | Disconnect API clears server token; full user purge TBD |
+| Data deletion on disconnect | 🟡 | Disconnect marks item disconnected and clears encrypted token; historical transactions kept by default |
 | Privacy policy | 🟡 | Draft at `/privacy` and `docs/PRIVACY_POLICY_DRAFT.md` |
 
 ## Data retrieved (sandbox)

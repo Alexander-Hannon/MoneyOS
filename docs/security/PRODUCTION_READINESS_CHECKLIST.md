@@ -20,7 +20,7 @@ Use this checklist before enabling Plaid **production** or handling **live consu
 | Information Security Policy | 🟡 Draft | `INFORMATION_SECURITY_POLICY.md` |
 | Secure tokens/certificates | 🔲 | TLS certs via host; rotate API keys |
 | Patch SLA | 🟡 Draft | `VULNERABILITY_MANAGEMENT_POLICY.md` |
-| Encryption at rest | 🔲 | Encrypted Postgres + token field encryption |
+| Encryption at rest | 🟡 | Postgres + AES-256-GCM for Plaid sandbox tokens when `PLAID_TOKEN_ENCRYPTION_KEY` set; KMS rotation plan still required for production |
 | Zero-trust access architecture | 🔲 | IAM roles, no shared prod passwords |
 | Periodic access reviews | 🟡 Draft | Quarterly checklist |
 | Vulnerability scanning | 🔲 | CI SCA + optional DAST |
@@ -70,9 +70,9 @@ Legend: ✅ done · 🟡 scaffolded · 🔲 not started
 ### Before personal live use (single operator)
 
 - [ ] Authentication (even for solo use — protect deployed instance)
-- [ ] Encrypted server-side Plaid token storage (replace in-memory dev store)
+- [x] Encrypted server-side Plaid **sandbox** token storage (Phase 10 — auth + DB + `PLAID_TOKEN_ENCRYPTION_KEY`)
 - [ ] HTTPS deployment (TLS everywhere)
-- [ ] Real Plaid production connection (separate from sandbox)
+- [ ] Real Plaid production connection (separate from sandbox; live mode disabled)
 - [ ] Backup / export verified (local export exists; server backup TBD)
 - [ ] Onboarding + mode selection (Phase 8 — local only)
 - [ ] Settings: reset, export, disconnect (Phase 8 — local only)
@@ -115,7 +115,8 @@ Phase 9 adds production-shaped foundations without requiring them for local deve
 
 ### Still missing before production
 
-- [ ] Encrypted Plaid token storage (Phase 9 leaves `accessTokenEncrypted` null; sandbox stays in-memory)
+- [x] Encrypted Plaid sandbox token storage (Phase 10 — `PlaidItem.accessTokenEncrypted`, signed-in users only)
+- [x] Auth provider integrated (Clerk — optional)
 - [ ] Live Plaid mode
 - [ ] MFA enforcement for users and internal systems
 - [ ] Production deployment hardening (HTTPS, secrets manager)

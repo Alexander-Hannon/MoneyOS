@@ -201,9 +201,72 @@ export function BankConnectionControl() {
                 {fd.linkedAccounts.length === 1 ? "" : "s"} · {badge}
               </p>
 
+              {fd.plaidStorageMode === "database" && (
+                <p className="rounded-[var(--radius-md)] border border-success/20 bg-success/5 p-2 text-[11px] text-success">
+                  Encrypted sandbox tokens persisted to database
+                </p>
+              )}
+
+              {fd.devOnlyPlaidWarning && (
+                <p className="rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-2 text-[11px] text-warning">
+                  {fd.devOnlyPlaidWarning}
+                </p>
+              )}
+
               <p className="rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-2 text-[11px] text-warning">
                 Sandbox data — not live bank data
               </p>
+
+              {fd.connectedInstitutions.length > 0 && (
+                <ul className="space-y-1.5 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+                  {fd.connectedInstitutions.map((inst) => (
+                    <li
+                      key={inst.id}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{inst.institutionName}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {inst.accountCount} acct · {formatLastSync(inst.lastSyncAt)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          disabled={fd.busy}
+                          onClick={() => {
+                            void fd.syncTransactions(inst.plaidItemId ?? undefined);
+                          }}
+                          className="rounded px-1.5 py-1 hover:bg-accent"
+                          aria-label={`Sync ${inst.institutionName}`}
+                        >
+                          <RefreshCw className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={fd.busy}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Disconnect ${inst.institutionName}?`,
+                              )
+                            ) {
+                              void fd.disconnectSandbox(
+                                inst.plaidItemId ?? undefined,
+                              );
+                              setMenuOpen(false);
+                            }
+                          }}
+                          className="rounded px-1.5 py-1 text-destructive hover:bg-destructive/10"
+                          aria-label={`Disconnect ${inst.institutionName}`}
+                        >
+                          <Unplug className="size-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <div className="flex flex-col gap-1.5">
                 <button
@@ -234,14 +297,24 @@ export function BankConnectionControl() {
                   type="button"
                   disabled={fd.busy}
                   onClick={() => {
-                    if (
+                    if (fd.plaidStorageMode === "database") {
+                      const first = fd.connectedInstitutions[0];
+                      if (
+                        first?.plaidItemId &&
+                        window.confirm(
+                          `Disconnect ${first.institutionName}? Historical transactions will be kept.`,
+                        )
+                      ) {
+                        void fd.disconnectSandbox(first.plaidItemId);
+                      }
+                    } else if (
                       window.confirm(
                         "Disconnect the Plaid sandbox session? Server-side access token will be removed.",
                       )
                     ) {
                       void fd.disconnectSandbox();
-                      setMenuOpen(false);
                     }
+                    setMenuOpen(false);
                   }}
                   className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-destructive/30 px-2.5 py-2 text-left font-medium text-destructive transition-colors hover:bg-destructive/10"
                 >

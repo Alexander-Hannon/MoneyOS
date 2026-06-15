@@ -4,14 +4,15 @@ import {
   getPlaidClient,
   getPlaidConfig,
 } from "@/lib/plaid/client";
+import {
+  PlaidPersistenceError,
+  resolveInstitutionNameFromToken,
+  storePlaidItemForUser,
+} from "@/lib/plaid/persistent-items";
+import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { setPlaidSession } from "@/lib/plaid/token-store";
 
 // POST /api/plaid/exchange-public-token  { public_token }
-// Exchanges a public token for an access token ENTIRELY server-side.
-//
-// SAFETY: the resulting access_token is NEVER returned to the client and is
-// NOT persisted in this phase. In a real deployment it would be stored in a
-// secure server-side secret store / database — never in localStorage.
 export async function POST(request: Request) {
   const config = getPlaidConfig();
   const client = getPlaidClient();
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     publicToken = body?.public_token;
   } catch {
-    // fall through to validation below
+    // fall through
   }
 
   if (!publicToken) {
@@ -39,17 +40,59 @@ export async function POST(request: Request) {
     );
   }
 
+  const storage = await resolvePlaidStorageContext();
+
   try {
     const response = await client.itemPublicTokenExchange({
       public_token: publicToken,
     });
 
-    // The access_token stays on the SERVER. We store it in a dev-only in-memory
-    // store (see token-store.ts). It is NEVER returned to the client or written
-    // to localStorage. (Production requires encrypted DB storage + auth.)
+    const accessToken = response.data.access_token;
+    const itemId = response.data.item_id;
+    const institution = await resolveInstitutionNameFromToken(accessToken);
+
+    if (storage.mode === "database" && storage.userId) {
+      try {
+        const summary = await storePlaidItemForUser({
+          userId: storage.userId,
+          exchange: { item_id: itemId, access_token: accessToken },
+          institutionId: institution.institutionId,
+          institutionName: institution.institutionName,
+        });
+
+        return NextResponse.json({
+          configured: true,
+          ok: true,
+          storageMode: "database",
+          connected: true,
+          item_id: itemId,
+          plaidItemId: summary.plaidItemId,
+          institutionName: summary.institutionName,
+          accountCount: summary.accountCount,
+          transactionCount: summary.transactionCount,
+          lastSyncAt: summary.lastSyncAt,
+          note: "Sandbox connection persisted with encrypted server-side token storage.",
+        });
+      } catch (error) {
+        if (error instanceof PlaidPersistenceError) {
+          return NextResponse.json(
+            {
+              configured: true,
+              ok: false,
+              storageMode: "database",
+              error: error.message,
+              code: error.code,
+            },
+            { status: 503 },
+          );
+        }
+        throw error;
+      }
+    }
+
     setPlaidSession({
-      accessToken: response.data.access_token,
-      itemId: response.data.item_id,
+      accessToken,
+      itemId,
       cursor: null,
       lastSyncAt: null,
     });
@@ -57,8 +100,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       configured: true,
       ok: true,
-      item_id: response.data.item_id,
-      note: "access_token was exchanged and stored server-side only (never sent to the client).",
+      storageMode: "memory",
+      connected: true,
+      item_id: itemId,
+      note: "access_token stored in dev-only server memory (not persisted). Sign in with database + encryption key to persist.",
     });
   } catch (error) {
     return NextResponse.json(

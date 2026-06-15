@@ -11,6 +11,7 @@ import { useFinancialData } from "@/hooks/useFinancialData";
 
 export function ConnectedInstitutionsSection() {
   const fd = useFinancialData();
+  const persisted = fd.plaidStorageMode === "database";
 
   return (
     <Card>
@@ -18,13 +19,23 @@ export function ConnectedInstitutionsSection() {
         <SectionHeader
           icon={Building2}
           title="Connected Institutions"
-          description="Multiple bank connections supported — sandbox only in this build"
+          description={
+            persisted
+              ? "Plaid sandbox institutions persisted with encrypted server-side tokens"
+              : "Multiple bank connections supported — sandbox only in this build"
+          }
           meta={
             fd.connectedInstitutions.length > 0
               ? `${fd.connectedInstitutions.length} institution${fd.connectedInstitutions.length === 1 ? "" : "s"} · ${fd.linkedAccounts.length} accounts`
               : "Not connected"
           }
         />
+
+        {fd.devOnlyPlaidWarning && (
+          <p className="mb-3 rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-2 text-[11px] text-warning">
+            {fd.devOnlyPlaidWarning}
+          </p>
+        )}
 
         {fd.connectedInstitutions.length === 0 ? (
           <EmptyState
@@ -44,10 +55,14 @@ export function ConnectedInstitutionsSection() {
                     <p className="font-medium">{inst.institutionName}</p>
                     <StatusBadge label={inst.status} tone="success" />
                     <StatusBadge label="Plaid sandbox" tone="info" />
+                    {persisted && (
+                      <StatusBadge label="Persisted" tone="success" />
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {inst.accountCount} account{inst.accountCount === 1 ? "" : "s"} ·
-                    last sync {formatLastSync(inst.lastSyncAt)}
+                    {inst.accountCount} account
+                    {inst.accountCount === 1 ? "" : "s"} · last sync{" "}
+                    {formatLastSync(inst.lastSyncAt)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -55,7 +70,9 @@ export function ConnectedInstitutionsSection() {
                     size="sm"
                     variant="secondary"
                     disabled={fd.busy}
-                    onClick={() => void fd.syncTransactions()}
+                    onClick={() =>
+                      void fd.syncTransactions(inst.plaidItemId ?? undefined)
+                    }
                     className="gap-1.5"
                   >
                     <RefreshCw className="size-3.5" />
@@ -68,10 +85,10 @@ export function ConnectedInstitutionsSection() {
                     onClick={() => {
                       if (
                         window.confirm(
-                          "Disconnect the Plaid sandbox session?",
+                          `Disconnect ${inst.institutionName}? Historical transactions will be kept.`,
                         )
                       ) {
-                        void fd.disconnectSandbox();
+                        void fd.disconnectSandbox(inst.plaidItemId ?? undefined);
                       }
                     }}
                     className="gap-1.5 text-destructive"
@@ -86,8 +103,9 @@ export function ConnectedInstitutionsSection() {
         )}
 
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Structure supports multiple Plaid Items. Persistent multi-institution
-          storage is not enabled in this build.
+          {persisted
+            ? "Plaid sandbox data — persisted to database with encrypted access tokens (server-side only)."
+            : "Sign in with database + PLAID_TOKEN_ENCRYPTION_KEY configured to persist sandbox connections across restarts."}
         </p>
       </CardContent>
     </Card>

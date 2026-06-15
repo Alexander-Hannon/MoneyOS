@@ -5,10 +5,10 @@ import {
   getPlaidClient,
   getPlaidConfig,
 } from "@/lib/plaid/client";
+import { getOptionalAuthUser } from "@/lib/auth/session";
+import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 
 // POST /api/plaid/create-link-token
-// Creates a Plaid Link token (server-side). Returns a safe "not configured"
-// response when env vars are missing, so the UI never crashes.
 export async function POST() {
   const config = getPlaidConfig();
   const client = getPlaidClient();
@@ -21,9 +21,14 @@ export async function POST() {
     });
   }
 
+  const authUser = await getOptionalAuthUser();
+  const storage = await resolvePlaidStorageContext();
+
   try {
     const response = await client.linkTokenCreate({
-      user: { client_user_id: "moneyos-local-user" },
+      user: {
+        client_user_id: authUser?.userId ?? "moneyos-local-user",
+      },
       client_name: "MoneyOS",
       products: config.products as Products[],
       country_codes: config.countryCodes as CountryCode[],
@@ -33,6 +38,7 @@ export async function POST() {
       configured: true,
       link_token: response.data.link_token,
       expiration: response.data.expiration,
+      storageMode: storage.mode,
     });
   } catch (error) {
     return NextResponse.json(
