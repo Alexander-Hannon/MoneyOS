@@ -200,9 +200,74 @@ export function SettingsPanel() {
             </div>
           </dl>
           <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
-            Plaid tokens are not persisted for live use yet. Production live mode
-            requires encrypted token storage before launch.
+            {status.persistentPlaidEnabled
+              ? "Plaid sandbox tokens are encrypted at rest in Postgres for signed-in users. Live Plaid mode is still disabled."
+              : "Plaid sandbox persistence requires sign-in, DATABASE_URL, and PLAID_TOKEN_ENCRYPTION_KEY. Without all three, tokens stay in dev-only server memory."}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 pt-5">
+          <h2 className="text-sm font-medium">Plaid persistence</h2>
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Encryption configured</dt>
+              <dd className="font-medium">
+                {status.encryptionConfigured ? "Yes" : "No"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Plaid storage mode</dt>
+              <dd className="font-medium">{fd.plaidStorageMode}</dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2 sm:col-span-2">
+              <dt className="text-muted-foreground">Persistent sandbox enabled</dt>
+              <dd className="font-medium">
+                {status.persistentPlaidEnabled ? "Yes" : "No"}
+              </dd>
+            </div>
+          </dl>
+          {fd.connectedInstitutions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="py-2 pr-3">Institution</th>
+                    <th className="py-2 pr-3">Accounts</th>
+                    <th className="py-2 pr-3">Last sync</th>
+                    <th className="py-2">Storage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fd.connectedInstitutions.map((inst) => (
+                    <tr key={inst.id} className="border-b border-border/60">
+                      <td className="py-2 pr-3 font-medium">
+                        {inst.institutionName}
+                      </td>
+                      <td className="py-2 pr-3 tabular-nums">
+                        {inst.accountCount}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {inst.lastSyncAt
+                          ? new Date(inst.lastSyncAt).toLocaleString()
+                          : "Never"}
+                      </td>
+                      <td className="py-2">
+                        {fd.plaidStorageMode === "database"
+                          ? "database"
+                          : "memory"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No connected sandbox institutions yet.
+            </p>
+          )}
         </CardContent>
       </Card>
 

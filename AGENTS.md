@@ -97,3 +97,12 @@ Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB
 - **Spending Later CRUD:** `SpendingLaterForm` + store CRUD; extended `PlannedExpense` fields.
 - **Multi-institution UI:** `ConnectedInstitutionsSection` + header dropdown (institution/account counts, sync all, connect another).
 - **Simpler AI brief:** `brief-simple.ts` — status, top 3, risk, next action, visual snapshot; details behind Show details.
+
+### Phase 10 (persistent Plaid sandbox + encrypted tokens)
+
+- **Encryption:** `src/lib/security/encryption.ts` — AES-256-GCM via `PLAID_TOKEN_ENCRYPTION_KEY` (generate: `openssl rand -base64 32`).
+- **Persistence:** `src/lib/plaid/persistent-items.ts`, `sync-service.ts` — encrypted `PlaidItem`, upsert accounts/transactions, multi-item per signed-in user.
+- **Storage modes:** `database` when signed in + DB + encryption key; `memory` fallback for local dev (in-memory token store unchanged).
+- **Routes:** `/api/plaid/*` return `storageMode`, institutions, no access tokens; `/api/plaid/institutions` for connected institutions list.
+- **TransactionRule:** Prisma model + `/api/user/transaction-rules` — user-approved categorization rules applied before AI.
+- **Live Plaid still disabled** — sandbox only; no production readiness claims.

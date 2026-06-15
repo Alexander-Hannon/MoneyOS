@@ -102,7 +102,9 @@ export function SpendingDashboard() {
   const excludedTransfers = transferPaymentTotal(txns);
 
   const sourceLabel = usingSandbox
-    ? "Plaid sandbox data — not live bank data"
+    ? fd.plaidStorageMode === "database"
+      ? "Plaid sandbox data — persisted to database (encrypted tokens server-side)"
+      : "Plaid sandbox data — not live bank data"
     : fd.storedMode === "demo"
       ? "Demo data — sample transactions for exploration"
       : "Local user data — add accounts or connect Plaid sandbox";

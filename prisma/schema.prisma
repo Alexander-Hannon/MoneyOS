@@ -33,6 +33,7 @@ model User {
   plaidItems            PlaidItem[]
   accounts              Account[]
   transactions          MoneyTransaction[]
+  transactionRules      TransactionRule[]
 }
 
 model UserSettings {
@@ -141,59 +142,72 @@ model ConnectedInstitution {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   institutionName String
   plaidItemIdHash String?
+  plaidItemId     String?
   status          String
   source          String
   connectedAt     DateTime
+  lastSyncAt      DateTime?
   disconnectedAt  DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([userId])
+  @@index([userId, plaidItemIdHash])
 }
 
 model PlaidItem {
-  id                    String   @id @default(cuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institutionId         String?
-  institutionName       String?
-  itemIdHash            String?
-  /// Encrypted access token — MUST be encrypted before production live use.
-  /// Phase 9: nullable placeholder; sandbox tokens stay in-memory only.
-  accessTokenEncrypted  String?
-  environment           String   @default("sandbox")
-  status                String   @default("disconnected")
-  syncCursor            String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId        String?
+  institutionName      String?
+  itemIdHash           String?
+  /// AES-256-GCM encrypted access token — never expose to client.
+  accessTokenEncrypted String?
+  environment          String    @default("sandbox")
+  status               String    @default("connected")
+  syncCursor           String?
+  lastSyncAt           DateTime?
+  disconnectedAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([userId])
+  @@unique([userId, itemIdHash])
 }
 
 model Account {
-  id               String   @id @default(cuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItemId        String?
+  /// Server-side Plaid account_id for sync mapping — never sent to client.
+  plaidAccountId     String?
   plaidAccountIdHash String?
-  name             String
-  institution      String
-  type             String
-  subtype          String?
-  mask             String?
-  currentBalance   Float?
-  availableBalance Float?
-  source           String
-  connectionStatus String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  name               String
+  institution        String
+  type               String
+  subtype            String?
+  mask               String?
+  currentBalance     Float?
+  availableBalance   Float?
+  source             String
+  connectionStatus   String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, plaidItemId])
+  @@unique([userId, plaidAccountIdHash])
 }
 
 model MoneyTransaction {
   id                     String   @id @default(cuid())
   userId                 String
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItemId            String?
+  /// Server-side Plaid transaction_id for sync mapping — never sent to client.
+  plaidTransactionId     String?
   plaidTransactionIdHash String?
   accountId              String?
   date                   DateTime
@@ -201,6 +215,7 @@ model MoneyTransaction {
   description            String
   amount                 Float
   type                   String
+  classification         String   @default("review")
   category               String
   subcategory            String?
   pending                Boolean  @default(false)
@@ -211,4 +226,21 @@ model MoneyTransaction {
   updatedAt              DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, plaidItemId])
+  @@unique([userId, plaidTransactionIdHash])
+}
+
+model TransactionRule {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchantPattern       String
+  category              String
+  shouldCountAsSpending Boolean  @default(true)
+  confidenceSource      String   @default("user_approved")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, merchantPattern])
 }

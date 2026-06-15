@@ -46,6 +46,7 @@ export interface ActionItem {
 
 export interface ConnectedInstitutionDisplay {
   id: string;
+  plaidItemId?: string | null;
   institutionName: string;
   accountCount: number;
   status: "connected" | "disconnected" | "error" | "syncing";
@@ -53,3 +54,5 @@ export interface ConnectedInstitutionDisplay {
   lastSyncAt: string | null;
   source: "plaid_sandbox" | "future_live";
 }
+
+export type PlaidStorageMode = "memory" | "database" | "none";

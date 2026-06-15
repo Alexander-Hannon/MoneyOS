@@ -32,7 +32,7 @@ import {
 } from "@/lib/app-mode";
 import { useMoneyData } from "@/lib/storage/store";
 import type { Account, Alert, Bill, IncomeSource, PlannedExpense, Subscription } from "@/types/money";
-import type { ActionItem, ConnectedInstitutionDisplay, RecurringSuggestion } from "@/types/actions";
+import type { ActionItem, ConnectedInstitutionDisplay, PlaidStorageMode, RecurringSuggestion } from "@/types/actions";
 import type {
   DataSource,
   LinkedAccount,
@@ -77,10 +77,14 @@ export interface FinancialDataContextValue {
   connectedInstitutions: ConnectedInstitutionDisplay[];
 
   plaidConnected: boolean;
+  plaidStorageMode: PlaidStorageMode;
+  encryptionConfigured: boolean;
+  persistentPlaidEnabled: boolean;
+  devOnlyPlaidWarning: string | null;
 
   handleLinkSuccess: (publicToken: string) => Promise<void>;
-  syncTransactions: () => Promise<void>;
-  disconnectSandbox: () => Promise<void>;
+  syncTransactions: (plaidItemId?: string) => Promise<void>;
+  disconnectSandbox: (plaidItemId?: string) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -122,6 +126,16 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     MoneyTransaction[]
   >([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [plaidStorageMode, setPlaidStorageMode] =
+    useState<PlaidStorageMode>("none");
+  const [encryptionConfigured, setEncryptionConfigured] = useState(false);
+  const [persistentPlaidEnabled, setPersistentPlaidEnabled] = useState(false);
+  const [devOnlyPlaidWarning, setDevOnlyPlaidWarning] = useState<string | null>(
+    null,
+  );
+  const [apiInstitutions, setApiInstitutions] = useState<
+    ConnectedInstitutionDisplay[]
+  >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,7 +149,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     alerts: storedAlerts,
   });
 
-  const loadSandboxData = useCallback(async () => {
+  const loadSandboxData = useCallback(async (plaidItemId?: string) => {
     setBusy(true);
     setError(null);
     try {
@@ -145,12 +159,18 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         setLinkedAccounts(accountsRes.accounts);
       }
 
-      const txnRes = await postJson("/api/plaid/sync-transactions");
+      const txnRes = await postJson(
+        "/api/plaid/sync-transactions",
+        plaidItemId ? { plaidItemId } : undefined,
+      );
       if (txnRes.error) throw new Error(txnRes.error);
       if (Array.isArray(txnRes.transactions)) {
         setPlaidTransactions(txnRes.transactions);
         setPlaidConnectionStatus("connected");
         if (txnRes.lastSyncAt) setLastSyncAt(txnRes.lastSyncAt);
+      }
+      if (txnRes.storageMode) {
+        setPlaidStorageMode(txnRes.storageMode);
       }
     } catch (e) {
       setPlaidConnectionStatus("error");
@@ -165,6 +185,35 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/plaid/status").then((r) => r.json());
       setConfigured(Boolean(res.configured));
       setLastSyncAt(res.lastSyncAt ?? null);
+      setPlaidStorageMode(res.storageMode ?? "none");
+      setEncryptionConfigured(Boolean(res.encryptionConfigured));
+      setPersistentPlaidEnabled(Boolean(res.persistentPlaidEnabled));
+      setDevOnlyPlaidWarning(res.devOnlyWarning ?? null);
+      if (Array.isArray(res.institutions)) {
+        setApiInstitutions(
+          res.institutions.map(
+            (inst: {
+              id: string;
+              plaidItemId?: string | null;
+              institutionName: string;
+              accountCount: number;
+              status: ConnectedInstitutionDisplay["status"];
+              connectedAt: string;
+              lastSyncAt: string | null;
+              source: ConnectedInstitutionDisplay["source"];
+            }) => ({
+              id: inst.id,
+              plaidItemId: inst.plaidItemId,
+              institutionName: inst.institutionName,
+              accountCount: inst.accountCount,
+              status: inst.status,
+              connectedAt: inst.connectedAt,
+              lastSyncAt: inst.lastSyncAt,
+              source: inst.source,
+            }),
+          ),
+        );
+      }
       if (res.connected) {
         setPlaidConnectionStatus("connected");
         await loadSandboxData();
@@ -172,6 +221,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         setPlaidConnectionStatus("not_connected");
         setLinkedAccounts([]);
         setPlaidTransactions([]);
+        setApiInstitutions([]);
       }
     } catch {
       setError("Could not reach the Plaid status endpoint.");
@@ -213,20 +263,29 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     [loadSandboxData],
   );
 
-  const syncTransactions = useCallback(async () => {
-    await loadSandboxData();
-  }, [loadSandboxData]);
+  const syncTransactions = useCallback(async (plaidItemId?: string) => {
+    await loadSandboxData(plaidItemId);
+    await refreshData();
+  }, [loadSandboxData, refreshData]);
 
-  const disconnectSandbox = useCallback(async () => {
+  const disconnectSandbox = useCallback(async (plaidItemId?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await postJson("/api/plaid/disconnect");
+      const res = await postJson(
+        "/api/plaid/disconnect",
+        plaidItemId ? { plaidItemId } : undefined,
+      );
       if (res.error) throw new Error(res.error);
-      setPlaidConnectionStatus("not_connected");
-      setLinkedAccounts([]);
-      setPlaidTransactions([]);
-      setLastSyncAt(null);
+      if (plaidItemId) {
+        await refreshData();
+      } else {
+        setPlaidConnectionStatus("not_connected");
+        setLinkedAccounts([]);
+        setPlaidTransactions([]);
+        setLastSyncAt(null);
+        setApiInstitutions([]);
+      }
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Could not disconnect sandbox session.",
@@ -234,7 +293,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [refreshData]);
 
   const dataSource = resolveDataSource(plaidConnected, storedMode);
   const accounts = resolveAccounts(
@@ -262,6 +321,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   );
 
   const connectedInstitutions = useMemo((): ConnectedInstitutionDisplay[] => {
+    if (apiInstitutions.length > 0) return apiInstitutions;
     if (!plaidConnected || linkedAccounts.length === 0) return [];
     const byInstitution = new Map<string, typeof linkedAccounts>();
     for (const account of linkedAccounts) {
@@ -279,7 +339,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       lastSyncAt,
       source: "plaid_sandbox" as const,
     }));
-  }, [plaidConnected, linkedAccounts, lastSyncAt]);
+  }, [apiInstitutions, plaidConnected, linkedAccounts, lastSyncAt]);
 
   const incomeSummary = useMemo(
     () =>
@@ -441,6 +501,10 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       actionItems,
       connectedInstitutions,
       plaidConnected,
+      plaidStorageMode,
+      encryptionConfigured,
+      persistentPlaidEnabled,
+      devOnlyPlaidWarning,
       handleLinkSuccess,
       syncTransactions,
       disconnectSandbox,
@@ -475,6 +539,10 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       actionItems,
       connectedInstitutions,
       plaidConnected,
+      plaidStorageMode,
+      encryptionConfigured,
+      persistentPlaidEnabled,
+      devOnlyPlaidWarning,
       handleLinkSuccess,
       syncTransactions,
       disconnectSandbox,

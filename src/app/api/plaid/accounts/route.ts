@@ -7,10 +7,11 @@ import {
 } from "@/lib/plaid/client";
 import { getPlaidSession } from "@/lib/plaid/token-store";
 import { normalizeAccount } from "@/lib/plaid/normalize";
+import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
+import { loadPersistedPlaidDataForUser } from "@/lib/plaid/sync-service";
+import { countActivePlaidItemsForUser } from "@/lib/db/plaid-items";
 
 // POST /api/plaid/accounts
-// Fetches linked sandbox accounts using the server-side access token and
-// returns them normalized into MoneyOS LinkedAccount shape (no token data).
 export async function POST() {
   const config = getPlaidConfig();
   const client = getPlaidClient();
@@ -23,11 +24,35 @@ export async function POST() {
     });
   }
 
+  const storage = await resolvePlaidStorageContext();
+
+  if (storage.mode === "database" && storage.userId) {
+    const activeCount = await countActivePlaidItemsForUser(storage.userId);
+    if (activeCount === 0) {
+      return NextResponse.json({
+        configured: true,
+        connected: false,
+        storageMode: "database",
+        message: "No persisted sandbox banks connected yet.",
+      });
+    }
+
+    const data = await loadPersistedPlaidDataForUser(storage.userId);
+    return NextResponse.json({
+      configured: true,
+      connected: true,
+      storageMode: "database",
+      accounts: data.accounts,
+      lastSyncAt: data.lastSyncAt,
+    });
+  }
+
   const session = getPlaidSession();
   if (!session) {
     return NextResponse.json({
       configured: true,
       connected: false,
+      storageMode: "memory",
       message: "No sandbox bank connected yet.",
     });
   }
@@ -48,7 +73,7 @@ export async function POST() {
         });
         institution = inst.data.institution.name;
       } catch {
-        // Non-fatal — fall back to a generic label.
+        // non-fatal
       }
     }
 
@@ -56,12 +81,18 @@ export async function POST() {
       normalizeAccount(a, institution),
     );
 
-    return NextResponse.json({ configured: true, connected: true, accounts });
+    return NextResponse.json({
+      configured: true,
+      connected: true,
+      storageMode: "memory",
+      accounts,
+    });
   } catch (error) {
     return NextResponse.json(
       {
         configured: true,
         connected: true,
+        storageMode: "memory",
         error: "Failed to fetch accounts from Plaid.",
         detail: describePlaidError(error),
       },
