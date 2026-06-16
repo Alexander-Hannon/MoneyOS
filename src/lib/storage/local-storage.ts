@@ -18,6 +18,9 @@ export const STORAGE_KEYS = {
   migrationCompleted: "moneyos:migration-completed",
   dismissedRecurring: "moneyos:dismissed-recurring",
   dismissedActions: "moneyos:dismissed-actions",
+  weeklyReviews: "moneyos:weekly-reviews",
+  setupSkippedBills: "moneyos:setup-skipped-bills",
+  setupSkippedSubscriptions: "moneyos:setup-skipped-subscriptions",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

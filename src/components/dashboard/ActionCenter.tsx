@@ -1,10 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   ArrowRight,
   CheckCircle2,
   ExternalLink,
   ListChecks,
+  Target,
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { scrollToSection } from "@/lib/scroll-nav";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { useMoneyData } from "@/lib/storage/store";
+import { generateFirstThreeActions } from "@/lib/action-priority";
 import type { ActionItem } from "@/types/actions";
 import type { Tone } from "@/types/money";
 
@@ -59,9 +62,11 @@ function handleAction(item: ActionItem) {
 }
 
 export function ActionCenter() {
-  const { actionItems } = useFinancialData();
+  const fd = useFinancialData();
+  const { actionItems } = fd;
   const { dismissActionItem } = useMoneyData();
 
+  const firstThree = useMemo(() => generateFirstThreeActions(fd), [fd]);
   const visible = actionItems.slice(0, 12);
   const highPriority = visible.filter((a) => a.priority === "high").length;
 
@@ -74,6 +79,24 @@ export function ActionCenter() {
           description="One place for bills, trials, reviews, and setup tasks"
           meta={`${visible.length} open · ${highPriority} high priority`}
         />
+
+        <div className="mb-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary/5 p-4">
+          <p className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+            <Target className="size-3.5" />
+            First 3 actions
+          </p>
+          <ol className="space-y-2">
+            {firstThree.map((action, i) => (
+              <li
+                key={action.id}
+                className="rounded-[var(--radius-md)] border border-border/60 bg-card px-3 py-2 text-sm"
+              >
+                <span className="mr-2 font-semibold text-primary">{i + 1}.</span>
+                {action.title}
+              </li>
+            ))}
+          </ol>
+        </div>
 
         {visible.length === 0 ? (
           <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-6 text-center">

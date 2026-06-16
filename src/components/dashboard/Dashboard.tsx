@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
+import { DataConfidenceStrip } from "@/components/shared/DataConfidenceStrip";
 import { NextResponsibleAction } from "@/components/dashboard/NextResponsibleAction";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { MoneySnapshot } from "@/components/dashboard/MoneySnapshot";
@@ -108,6 +109,8 @@ export function Dashboard() {
             plaidConnected={fd.plaidConnected}
             storedMode={fd.storedMode}
           />
+
+          <DataConfidenceStrip />
 
           <CashflowCard
             presentation={chartPresentation}

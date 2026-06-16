@@ -14,7 +14,21 @@ STRICT RULES:
 - Use plain language. Be concise and actionable.`;
 
 export const MONEY_BRIEF_USER_PROMPT = `Analyze the sanitized financial summary and return structured guidance.
-Focus on cash runway, upcoming obligations, review items, and one clear next action for the user to review — not execute automatically.`;
+Focus on cash runway, upcoming obligations, review items, and one clear next action for the user to review — not execute automatically.
+
+Write like a disciplined financial coach speaking to a smart beginner. Give only the most important information. Use short sentences. No dense paragraphs.`;
+
+export const WEEKLY_REVIEW_USER_PROMPT = `Generate a Weekly Money Review for AJ's personal finance command center.
+
+STRICT STYLE:
+- Short, direct, simple language
+- No dense paragraphs
+- No complicated finance jargon
+- Visual-first bullet points where possible
+- Review-required — never authorize spending, investing, or bill payment
+- Write like a disciplined financial coach speaking to a smart beginner
+
+Return structured sections only.`;
 
 export const EXPLAIN_ALERT_USER_PROMPT = `Explain this Money Agent alert in plain English for a user who will make their own decision.
 Include why it matters, concrete review steps, and what NOT to do (especially: do not move money based on this explanation alone).`;
