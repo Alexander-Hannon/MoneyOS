@@ -1,6 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { ChartContainer } from "@/components/shared/ChartContainer";
 import type { CategoryTotal } from "@/lib/transaction-utils";
 
 const COLORS = [
@@ -16,8 +17,13 @@ const COLORS = [
 ];
 
 export function SpendingByCategoryChart({ data }: { data: CategoryTotal[] }) {
+  if (!data.length) return null;
+
   return (
-    <div className="h-[180px] w-full">
+    <ChartContainer
+      ready={data.length > 0}
+      heightClassName="h-[240px] min-h-[240px]"
+    >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -47,7 +53,7 @@ export function SpendingByCategoryChart({ data }: { data: CategoryTotal[] }) {
           />
         </PieChart>
       </ResponsiveContainer>
-    </div>
+    </ChartContainer>
   );
 }
 

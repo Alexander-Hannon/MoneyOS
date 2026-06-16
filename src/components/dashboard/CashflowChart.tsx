@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartContainer } from "@/components/shared/ChartContainer";
 
 type Point = { month: string; income: number; spending: number };
 
@@ -16,8 +17,10 @@ const INCOME = "hsl(152 62% 47%)";
 const SPENDING = "hsl(0 72% 60%)";
 
 export function CashflowChart({ data }: { data: Point[] }) {
+  if (!data.length) return null;
+
   return (
-    <div className="h-[200px] w-full">
+    <ChartContainer ready={data.length > 0}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 6, right: 6, left: -16, bottom: 0 }}>
           <defs>
@@ -73,6 +76,6 @@ export function CashflowChart({ data }: { data: Point[] }) {
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </ChartContainer>
   );
 }

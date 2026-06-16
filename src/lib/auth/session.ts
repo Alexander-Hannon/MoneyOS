@@ -14,21 +14,75 @@ export type AuthApiResult =
   | { ok: true; user: AuthenticatedDbUser }
   | { ok: false; status: number; body: Record<string, unknown> };
 
+type ClerkAuthRead =
+  | { ok: true; userId: string | null }
+  | { ok: false; status: number; body: Record<string, unknown> };
+
+/** Read Clerk session safely — never throws through API handlers. */
+async function readClerkAuth(): Promise<ClerkAuthRead> {
+  if (!isClerkConfigured()) {
+    return { ok: true, userId: null };
+  }
+
+  try {
+    const { userId } = await auth();
+    return { ok: true, userId: userId ?? null };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Clerk authentication failed.";
+
+    if (message.includes("clerkMiddleware")) {
+      return {
+        ok: false,
+        status: 503,
+        body: {
+          error:
+            "Clerk middleware is not active. Ensure src/middleware.ts exports clerkMiddleware().",
+          configured: false,
+          authConfigured: true,
+          databaseConfigured: isDatabaseConfigured(),
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      status: 503,
+      body: {
+        error: "Clerk authentication is temporarily unavailable.",
+        detail: message,
+        configured: false,
+        authConfigured: true,
+        databaseConfigured: isDatabaseConfigured(),
+      },
+    };
+  }
+}
+
+async function readClerkUserProfile() {
+  try {
+    return await currentUser();
+  } catch {
+    return null;
+  }
+}
+
 export async function getOptionalAuthUser(): Promise<AuthenticatedDbUser | null> {
   if (!isClerkConfigured() || !isDatabaseConfigured()) return null;
 
-  const { userId: clerkUserId } = await auth();
-  if (!clerkUserId) return null;
+  const authResult = await readClerkAuth();
+  if (!authResult.ok) return null;
+  if (!authResult.userId) return null;
 
-  const clerk = await currentUser();
+  const clerk = await readClerkUserProfile();
   const user = await upsertUserFromClerk({
-    clerkUserId,
+    clerkUserId: authResult.userId,
     email: clerk?.primaryEmailAddress?.emailAddress ?? null,
     displayName: clerk?.fullName ?? clerk?.username ?? null,
   });
 
   return {
-    clerkUserId,
+    clerkUserId: authResult.userId,
     userId: user.id,
     email: user.email,
     displayName: user.displayName,
@@ -76,8 +130,12 @@ export async function requireAuthUser(): Promise<AuthApiResult> {
     };
   }
 
-  const { userId: clerkUserId } = await auth();
-  if (!clerkUserId) {
+  const authResult = await readClerkAuth();
+  if (!authResult.ok) {
+    return { ok: false, status: authResult.status, body: authResult.body };
+  }
+
+  if (!authResult.userId) {
     return {
       ok: false,
       status: 401,
@@ -90,9 +148,9 @@ export async function requireAuthUser(): Promise<AuthApiResult> {
     };
   }
 
-  const clerk = await currentUser();
+  const clerk = await readClerkUserProfile();
   const user = await upsertUserFromClerk({
-    clerkUserId,
+    clerkUserId: authResult.userId,
     email: clerk?.primaryEmailAddress?.emailAddress ?? null,
     displayName: clerk?.fullName ?? clerk?.username ?? null,
   });
@@ -100,7 +158,7 @@ export async function requireAuthUser(): Promise<AuthApiResult> {
   return {
     ok: true,
     user: {
-      clerkUserId,
+      clerkUserId: authResult.userId,
       userId: user.id,
       email: user.email,
       displayName: user.displayName,
