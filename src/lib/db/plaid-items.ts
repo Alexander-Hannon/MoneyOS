@@ -1,6 +1,8 @@
 import { getPrisma } from "@/lib/db/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/security/encryption";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
 
 export type SafePlaidItem = {
   id: string;
@@ -9,6 +11,7 @@ export type SafePlaidItem = {
   environment: string;
   status: string;
   lastSyncAt: string | null;
+  lastBalanceRefreshAt: string | null;
   connectedAt: string;
 };
 
@@ -21,11 +24,19 @@ export async function listPlaidItemsForUser(userId: string) {
   });
 }
 
-export async function listActivePlaidItemsForUser(userId: string) {
+export async function listActivePlaidItemsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
   const prisma = getPrisma();
   if (!prisma) return [];
   return prisma.plaidItem.findMany({
-    where: { userId, status: "connected", disconnectedAt: null },
+    where: {
+      userId,
+      status: "connected",
+      disconnectedAt: null,
+      ...(environment ? { environment } : {}),
+    },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -108,7 +119,24 @@ export async function updatePlaidItemSyncState(args: {
   });
 }
 
-export async function markPlaidItemDisconnected(userId: string, plaidItemId: string) {
+export async function updatePlaidItemBalanceRefresh(args: {
+  userId: string;
+  plaidItemId: string;
+  lastBalanceRefreshAt: Date;
+}) {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database is not configured.");
+
+  return prisma.plaidItem.updateMany({
+    where: { id: args.plaidItemId, userId: args.userId },
+    data: { lastBalanceRefreshAt: args.lastBalanceRefreshAt },
+  });
+}
+
+export async function markPlaidItemDisconnected(
+  userId: string,
+  plaidItemId: string,
+) {
   const prisma = getPrisma();
   if (!prisma) throw new Error("Database is not configured.");
   const now = new Date();
@@ -173,11 +201,42 @@ export async function upsertConnectedInstitution(args: {
   });
 }
 
-export async function listConnectedInstitutionsForUser(userId: string) {
+export async function deletePlaidItemHistory(userId: string, plaidItemId: string) {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database is not configured.");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.moneyTransaction.deleteMany({
+      where: { userId, plaidItemId },
+    });
+    await tx.account.deleteMany({
+      where: { userId, plaidItemId },
+    });
+  });
+}
+
+export async function listConnectedInstitutionsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
   const prisma = getPrisma();
   if (!prisma) return [];
+
+  if (!environment) {
+    return prisma.connectedInstitution.findMany({
+      where: { userId, status: "connected", disconnectedAt: null },
+      orderBy: { connectedAt: "asc" },
+    });
+  }
+
+  const source = plaidSourceForEnvironment(environment);
   return prisma.connectedInstitution.findMany({
-    where: { userId, status: "connected", disconnectedAt: null },
+    where: {
+      userId,
+      status: "connected",
+      disconnectedAt: null,
+      source,
+    },
     orderBy: { connectedAt: "asc" },
   });
 }
@@ -202,6 +261,7 @@ export function toSafePlaidItem(item: {
   environment: string;
   status: string;
   lastSyncAt: Date | null;
+  lastBalanceRefreshAt?: Date | null;
   createdAt: Date;
 }): SafePlaidItem {
   return {
@@ -211,14 +271,23 @@ export function toSafePlaidItem(item: {
     environment: item.environment,
     status: item.status,
     lastSyncAt: item.lastSyncAt?.toISOString() ?? null,
+    lastBalanceRefreshAt: item.lastBalanceRefreshAt?.toISOString() ?? null,
     connectedAt: item.createdAt.toISOString(),
   };
 }
 
-export async function countActivePlaidItemsForUser(userId: string): Promise<number> {
+export async function countActivePlaidItemsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+): Promise<number> {
   const prisma = getPrisma();
   if (!prisma) return 0;
   return prisma.plaidItem.count({
-    where: { userId, status: "connected", disconnectedAt: null },
+    where: {
+      userId,
+      status: "connected",
+      disconnectedAt: null,
+      ...(environment ? { environment } : {}),
+    },
   });
 }

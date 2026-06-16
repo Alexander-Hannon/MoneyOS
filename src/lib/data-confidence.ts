@@ -4,7 +4,7 @@ export type DataConfidenceLevel = "High" | "Medium" | "Low" | "Setup Needed";
 
 export type DataConfidenceDetail = {
   level: DataConfidenceLevel;
-  cash: "missing" | "manual" | "sandbox" | "database" | "demo" | "mixed";
+  cash: "missing" | "manual" | "sandbox" | "live" | "database" | "demo" | "mixed";
   income: "missing" | "estimated" | "confirmed";
   bills: "missing" | "manual" | "synced_suggestion";
   subscriptions: "missing" | "manual" | "detected";
@@ -21,6 +21,7 @@ export function computeDataConfidence(
   if (fd.storedMode === "demo") cash = "demo";
   else if (dashboardSummary.cashDataSource === "mixed") cash = "mixed";
   else if (dashboardSummary.cashDataSource === "plaid_sandbox") cash = "sandbox";
+  else if (dashboardSummary.cashDataSource === "plaid_live") cash = "live";
   else if (dashboardSummary.cashDataSource === "manual") cash = "manual";
   else if (accounts.length > 0) cash = "manual";
 
@@ -56,6 +57,7 @@ export function computeDataConfidence(
     level = "Low";
   } else if (
     cash === "sandbox" ||
+    cash === "live" ||
     incomeLevel === "estimated" ||
     spending === "projection"
   ) {

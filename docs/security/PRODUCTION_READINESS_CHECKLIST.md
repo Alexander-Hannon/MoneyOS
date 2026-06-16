@@ -98,7 +98,21 @@ Legend: ✅ done · 🟡 scaffolded · 🔲 not started
 - [ ] Cost controls (AI API, Plaid, hosting)
 - [ ] Rate limits on API routes
 - [ ] Production Plaid approval complete
-- [ ] Live mode enabled (`future_plaid_live`) with full controls
+- [x] Personal live mode (Phase 12) — owner-only, env-gated, not public launch
+- [ ] Public SaaS launch with full compliance/security review
+
+## Phase 12 (personal live Plaid) — implemented
+
+Private owner mode for real bank data. **Not** public beta or SaaS launch.
+
+- [x] `MONEYOS_ENABLE_LIVE_PLAID` + `MONEYOS_ALLOWED_LIVE_USER_EMAIL` env gates
+- [x] Production Link blocked without auth + DB + encryption + allowlisted user
+- [x] Strong consent modal (checkbox + typed `CONNECT REAL DATA`)
+- [x] `PlaidItem.environment` separation (sandbox vs production)
+- [x] Encrypted tokens server-side only; no client/localStorage tokens
+- [x] Balance refresh controls (manual + daily auto limit for live)
+- [x] Disconnect with keep/delete history options
+- [ ] Final compliance review before any public production release
 
 ## Phase 9 (auth + database foundation) — scaffolded
 
@@ -117,7 +131,7 @@ Phase 9 adds production-shaped foundations without requiring them for local deve
 
 - [x] Encrypted Plaid sandbox token storage (Phase 10 — `PlaidItem.accessTokenEncrypted`, signed-in users only)
 - [x] Auth provider integrated (Clerk — optional)
-- [ ] Live Plaid mode
+- [x] Personal live Plaid mode (Phase 12 — owner-only, env-gated)
 - [ ] MFA enforcement for users and internal systems
 - [ ] Production deployment hardening (HTTPS, secrets manager)
 - [ ] Logging / monitoring

@@ -6,6 +6,7 @@ import type {
   PlannedExpense,
   Subscription,
 } from "@/types/money";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import {
   demoAlerts,
   demoSpendingLater,
@@ -70,14 +71,18 @@ export function loadOnboardingCompleted(): boolean {
 
 /**
  * Effective mode for data labels and AI context.
- * Plaid connection elevates display to plaid_sandbox unless in pure demo manual mode.
+ * Live production Plaid elevates to personal_live; sandbox to plaid_sandbox.
  */
 export function resolveEffectiveMode(
   storedMode: AppMode,
   plaidConnected: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): AppMode {
-  if (storedMode === "future_plaid_live") return "future_plaid_live";
+  if (plaidConnected && activePlaidEnvironment === "production") {
+    return "personal_live";
+  }
   if (plaidConnected) return "plaid_sandbox";
+  if (storedMode === "personal_live") return "local_user";
   if (storedMode === "plaid_sandbox") return "local_user";
   return storedMode;
 }
@@ -85,8 +90,11 @@ export function resolveEffectiveMode(
 export function getModeDisplayLabel(
   storedMode: AppMode,
   plaidConnected: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): ModeDisplayLabel {
-  if (storedMode === "future_plaid_live") return "Live mode disabled";
+  if (plaidConnected && activePlaidEnvironment === "production") {
+    return "Personal Live";
+  }
   if (plaidConnected) return "Plaid Sandbox";
   if (storedMode === "demo") return "Demo Mode";
   return "Local User Data";
@@ -96,15 +104,24 @@ export type DataSourceLabel =
   | "Demo data"
   | "Local user data"
   | "Plaid Sandbox"
+  | "Personal Live Data"
   | "Mixed demo + sandbox"
   | "Mixed local + sandbox"
+  | "Mixed local + live"
+  | "Live bank data"
   | "Empty — add your data";
 
 export function getDataSourceLabel(
   storedMode: AppMode,
   plaidConnected: boolean,
   isEmpty: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): DataSourceLabel {
+  if (plaidConnected && activePlaidEnvironment === "production") {
+    if (storedMode === "demo") return "Mixed demo + sandbox";
+    if (storedMode === "local_user" && !isEmpty) return "Mixed local + live";
+    return "Personal Live Data";
+  }
   if (plaidConnected) {
     if (storedMode === "demo") return "Mixed demo + sandbox";
     return "Mixed local + sandbox";
@@ -133,7 +150,6 @@ export function canGenerateUsefulBrief(
   isEmpty: boolean,
   plaidConnected: boolean,
 ): boolean {
-  if (effectiveMode === "future_plaid_live") return false;
   if (plaidConnected) return true;
   if (effectiveMode === "demo") return true;
   return !isEmpty;

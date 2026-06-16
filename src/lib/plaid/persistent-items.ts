@@ -1,13 +1,16 @@
 import type { CountryCode } from "plaid";
 import {
   describePlaidError,
-  getPlaidClient,
+  getPlaidClientForEnvironment,
   getPlaidConfig,
 } from "@/lib/plaid/client";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
 import { isEncryptionConfigured } from "@/lib/security/encryption";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import { isPlaidEnvironment, plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
 import {
   countActivePlaidItemsForUser,
+  deletePlaidItemHistory,
   getPlaidItemForUser,
   listActivePlaidItemsForUser,
   listConnectedInstitutionsForUser,
@@ -28,6 +31,8 @@ export type SafePlaidConnectionSummary = {
   plaidItemId: string;
   institutionName: string;
   itemIdHash: string;
+  environment: PlaidEnvironment;
+  source: "plaid_sandbox" | "plaid_live";
   accountCount: number;
   transactionCount: number;
   lastSyncAt: string | null;
@@ -40,7 +45,8 @@ export class PlaidPersistenceError extends Error {
       | "encryption_not_configured"
       | "database_not_configured"
       | "not_found"
-      | "plaid_error",
+      | "plaid_error"
+      | "live_not_allowed",
   ) {
     super(message);
     this.name = "PlaidPersistenceError";
@@ -52,8 +58,11 @@ export async function getPlaidItemsForUser(userId: string) {
   return items.map(toSafePlaidItem);
 }
 
-export async function getActivePlaidItemsForUser(userId: string) {
-  const items = await listActivePlaidItemsForUser(userId);
+export async function getActivePlaidItemsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
+  const items = await listActivePlaidItemsForUser(userId, environment);
   return items.map(toSafePlaidItem);
 }
 
@@ -62,7 +71,15 @@ export async function storePlaidItemForUser(args: {
   exchange: PlaidExchangeResult;
   institutionId?: string | null;
   institutionName?: string | null;
+  environment: PlaidEnvironment;
 }): Promise<SafePlaidConnectionSummary> {
+  if (args.environment === "production" && !isEncryptionConfigured()) {
+    throw new PlaidPersistenceError(
+      "Live Plaid requires encrypted token storage.",
+      "encryption_not_configured",
+    );
+  }
+
   if (!isEncryptionConfigured()) {
     throw new PlaidPersistenceError(
       "PLAID_TOKEN_ENCRYPTION_KEY is not configured. Generate with: openssl rand -base64 32",
@@ -70,14 +87,16 @@ export async function storePlaidItemForUser(args: {
     );
   }
 
-  const config = getPlaidConfig();
+  const source = plaidSourceForEnvironment(args.environment) as
+    | "plaid_sandbox"
+    | "plaid_live";
   const item = await upsertPlaidItemForUser({
     userId: args.userId,
     itemId: args.exchange.item_id,
     accessToken: args.exchange.access_token,
     institutionId: args.institutionId ?? null,
     institutionName: args.institutionName ?? null,
-    environment: config?.env ?? "sandbox",
+    environment: args.environment,
   });
 
   const itemIdHash = hashPlaidId(args.exchange.item_id);
@@ -86,15 +105,19 @@ export async function storePlaidItemForUser(args: {
     plaidItemId: item.id,
     itemIdHash,
     institutionName: args.institutionName ?? "Connected bank",
-    source: "plaid_sandbox",
+    source,
   });
 
-  const syncSummary = await syncPlaidItemForUser(args.userId, item.id);
+  const syncSummary = await syncPlaidItemForUser(args.userId, item.id, {
+    refreshBalances: args.environment === "sandbox",
+  });
 
   return {
     plaidItemId: item.id,
     institutionName: args.institutionName ?? "Connected bank",
     itemIdHash,
+    environment: args.environment,
+    source,
     accountCount: syncSummary.accountCount,
     transactionCount: syncSummary.transactionCount,
     lastSyncAt: syncSummary.lastSyncAt,
@@ -104,15 +127,19 @@ export async function storePlaidItemForUser(args: {
 export async function disconnectPlaidItemForUser(
   userId: string,
   plaidItemId: string,
+  options?: { deleteHistory?: boolean },
 ) {
   const item = await getPlaidItemForUser(userId, plaidItemId);
   if (!item) {
     throw new PlaidPersistenceError("Plaid item not found.", "not_found");
   }
 
-  const client = getPlaidClient();
-  const config = getPlaidConfig();
-  if (client && config && item.accessTokenEncrypted) {
+  const environment = isPlaidEnvironment(item.environment)
+    ? item.environment
+    : "sandbox";
+  const client = getPlaidClientForEnvironment(environment);
+
+  if (client && item.accessTokenEncrypted) {
     try {
       const { decryptSecret } = await import("@/lib/security/encryption");
       const accessToken = decryptSecret(item.accessTokenEncrypted);
@@ -123,12 +150,21 @@ export async function disconnectPlaidItemForUser(
   }
 
   await markPlaidItemDisconnected(userId, plaidItemId);
+
+  if (options?.deleteHistory) {
+    await deletePlaidItemHistory(userId, plaidItemId);
+  }
 }
 
-export async function getConnectedInstitutionSummaries(userId: string) {
+export async function getConnectedInstitutionSummaries(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
   const [institutions, accounts] = await Promise.all([
-    listConnectedInstitutionsForUser(userId),
-    import("@/lib/db/accounts").then((m) => m.listPlaidAccountsForUser(userId)),
+    listConnectedInstitutionsForUser(userId, environment),
+    import("@/lib/db/accounts").then((m) =>
+      m.listPlaidAccountsForUser(userId, environment),
+    ),
   ]);
 
   return institutions.map((inst) => ({
@@ -141,14 +177,19 @@ export async function getConnectedInstitutionSummaries(userId: string) {
     status: inst.status as "connected" | "disconnected" | "error" | "syncing",
     connectedAt: inst.connectedAt.toISOString(),
     lastSyncAt: inst.lastSyncAt?.toISOString() ?? null,
-    source: inst.source as "plaid_sandbox" | "future_live",
+    source: inst.source as "plaid_sandbox" | "plaid_live",
+    environment:
+      inst.source === "plaid_live"
+        ? ("production" as const)
+        : ("sandbox" as const),
   }));
 }
 
 export async function resolveInstitutionNameFromToken(
   accessToken: string,
+  environment: PlaidEnvironment = "sandbox",
 ): Promise<{ institutionId: string | null; institutionName: string }> {
-  const client = getPlaidClient();
+  const client = getPlaidClientForEnvironment(environment);
   const config = getPlaidConfig();
   if (!client || !config) {
     return { institutionId: null, institutionName: "Connected bank" };
@@ -175,4 +216,8 @@ export async function resolveInstitutionNameFromToken(
   }
 }
 
-export { syncPlaidItemForUser, syncAllPlaidItemsForUser, countActivePlaidItemsForUser };
+export {
+  syncPlaidItemForUser,
+  syncAllPlaidItemsForUser,
+  countActivePlaidItemsForUser,
+};

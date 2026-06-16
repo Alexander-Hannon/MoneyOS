@@ -23,7 +23,7 @@ export interface Account {
   availableBalance?: number;
   /** Whether this balance counts toward total cash available. */
   accessible: boolean;
-  source?: "manual" | "plaid_sandbox";
+  source?: "manual" | "plaid_sandbox" | "plaid_live";
   notes?: string;
   createdAt?: string;
   updatedAt?: string;

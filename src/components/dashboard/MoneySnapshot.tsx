@@ -44,16 +44,24 @@ export function MoneySnapshot({
   const status = summary.status;
   const label = summary.label;
 
-  const cashBadge =
-    summary.cashDataSource === "plaid_sandbox"
-      ? "Plaid sandbox data"
-      : summary.cashDataSource === "mixed"
-        ? "Manual + Plaid sandbox"
-        : summary.cashDataSource === "demo"
-          ? "Demo data"
-          : summary.cashDataSource === "manual"
-            ? "Manual accounts"
-            : "Add cash accounts";
+  const cashBadge = (() => {
+    switch (summary.cashDataSource) {
+      case "plaid_live":
+        return "Live bank data";
+      case "plaid_sandbox":
+        return "Plaid sandbox data";
+      case "mixed":
+        return accounts.some((a) => a.source === "plaid_live")
+          ? "Manual + live bank"
+          : "Manual + Plaid sandbox";
+      case "demo":
+        return "Demo data";
+      case "manual":
+        return "Manual accounts";
+      default:
+        return "Add cash accounts";
+    }
+  })();
 
   const statusDescription =
     status === "Setup Needed"

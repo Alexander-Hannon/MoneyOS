@@ -6,8 +6,9 @@ import {
 } from "@/lib/plaid/token-store";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { disconnectPlaidItemForUser } from "@/lib/plaid/persistent-items";
+import { getPlaidItemForUser } from "@/lib/db/plaid-items";
 
-// POST /api/plaid/disconnect  { plaidItemId?: string }
+// POST /api/plaid/disconnect  { plaidItemId?: string, deleteHistory?: boolean }
 export async function POST(request: Request) {
   if (!isPlaidConfigured()) {
     return NextResponse.json({
@@ -19,10 +20,12 @@ export async function POST(request: Request) {
   }
 
   let plaidItemId: string | undefined;
+  let deleteHistory = false;
   try {
     const body = await request.json();
     plaidItemId =
       typeof body?.plaidItemId === "string" ? body.plaidItemId : undefined;
+    deleteHistory = body?.deleteHistory === true;
   } catch {
     // optional body
   }
@@ -43,14 +46,23 @@ export async function POST(request: Request) {
     }
 
     try {
-      await disconnectPlaidItemForUser(storage.userId, plaidItemId);
+      const item = await getPlaidItemForUser(storage.userId, plaidItemId);
+      const environment = item?.environment ?? "sandbox";
+
+      await disconnectPlaidItemForUser(storage.userId, plaidItemId, {
+        deleteHistory,
+      });
+
       return NextResponse.json({
         configured: true,
         ok: true,
         connected: false,
         storageMode: "database",
-        message:
-          "Sandbox institution disconnected. Historical transactions were kept.",
+        environment,
+        deleteHistory,
+        message: deleteHistory
+          ? "Institution disconnected and historical data deleted."
+          : "Institution disconnected. Historical transactions were kept.",
       });
     } catch (error) {
       return NextResponse.json(

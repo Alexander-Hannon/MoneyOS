@@ -3,6 +3,7 @@
 
 import type { AccountBase, Transaction } from "plaid";
 import type {
+  DataSource,
   LinkedAccount,
   LinkedAccountType,
   MoneyTransaction,
@@ -28,6 +29,7 @@ function mapAccountType(type: string, subtype: string | null): LinkedAccountType
 export function normalizeAccount(
   account: AccountBase,
   institution: string,
+  source: DataSource = "plaid_sandbox",
 ): LinkedAccount {
   return {
     id: account.account_id,
@@ -38,16 +40,17 @@ export function normalizeAccount(
     mask: account.mask ?? undefined,
     currentBalance: account.balances.current ?? undefined,
     availableBalance: account.balances.available ?? undefined,
-    source: "plaid_sandbox",
+    source,
     connectionStatus: "connected",
   };
 }
 
 /** Classify and map a Plaid transaction into MoneyOS shape. */
-export function normalizePlaidTransaction(txn: Transaction): MoneyTransaction {
+export function normalizePlaidTransaction(
+  txn: Transaction,
+  source: DataSource = "plaid_sandbox",
+): MoneyTransaction {
   const merchantName = txn.merchant_name ?? txn.name;
-  // Plaid: positive amount = money leaving the account. MoneyOS: negative =
-  // outflow, positive = inflow. So invert the sign.
   const amount = -txn.amount;
 
   const classified = classifyTransaction({
@@ -70,7 +73,7 @@ export function normalizePlaidTransaction(txn: Transaction): MoneyTransaction {
     category: classified.category,
     subcategory: txn.personal_finance_category?.detailed ?? undefined,
     pending: txn.pending,
-    source: "plaid_sandbox",
+    source,
     needsReview: classified.needsReview,
   };
 }

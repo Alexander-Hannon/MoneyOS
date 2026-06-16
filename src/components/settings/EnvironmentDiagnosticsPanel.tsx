@@ -14,6 +14,8 @@ type PlaidDiagnostics = {
   databaseConfigured: boolean;
   authConfigured: boolean;
   encryptionConfigured: boolean;
+  livePlaidEnabled?: boolean;
+  liveUserAllowed?: boolean;
   storageMode: string;
   connected: boolean;
   institutionCount: number;
@@ -104,6 +106,15 @@ export function EnvironmentDiagnosticsPanel() {
             <Row
               label="Encryption configured"
               value={yesNo(data.encryptionConfigured)}
+            />
+            <Row
+              label="Live Plaid enabled"
+              value={yesNo(Boolean(data.livePlaidEnabled))}
+            />
+            <Row
+              label="Live user allowed"
+              value={yesNo(Boolean(data.liveUserAllowed))}
+              tone={data.liveUserAllowed ? "success" : undefined}
             />
             <Row
               label="AI provider"

@@ -18,7 +18,11 @@ export type FieldValidation = {
 };
 
 const PLAID_ENVS = new Set(["sandbox", "development", "production"]);
-const MONEYOS_ALLOWED_PLAID_ENV = "sandbox";
+
+function isLivePlaidEnabled(): boolean {
+  const raw = process.env.MONEYOS_ENABLE_LIVE_PLAID?.trim().toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes";
+}
 
 const PLAID_PRODUCTS = new Set([
   "assets",
@@ -93,7 +97,7 @@ function validatePlaidEnv(): FieldValidation & { value: string | null } {
   if (!PLAID_ENVS.has(raw)) {
     issues.push("invalid_value");
   }
-  if (raw !== MONEYOS_ALLOWED_PLAID_ENV) {
+  if (raw === "production" && !isLivePlaidEnabled()) {
     issues.push("unsupported_environment");
   }
   return {
@@ -102,6 +106,28 @@ function validatePlaidEnv(): FieldValidation & { value: string | null } {
     issues,
     value: raw,
   };
+}
+
+function validateLivePlaidEnvFlag(): FieldValidation {
+  const raw = trimEnv("MONEYOS_ENABLE_LIVE_PLAID") ?? "false";
+  const normalized = raw.toLowerCase();
+  if (["false", "0", "no", "true", "1", "yes"].includes(normalized)) {
+    return { present: Boolean(trimEnv("MONEYOS_ENABLE_LIVE_PLAID")), valid: true, issues: [] };
+  }
+  return { present: true, valid: false, issues: ["invalid_value"] };
+}
+
+function validateAllowedLiveUserEmail(): FieldValidation {
+  const enabled = isLivePlaidEnabled();
+  const value = trimEnv("MONEYOS_ALLOWED_LIVE_USER_EMAIL");
+  if (!enabled) {
+    return { present: Boolean(value), valid: true, issues: [] };
+  }
+  if (!value) return { present: false, valid: false, issues: ["missing"] };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return { present: true, valid: false, issues: ["malformed"] };
+  }
+  return { present: true, valid: true, issues: [] };
 }
 
 function parseCsvEnv(name: string, fallback: string): string[] {
@@ -230,6 +256,9 @@ export type MoneyOSEnvDiagnostics = {
   plaidEnv: string | null;
   plaidProducts: string[];
   plaidCountryCodes: string[];
+  livePlaidEnabled: boolean;
+  allowedLiveUserConfigured: boolean;
+  productionPlaidReady: boolean;
   databaseConfigured: boolean;
   authConfigured: boolean;
   encryptionConfigured: boolean;
@@ -245,6 +274,8 @@ export function validateMoneyOSEnv(): MoneyOSEnvDiagnostics {
   const clientId = validatePlaidClientId();
   const secret = validatePlaidSecret();
   const plaidEnv = validatePlaidEnv();
+  const livePlaidFlag = validateLivePlaidEnvFlag();
+  const allowedLiveEmail = validateAllowedLiveUserEmail();
   const products = validatePlaidProducts();
   const countryCodes = validatePlaidCountryCodes();
   const encryptionKey = validateEncryptionKey();
@@ -261,12 +292,16 @@ export function validateMoneyOSEnv(): MoneyOSEnvDiagnostics {
     secret.valid &&
     plaidEnv.valid &&
     products.valid &&
-    countryCodes.valid;
+    countryCodes.valid &&
+    livePlaidFlag.valid &&
+    allowedLiveEmail.valid;
 
   const issues: string[] = [
     ...issueLabel("plaid_client_id", clientId),
     ...issueLabel("plaid_secret", secret),
     ...issueLabel("plaid_env", plaidEnv),
+    ...issueLabel("moneyos_enable_live_plaid", livePlaidFlag),
+    ...issueLabel("moneyos_allowed_live_user_email", allowedLiveEmail),
     ...issueLabel("plaid_products", products),
     ...issueLabel("plaid_country_codes", countryCodes),
     ...issueLabel("database_url", database),
@@ -302,8 +337,16 @@ export function validateMoneyOSEnv(): MoneyOSEnvDiagnostics {
     warnings.push("plaid_partially_configured");
   }
 
-  if (plaidEnv.value && plaidEnv.value !== MONEYOS_ALLOWED_PLAID_ENV) {
-    warnings.push("plaid_env_not_sandbox");
+  if (plaidEnv.value === "production" && !isLivePlaidEnabled()) {
+    warnings.push("plaid_production_env_requires_live_plaid_flag");
+  }
+
+  if (isLivePlaidEnabled() && plaidEnv.value !== "production") {
+    warnings.push("live_plaid_enabled_but_plaid_env_not_production");
+  }
+
+  if (isLivePlaidEnabled() && !allowedLiveEmail.valid) {
+    warnings.push("live_plaid_enabled_without_allowed_user_email");
   }
 
   return {
@@ -312,6 +355,13 @@ export function validateMoneyOSEnv(): MoneyOSEnvDiagnostics {
     plaidEnv: plaidEnv.value,
     plaidProducts: products.values,
     plaidCountryCodes: countryCodes.values,
+    livePlaidEnabled: isLivePlaidEnabled(),
+    allowedLiveUserConfigured: allowedLiveEmail.valid && Boolean(trimEnv("MONEYOS_ALLOWED_LIVE_USER_EMAIL")),
+    productionPlaidReady:
+      isLivePlaidEnabled() &&
+      plaidEnv.value === "production" &&
+      clientId.valid &&
+      secret.valid,
     databaseConfigured: database.present && database.valid,
     authConfigured: clerkPublishable.valid && clerkSecret.valid,
     encryptionConfigured: encryptionKey.valid,

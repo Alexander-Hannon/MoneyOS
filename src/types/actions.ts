@@ -52,7 +52,9 @@ export interface ConnectedInstitutionDisplay {
   status: "connected" | "disconnected" | "error" | "syncing";
   connectedAt: string;
   lastSyncAt: string | null;
-  source: "plaid_sandbox" | "future_live";
+  environment?: "sandbox" | "production";
+  source: "plaid_sandbox" | "plaid_live";
+  lastBalanceRefreshAt?: string | null;
 }
 
 export type PlaidStorageMode = "memory" | "database" | "none";

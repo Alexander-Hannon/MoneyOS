@@ -1,5 +1,6 @@
 import type { Account } from "@/types/money";
 import type { AppMode } from "@/types/app-mode";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import {
   getDataSourceLabel,
   isManualDataEmpty,
@@ -40,7 +41,11 @@ export type { DataSourceLabel };
 export function resolveDataSource(
   plaidConnected: boolean,
   storedMode: AppMode,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): DataSource {
+  if (plaidConnected && activePlaidEnvironment === "production") {
+    return "plaid_live";
+  }
   if (plaidConnected) return "plaid_sandbox";
   if (storedMode === "demo") return "mock";
   return "manual";
@@ -50,14 +55,21 @@ export function dataSourceBadgeText(
   storedMode: AppMode,
   plaidConnected: boolean,
   manualEmpty: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): string {
-  return getDataSourceLabel(storedMode, plaidConnected, manualEmpty);
+  return getDataSourceLabel(
+    storedMode,
+    plaidConnected,
+    manualEmpty,
+    activePlaidEnvironment,
+  );
 }
 
 const CASH_LIKE_TYPES = new Set(["checking", "savings", "cash"]);
 
 export function linkedAccountsToDashboardAccounts(
   linked: LinkedAccount[],
+  source: "plaid_sandbox" | "plaid_live" = "plaid_sandbox",
 ): Account[] {
   return linked
     .filter((a) => CASH_LIKE_TYPES.has(a.type))
@@ -74,8 +86,10 @@ export function linkedAccountsToDashboardAccounts(
       balance: a.currentBalance ?? a.availableBalance ?? 0,
       availableBalance: a.availableBalance,
       accessible: true,
-      source: "plaid_sandbox" as const,
-      notes: `${a.institution}${a.mask ? ` ••${a.mask}` : ""} · Plaid sandbox`,
+      source,
+      notes: `${a.institution}${a.mask ? ` ••${a.mask}` : ""} · ${
+        source === "plaid_live" ? "Live bank data" : "Plaid sandbox"
+      }`,
     }));
 }
 
@@ -84,6 +98,7 @@ export function resolveAccounts(
   linkedAccounts: LinkedAccount[],
   storedMode: AppMode,
   manualAccounts: Account[] = [],
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): Account[] {
   const manual = manualAccounts.map((a) => ({
     ...a,
@@ -91,7 +106,14 @@ export function resolveAccounts(
   }));
 
   if (plaidConnected && linkedAccounts.length > 0) {
-    const plaidCash = linkedAccountsToDashboardAccounts(linkedAccounts);
+    const plaidSource =
+      activePlaidEnvironment === "production"
+        ? ("plaid_live" as const)
+        : ("plaid_sandbox" as const);
+    const plaidCash = linkedAccountsToDashboardAccounts(
+      linkedAccounts,
+      plaidSource,
+    );
     if (storedMode === "local_user" && manual.length > 0) {
       return [...manual, ...plaidCash];
     }
@@ -106,8 +128,13 @@ export function resolveTransactions(
   plaidConnected: boolean,
   plaidTransactions: MoneyTransaction[],
   storedMode: AppMode,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): MoneyTransaction[] {
-  if (plaidConnected) return plaidTransactions;
+  if (plaidConnected) {
+    const expectedSource =
+      activePlaidEnvironment === "production" ? "plaid_live" : "plaid_sandbox";
+    return plaidTransactions.filter((t) => t.source === expectedSource);
+  }
   if (storedMode === "demo") return getMockTransactions();
   return [];
 }
@@ -125,6 +152,7 @@ export function computeIncomeSummary(
   plaidConnected: boolean,
   transactions: MoneyTransaction[],
   manualEmpty: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): IncomeSummary {
   const expected14Days = expectedIncomeWithin(income, 14);
   const sandboxMonthlyTotal = monthlyIncomeTotal(transactions);
@@ -135,7 +163,12 @@ export function computeIncomeSummary(
     expected14Days,
     sandboxDetected,
     sandboxMonthlyTotal,
-    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
+    label: getDataSourceLabel(
+      storedMode,
+      plaidConnected,
+      manualEmpty,
+      activePlaidEnvironment,
+    ),
   };
 }
 
@@ -154,6 +187,7 @@ export function computeSpendingSummary(
   storedMode: AppMode,
   plaidConnected: boolean,
   manualEmpty: boolean,
+  activePlaidEnvironment: PlaidEnvironment | null = null,
 ): SpendingSummary {
   return {
     monthlySpending: monthlySpendingTotal(transactions),
@@ -162,7 +196,12 @@ export function computeSpendingSummary(
     reviewAmount: reviewTotal(transactions),
     recurringCount: recurringChargeCandidates(transactions).length,
     transferPaymentTotal: transferPaymentTotal(transactions),
-    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
+    label: getDataSourceLabel(
+      storedMode,
+      plaidConnected,
+      manualEmpty,
+      activePlaidEnvironment,
+    ),
   };
 }
 
@@ -181,7 +220,7 @@ export type DashboardSummary = {
   isEmpty: boolean;
   setupIncomplete: boolean;
   hasManualAccounts: boolean;
-  cashDataSource: "manual" | "plaid_sandbox" | "demo" | "mixed" | "missing";
+  cashDataSource: "manual" | "plaid_sandbox" | "plaid_live" | "demo" | "mixed" | "missing";
 };
 
 export function computeDashboardSummary(args: {
@@ -193,6 +232,7 @@ export function computeDashboardSummary(args: {
   storedMode: AppMode;
   plaidConnected: boolean;
   transactions: MoneyTransaction[];
+  activePlaidEnvironment?: PlaidEnvironment | null;
 }): DashboardSummary {
   const {
     accounts,
@@ -203,6 +243,7 @@ export function computeDashboardSummary(args: {
     storedMode,
     plaidConnected,
     transactions,
+    activePlaidEnvironment = null,
   } = args;
 
   const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
@@ -235,7 +276,9 @@ export function computeDashboardSummary(args: {
   const cashDataSource: DashboardSummary["cashDataSource"] = plaidConnected
     ? hasManualAccounts
       ? "mixed"
-      : "plaid_sandbox"
+      : activePlaidEnvironment === "production"
+        ? "plaid_live"
+        : "plaid_sandbox"
     : storedMode === "demo"
       ? "demo"
       : accounts.length > 0
@@ -268,7 +311,12 @@ export function computeDashboardSummary(args: {
     syncedReviewCount,
     transactionReviewCount,
     status,
-    label: getDataSourceLabel(storedMode, plaidConnected, manualEmpty),
+    label: getDataSourceLabel(
+      storedMode,
+      plaidConnected,
+      manualEmpty,
+      activePlaidEnvironment,
+    ),
     isEmpty: manualEmpty && !plaidConnected && storedMode !== "demo",
     setupIncomplete,
     hasManualAccounts,
@@ -328,10 +376,15 @@ export function formatLastSync(iso: string | null): string {
   });
 }
 
-export function plaidStatusLabel(status: PlaidConnectionStatus): string {
+export function plaidStatusLabel(
+  status: PlaidConnectionStatus,
+  environment: PlaidEnvironment | null = null,
+): string {
   switch (status) {
     case "connected":
-      return "Sandbox connected";
+      return environment === "production"
+        ? "Personal live connected"
+        : "Sandbox connected";
     case "connecting":
       return "Connecting…";
     case "error":
@@ -341,6 +394,15 @@ export function plaidStatusLabel(status: PlaidConnectionStatus): string {
     default:
       return "Not connected";
   }
+}
+
+export function dashboardModeLabels(
+  activePlaidEnvironment: PlaidEnvironment | null,
+): string[] {
+  if (activePlaidEnvironment === "production") {
+    return ["Live bank data", "Real financial data", "Private personal mode"];
+  }
+  return [];
 }
 
 // Re-export for callers that need empty check

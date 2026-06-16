@@ -39,6 +39,7 @@ import type {
   MoneyTransaction,
   PlaidConnectionStatus,
 } from "@/types/transactions";
+import type { PlaidEnvironment, PlaidLinkTarget } from "@/lib/plaid/plaid-env";
 
 export interface FinancialDataContextValue {
   loading: boolean;
@@ -56,7 +57,14 @@ export interface FinancialDataContextValue {
   isManualEmpty: boolean;
 
   plaidConnectionStatus: PlaidConnectionStatus;
+  activePlaidEnvironment: PlaidEnvironment | null;
   lastSyncAt: string | null;
+  lastBalanceRefreshAt: string | null;
+
+  livePlaidEnabled: boolean;
+  liveUserAllowed: boolean;
+  sandboxConnected: boolean;
+  liveConnected: boolean;
 
   accounts: Account[];
   linkedAccounts: LinkedAccount[];
@@ -76,6 +84,8 @@ export interface FinancialDataContextValue {
   recurringSuggestions: RecurringSuggestion[];
   actionItems: ActionItem[];
   connectedInstitutions: ConnectedInstitutionDisplay[];
+  sandboxInstitutions: ConnectedInstitutionDisplay[];
+  liveInstitutions: ConnectedInstitutionDisplay[];
 
   plaidConnected: boolean;
   plaidStorageMode: PlaidStorageMode;
@@ -83,8 +93,17 @@ export interface FinancialDataContextValue {
   persistentPlaidEnabled: boolean;
   devOnlyPlaidWarning: string | null;
 
-  handleLinkSuccess: (publicToken: string) => Promise<void>;
+  handleLinkSuccess: (
+    publicToken: string,
+    targetEnvironment?: PlaidLinkTarget,
+  ) => Promise<void>;
   syncTransactions: (plaidItemId?: string) => Promise<void>;
+  refreshBalances: (plaidItemId?: string) => Promise<void>;
+  disconnectPlaid: (
+    plaidItemId?: string,
+    options?: { deleteHistory?: boolean },
+  ) => Promise<void>;
+  /** @deprecated Use disconnectPlaid */
   disconnectSandbox: (plaidItemId?: string) => Promise<void>;
   refreshData: () => Promise<void>;
 }
@@ -128,6 +147,21 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     MoneyTransaction[]
   >([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [lastBalanceRefreshAt, setLastBalanceRefreshAt] = useState<string | null>(
+    null,
+  );
+  const [activePlaidEnvironment, setActivePlaidEnvironment] =
+    useState<PlaidEnvironment | null>(null);
+  const [livePlaidEnabled, setLivePlaidEnabled] = useState(false);
+  const [liveUserAllowed, setLiveUserAllowed] = useState(false);
+  const [sandboxConnected, setSandboxConnected] = useState(false);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [sandboxInstitutions, setSandboxInstitutions] = useState<
+    ConnectedInstitutionDisplay[]
+  >([]);
+  const [liveInstitutions, setLiveInstitutions] = useState<
+    ConnectedInstitutionDisplay[]
+  >([]);
   const [plaidStorageMode, setPlaidStorageMode] =
     useState<PlaidStorageMode>("none");
   const [encryptionConfigured, setEncryptionConfigured] = useState(false);
@@ -142,8 +176,16 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const plaidConnected = plaidConnectionStatus === "connected";
-  const effectiveMode = resolveEffectiveMode(storedMode, plaidConnected);
-  const modeLabel = getModeDisplayLabel(storedMode, plaidConnected);
+  const effectiveMode = resolveEffectiveMode(
+    storedMode,
+    plaidConnected,
+    activePlaidEnvironment,
+  );
+  const modeLabel = getModeDisplayLabel(
+    storedMode,
+    plaidConnected,
+    activePlaidEnvironment,
+  );
   const manualEmpty = isManualDataEmpty({
     bills,
     income,
@@ -151,36 +193,78 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     alerts: storedAlerts,
   });
 
-  const loadSandboxData = useCallback(async (plaidItemId?: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const accountsRes = await postJson("/api/plaid/accounts");
-      if (accountsRes.error) throw new Error(accountsRes.error);
-      if (Array.isArray(accountsRes.accounts)) {
-        setLinkedAccounts(accountsRes.accounts);
-      }
+  const mapInstitution = useCallback(
+    (inst: {
+      id: string;
+      plaidItemId?: string | null;
+      institutionName: string;
+      accountCount: number;
+      status: ConnectedInstitutionDisplay["status"];
+      connectedAt: string;
+      lastSyncAt: string | null;
+      source: ConnectedInstitutionDisplay["source"];
+      environment?: PlaidEnvironment;
+    }): ConnectedInstitutionDisplay => ({
+      id: inst.id,
+      plaidItemId: inst.plaidItemId,
+      institutionName: inst.institutionName,
+      accountCount: inst.accountCount,
+      status: inst.status,
+      connectedAt: inst.connectedAt,
+      lastSyncAt: inst.lastSyncAt,
+      source: inst.source,
+      environment:
+        inst.environment ??
+        (inst.source === "plaid_live" ? "production" : "sandbox"),
+    }),
+    [],
+  );
 
-      const txnRes = await postJson(
-        "/api/plaid/sync-transactions",
-        plaidItemId ? { plaidItemId } : undefined,
-      );
-      if (txnRes.error) throw new Error(txnRes.error);
-      if (Array.isArray(txnRes.transactions)) {
-        setPlaidTransactions(txnRes.transactions);
-        setPlaidConnectionStatus("connected");
-        if (txnRes.lastSyncAt) setLastSyncAt(txnRes.lastSyncAt);
+  const loadPlaidData = useCallback(
+    async (args?: { plaidItemId?: string; environment?: PlaidEnvironment | null }) => {
+      setBusy(true);
+      setError(null);
+      const environment = args?.environment ?? activePlaidEnvironment;
+      try {
+        const accountsRes = await postJson("/api/plaid/accounts", {
+          environment: environment ?? undefined,
+        });
+        if (accountsRes.error) throw new Error(accountsRes.error);
+        if (Array.isArray(accountsRes.accounts)) {
+          setLinkedAccounts(accountsRes.accounts);
+        }
+        if (accountsRes.lastBalanceRefreshAt) {
+          setLastBalanceRefreshAt(accountsRes.lastBalanceRefreshAt);
+        }
+
+        const txnRes = await postJson("/api/plaid/sync-transactions", {
+          plaidItemId: args?.plaidItemId,
+          environment: environment ?? undefined,
+        });
+        if (txnRes.error) throw new Error(txnRes.error);
+        if (Array.isArray(txnRes.transactions)) {
+          setPlaidTransactions(txnRes.transactions);
+          setPlaidConnectionStatus("connected");
+          if (txnRes.lastSyncAt) setLastSyncAt(txnRes.lastSyncAt);
+          if (txnRes.lastBalanceRefreshAt) {
+            setLastBalanceRefreshAt(txnRes.lastBalanceRefreshAt);
+          }
+          if (txnRes.environment) {
+            setActivePlaidEnvironment(txnRes.environment);
+          }
+        }
+        if (txnRes.storageMode) {
+          setPlaidStorageMode(txnRes.storageMode);
+        }
+      } catch (e) {
+        setPlaidConnectionStatus("error");
+        setError(e instanceof Error ? e.message : "Could not load Plaid data.");
+      } finally {
+        setBusy(false);
       }
-      if (txnRes.storageMode) {
-        setPlaidStorageMode(txnRes.storageMode);
-      }
-    } catch (e) {
-      setPlaidConnectionStatus("error");
-      setError(e instanceof Error ? e.message : "Could not load sandbox data.");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+    },
+    [activePlaidEnvironment],
+  );
 
   const refreshData = useCallback(async () => {
     try {
@@ -188,50 +272,43 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setConfigured(Boolean(res.plaidConfigValid ?? res.configured));
       setPlaidEnv(res.plaidEnv ?? null);
       setLastSyncAt(res.lastSyncAt ?? null);
+      setLastBalanceRefreshAt(res.lastBalanceRefreshAt ?? null);
       setPlaidStorageMode(res.storageMode ?? "none");
       setEncryptionConfigured(Boolean(res.encryptionConfigured));
       setPersistentPlaidEnabled(Boolean(res.persistentPlaidEnabled));
       setDevOnlyPlaidWarning(res.devOnlyWarning ?? null);
-      if (Array.isArray(res.institutions)) {
-        setApiInstitutions(
-          res.institutions.map(
-            (inst: {
-              id: string;
-              plaidItemId?: string | null;
-              institutionName: string;
-              accountCount: number;
-              status: ConnectedInstitutionDisplay["status"];
-              connectedAt: string;
-              lastSyncAt: string | null;
-              source: ConnectedInstitutionDisplay["source"];
-            }) => ({
-              id: inst.id,
-              plaidItemId: inst.plaidItemId,
-              institutionName: inst.institutionName,
-              accountCount: inst.accountCount,
-              status: inst.status,
-              connectedAt: inst.connectedAt,
-              lastSyncAt: inst.lastSyncAt,
-              source: inst.source,
-            }),
-          ),
-        );
-      }
+      setLivePlaidEnabled(Boolean(res.livePlaidEnabled));
+      setLiveUserAllowed(Boolean(res.liveUserAllowed));
+      setSandboxConnected(Boolean(res.sandboxConnected));
+      setLiveConnected(Boolean(res.liveConnected));
+      setActivePlaidEnvironment(res.activeEnvironment ?? null);
+
+      const mapList = (list: unknown[]) =>
+        Array.isArray(list)
+          ? list.map((inst) => mapInstitution(inst as Parameters<typeof mapInstitution>[0]))
+          : [];
+
+      setSandboxInstitutions(mapList(res.sandboxInstitutions ?? []));
+      setLiveInstitutions(mapList(res.liveInstitutions ?? []));
+      setApiInstitutions(mapList(res.institutions ?? []));
+
       if (res.connected) {
         setPlaidConnectionStatus("connected");
-        await loadSandboxData();
+        await loadPlaidData({ environment: res.activeEnvironment ?? null });
       } else {
         setPlaidConnectionStatus("not_connected");
         setLinkedAccounts([]);
         setPlaidTransactions([]);
         setApiInstitutions([]);
+        setSandboxInstitutions([]);
+        setLiveInstitutions([]);
       }
     } catch {
       setError("Could not reach the Plaid status endpoint.");
     } finally {
       setLoading(false);
     }
-  }, [loadSandboxData]);
+  }, [loadPlaidData, mapInstitution]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -239,76 +316,112 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   }, [refreshData]);
 
   const handleLinkSuccess = useCallback(
-    async (publicToken: string) => {
+    async (
+      publicToken: string,
+      targetEnvironment: PlaidLinkTarget = "sandbox",
+    ) => {
       setBusy(true);
       setPlaidConnectionStatus("connecting");
       setError(null);
       try {
         const res = await postJson("/api/plaid/exchange-public-token", {
           public_token: publicToken,
+          targetEnvironment,
         });
         if (res.configured === false) {
           setError("Plaid is not configured.");
           setPlaidConnectionStatus("not_connected");
           return;
         }
-        if (res.error) throw new Error(res.error);
-        await loadSandboxData();
+        if (res.error || res.errorCode) {
+          throw new Error(res.message ?? res.error ?? "Connection failed.");
+        }
+        if (targetEnvironment === "production") {
+          setActivePlaidEnvironment("production");
+        }
+        await refreshData();
       } catch (e) {
         setPlaidConnectionStatus("error");
         setError(
-          e instanceof Error ? e.message : "Could not connect the sandbox bank.",
+          e instanceof Error ? e.message : "Could not connect the bank.",
         );
       } finally {
         setBusy(false);
       }
     },
-    [loadSandboxData],
+    [refreshData],
   );
 
-  const syncTransactions = useCallback(async (plaidItemId?: string) => {
-    await loadSandboxData(plaidItemId);
-    await refreshData();
-  }, [loadSandboxData, refreshData]);
+  const syncTransactions = useCallback(
+    async (plaidItemId?: string) => {
+      await loadPlaidData({ plaidItemId, environment: activePlaidEnvironment });
+      await refreshData();
+    },
+    [loadPlaidData, refreshData, activePlaidEnvironment],
+  );
 
-  const disconnectSandbox = useCallback(async (plaidItemId?: string) => {
+  const refreshBalances = useCallback(async (plaidItemId?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await postJson(
-        "/api/plaid/disconnect",
-        plaidItemId ? { plaidItemId } : undefined,
-      );
-      if (res.error) throw new Error(res.error);
-      if (plaidItemId) {
-        await refreshData();
-      } else {
-        setPlaidConnectionStatus("not_connected");
-        setLinkedAccounts([]);
-        setPlaidTransactions([]);
-        setLastSyncAt(null);
-        setApiInstitutions([]);
+      const res = await postJson("/api/plaid/refresh-balances", { plaidItemId });
+      if (res.error || res.errorCode) {
+        throw new Error(res.message ?? res.error ?? "Balance refresh failed.");
       }
+      if (res.lastBalanceRefreshAt) {
+        setLastBalanceRefreshAt(res.lastBalanceRefreshAt);
+      }
+      await loadPlaidData({ environment: "production", plaidItemId });
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Could not disconnect sandbox session.",
+        e instanceof Error ? e.message : "Could not refresh balances.",
       );
     } finally {
       setBusy(false);
     }
-  }, [refreshData]);
+  }, [loadPlaidData]);
 
-  const dataSource = resolveDataSource(plaidConnected, storedMode);
+  const disconnectPlaid = useCallback(
+    async (plaidItemId?: string, options?: { deleteHistory?: boolean }) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await postJson("/api/plaid/disconnect", {
+          plaidItemId,
+          deleteHistory: options?.deleteHistory === true,
+        });
+        if (res.error) throw new Error(res.error);
+        await refreshData();
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "Could not disconnect institution.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refreshData],
+  );
+
+  const disconnectSandbox = disconnectPlaid;
+
+  const dataSource = resolveDataSource(
+    plaidConnected,
+    storedMode,
+    activePlaidEnvironment,
+  );
   const accounts = resolveAccounts(
     plaidConnected,
     linkedAccounts,
     storedMode,
     manualAccounts,
+    activePlaidEnvironment,
   );
   const transactions = resolveTransactions(
     plaidConnected,
     plaidTransactions,
     storedMode,
+    activePlaidEnvironment,
   );
 
   const recurringSuggestions = useMemo(
@@ -333,15 +446,20 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       list.push(account);
       byInstitution.set(key, list);
     }
-    return [...byInstitution.entries()].map(([institutionName, accounts], i) => ({
-      id: `inst-${i}-${institutionName}`,
-      institutionName,
-      accountCount: accounts.length,
-      status: "connected" as const,
-      connectedAt: lastSyncAt ?? new Date().toISOString(),
-      lastSyncAt,
-      source: "plaid_sandbox" as const,
-    }));
+    return [...byInstitution.entries()].map(([institutionName, accounts], i) => {
+      const source =
+        accounts[0]?.source === "plaid_live" ? "plaid_live" : "plaid_sandbox";
+      return {
+        id: `inst-${i}-${institutionName}`,
+        institutionName,
+        accountCount: accounts.length,
+        status: "connected" as const,
+        connectedAt: lastSyncAt ?? new Date().toISOString(),
+        lastSyncAt,
+        source,
+        environment: source === "plaid_live" ? "production" : "sandbox",
+      };
+    });
   }, [apiInstitutions, plaidConnected, linkedAccounts, lastSyncAt]);
 
   const incomeSummary = useMemo(
@@ -352,8 +470,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         plaidConnected,
         transactions,
         manualEmpty,
+        activePlaidEnvironment,
       ),
-    [income, storedMode, plaidConnected, transactions, manualEmpty],
+    [income, storedMode, plaidConnected, transactions, manualEmpty, activePlaidEnvironment],
   );
 
   const spendingSummary = useMemo(
@@ -363,8 +482,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         storedMode,
         plaidConnected,
         manualEmpty,
+        activePlaidEnvironment,
       ),
-    [transactions, storedMode, plaidConnected, manualEmpty],
+    [transactions, storedMode, plaidConnected, manualEmpty, activePlaidEnvironment],
   );
 
   const dashboardSummary = useMemo(
@@ -378,6 +498,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         storedMode,
         plaidConnected,
         transactions,
+        activePlaidEnvironment,
       }),
     [
       accounts,
@@ -388,6 +509,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       storedMode,
       plaidConnected,
       transactions,
+      activePlaidEnvironment,
     ],
   );
 
@@ -484,10 +606,21 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       effectiveMode,
       modeLabel,
       dataSource,
-      dataSourceBadge: dataSourceBadgeText(storedMode, plaidConnected, manualEmpty),
+      dataSourceBadge: dataSourceBadgeText(
+        storedMode,
+        plaidConnected,
+        manualEmpty,
+        activePlaidEnvironment,
+      ),
       isManualEmpty: manualEmpty,
       plaidConnectionStatus,
+      activePlaidEnvironment,
       lastSyncAt,
+      lastBalanceRefreshAt,
+      livePlaidEnabled,
+      liveUserAllowed,
+      sandboxConnected,
+      liveConnected,
       accounts,
       linkedAccounts,
       transactions,
@@ -504,6 +637,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       recurringSuggestions,
       actionItems,
       connectedInstitutions,
+      sandboxInstitutions,
+      liveInstitutions,
       plaidConnected,
       plaidStorageMode,
       encryptionConfigured,
@@ -511,6 +646,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       devOnlyPlaidWarning,
       handleLinkSuccess,
       syncTransactions,
+      refreshBalances,
+      disconnectPlaid,
       disconnectSandbox,
       refreshData,
     }),
@@ -526,7 +663,13 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       dataSource,
       manualEmpty,
       plaidConnectionStatus,
+      activePlaidEnvironment,
       lastSyncAt,
+      lastBalanceRefreshAt,
+      livePlaidEnabled,
+      liveUserAllowed,
+      sandboxConnected,
+      liveConnected,
       accounts,
       linkedAccounts,
       transactions,
@@ -543,6 +686,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       recurringSuggestions,
       actionItems,
       connectedInstitutions,
+      sandboxInstitutions,
+      liveInstitutions,
       plaidConnected,
       plaidStorageMode,
       encryptionConfigured,
@@ -550,6 +695,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       devOnlyPlaidWarning,
       handleLinkSuccess,
       syncTransactions,
+      refreshBalances,
+      disconnectPlaid,
       disconnectSandbox,
       refreshData,
     ],
@@ -585,9 +732,11 @@ export function usePlaidFromFinancialData() {
           ? ("error" as const)
           : ("not_connected" as const),
     source:
-      fd.dataSource === "plaid_sandbox"
-        ? ("plaid_sandbox" as const)
-        : ("mock" as const),
+      fd.dataSource === "plaid_live"
+        ? ("plaid_live" as const)
+        : fd.dataSource === "plaid_sandbox"
+          ? ("plaid_sandbox" as const)
+          : ("mock" as const),
     accounts: fd.linkedAccounts,
     transactions: fd.transactions,
     lastSyncAt: fd.lastSyncAt,

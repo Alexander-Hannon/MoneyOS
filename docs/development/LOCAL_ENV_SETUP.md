@@ -114,6 +114,32 @@ openssl rand -base64 32
 
 Store the output in `.env.local` only. Never commit it.
 
+**Multi-device:** Use the **same** `PLAID_TOKEN_ENCRYPTION_KEY` on every machine that shares the same `DATABASE_URL`.
+
+### Personal live Plaid (Phase 12 — private owner mode)
+
+This is **not** public SaaS launch. It allows the owner/developer to connect real bank data through Plaid Production when all gates pass.
+
+```env
+MONEYOS_ENABLE_LIVE_PLAID=false
+MONEYOS_ALLOWED_LIVE_USER_EMAIL=you@example.com
+PLAID_ENV=production
+PLAID_SECRET=           # production secret — NEVER commit
+# Optional: keep sandbox Link working while PLAID_ENV=production
+PLAID_SANDBOX_SECRET=
+```
+
+Requirements when `MONEYOS_ENABLE_LIVE_PLAID=true`:
+
+- Clerk configured and signed in as the allowlisted email
+- `DATABASE_URL` + `PLAID_TOKEN_ENCRYPTION_KEY`
+- `PLAID_ENV=production` with valid production Plaid credentials
+- Strong consent modal + typed `CONNECT REAL DATA` before Link opens
+
+Blocked error codes (safe diagnostics): `live_plaid_disabled`, `live_user_not_allowed`, `production_env_not_configured`, `encryption_required`, `auth_required`, `database_required`.
+
+Public launch still requires final compliance and security review — see `PRODUCTION_READINESS_CHECKLIST.md`.
+
 ### AI Money Agent (optional)
 
 Default is mock mode (no API key):

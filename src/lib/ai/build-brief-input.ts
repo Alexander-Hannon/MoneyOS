@@ -12,7 +12,7 @@ function buildModeContext(fd: FinancialDataContextValue): string {
   if (fd.dashboardSummary.setupIncomplete) {
     return "Setup incomplete — add cash accounts, income, and bills before drawing strong conclusions.";
   }
-  if (fd.effectiveMode === "future_plaid_live") {
+  if (fd.effectiveMode === "personal_live") {
     return "Live mode is disabled in this build.";
   }
   if (fd.isManualEmpty && !fd.plaidConnected) {

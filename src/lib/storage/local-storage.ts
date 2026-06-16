@@ -74,9 +74,10 @@ export function loadAppModeFromStorage(): AppMode | null {
     raw === "demo" ||
     raw === "local_user" ||
     raw === "plaid_sandbox" ||
+    raw === "personal_live" ||
     raw === "future_plaid_live"
   ) {
-    return raw;
+    return raw === "future_plaid_live" ? "personal_live" : raw;
   }
   return null;
 }

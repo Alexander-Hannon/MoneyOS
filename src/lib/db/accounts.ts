@@ -1,14 +1,24 @@
 import { getPrisma } from "@/lib/db/prisma";
-import type { LinkedAccount } from "@/types/transactions";
+import type { DataSource, LinkedAccount } from "@/types/transactions";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
 
-export async function listPlaidAccountsForUser(userId: string) {
+export async function listPlaidAccountsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
   const prisma = getPrisma();
   if (!prisma) return [];
+
+  const sources: DataSource[] = environment
+    ? [plaidSourceForEnvironment(environment)]
+    : ["plaid_sandbox", "plaid_live"];
+
   return prisma.account.findMany({
     where: {
       userId,
-      source: "plaid_sandbox",
+      source: { in: sources },
       connectionStatus: "connected",
     },
     orderBy: [{ institution: "asc" }, { name: "asc" }],
@@ -54,6 +64,7 @@ export function dbAccountToLinkedAccount(account: {
 export async function upsertPlaidAccountsForItem(args: {
   userId: string;
   plaidItemId: string;
+  source: DataSource;
   accounts: Array<{
     plaidAccountId: string;
     name: string;
@@ -91,7 +102,7 @@ export async function upsertPlaidAccountsForItem(args: {
         mask: account.mask ?? null,
         currentBalance: account.currentBalance ?? null,
         availableBalance: account.availableBalance ?? null,
-        source: "plaid_sandbox",
+        source: args.source,
         connectionStatus: "connected",
       },
       update: {
@@ -104,7 +115,7 @@ export async function upsertPlaidAccountsForItem(args: {
         mask: account.mask ?? null,
         currentBalance: account.currentBalance ?? null,
         availableBalance: account.availableBalance ?? null,
-        source: "plaid_sandbox",
+        source: args.source,
         connectionStatus: "connected",
       },
     });
@@ -124,7 +135,7 @@ export async function replaceAccountsForUser(
 
   await prisma.$transaction(async (tx) => {
     await tx.account.deleteMany({
-      where: { userId, source: { not: "plaid_sandbox" } },
+      where: { userId, source: { notIn: ["plaid_sandbox", "plaid_live"] } },
     });
     for (const account of accounts) {
       await tx.account.create({
