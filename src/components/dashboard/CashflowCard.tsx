@@ -65,8 +65,8 @@ export function CashflowCard({
   }
 
   return (
-    <Card>
-      <CardContent className="pt-5">
+    <Card className="min-w-0">
+      <CardContent className="min-w-0 pt-5">
         <SectionHeader
           icon={LineChart}
           title="Cashflow trend"

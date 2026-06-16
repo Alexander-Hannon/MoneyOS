@@ -112,8 +112,8 @@ export function SpendingDashboard() {
   const reviewAmount = fd.spendingSummary.reviewAmount;
 
   return (
-    <Card>
-      <CardContent className="space-y-5 pt-5">
+    <Card className="min-w-0">
+      <CardContent className="min-w-0 space-y-5 pt-5">
         <SectionHeader
           icon={Wallet}
           title="Spending"
@@ -225,8 +225,8 @@ export function SpendingDashboard() {
               />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[var(--radius)] border border-border bg-card p-5">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+              <div className="min-w-0 rounded-[var(--radius)] border border-border bg-card p-5">
                 <p className="mb-2 text-sm font-medium">Spending by category</p>
                 {byCategory.length > 0 ? (
                   <>
@@ -261,7 +261,7 @@ export function SpendingDashboard() {
                 )}
               </div>
 
-              <div className="rounded-[var(--radius)] border border-border bg-card p-5">
+              <div className="min-w-0 rounded-[var(--radius)] border border-border bg-card p-5">
                 <p className="mb-3 text-sm font-medium">Top merchants</p>
                 {merchants.length > 0 ? (
                   <ul className="space-y-2">
@@ -288,7 +288,7 @@ export function SpendingDashboard() {
               </div>
             </div>
 
-            <div className="rounded-[var(--radius)] border border-border bg-card p-5">
+            <div className="min-w-0 rounded-[var(--radius)] border border-border bg-card p-5">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-medium">Income vs spending</p>
                 <span className="flex items-center gap-3 text-xs text-muted-foreground">

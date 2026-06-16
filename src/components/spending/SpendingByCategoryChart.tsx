@@ -1,7 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ChartContainer } from "@/components/shared/ChartContainer";
+import { SafeResponsiveChart } from "@/components/shared/SafeResponsiveChart";
 import type { CategoryTotal } from "@/lib/transaction-utils";
 
 const COLORS = [
@@ -20,40 +20,42 @@ export function SpendingByCategoryChart({ data }: { data: CategoryTotal[] }) {
   if (!data.length) return null;
 
   return (
-    <ChartContainer
+    <SafeResponsiveChart
       ready={data.length > 0}
       heightClassName="h-[240px] min-h-[240px]"
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            dataKey="total"
-            nameKey="category"
-            cx="50%"
-            cy="50%"
-            innerRadius={48}
-            outerRadius={78}
-            paddingAngle={2}
-            stroke="hsl(224 26% 9%)"
-          >
-            {data.map((entry, i) => (
-              <Cell key={entry.category} fill={COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={{
-              background: "hsl(224 26% 9%)",
-              border: "1px solid hsl(220 16% 17%)",
-              borderRadius: 12,
-              color: "hsl(210 22% 96%)",
-              fontSize: 12,
-            }}
-            formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+      {({ width, height }) => (
+        <ResponsiveContainer width={width} height={height}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="total"
+              nameKey="category"
+              cx="50%"
+              cy="50%"
+              innerRadius={48}
+              outerRadius={78}
+              paddingAngle={2}
+              stroke="hsl(224 26% 9%)"
+            >
+              {data.map((entry, i) => (
+                <Cell key={entry.category} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                background: "hsl(224 26% 9%)",
+                border: "1px solid hsl(220 16% 17%)",
+                borderRadius: 12,
+                color: "hsl(210 22% 96%)",
+                fontSize: 12,
+              }}
+              formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      )}
+    </SafeResponsiveChart>
   );
 }
 
