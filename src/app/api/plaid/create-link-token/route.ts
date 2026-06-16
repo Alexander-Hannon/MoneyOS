@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { CountryCode, Products } from "plaid";
 import {
-  getPlaidClient,
+  getPlaidClientForEnvironment,
   getPlaidConfig,
   logPlaidError,
   parsePlaidApiError,
@@ -9,20 +9,35 @@ import {
 import { getOptionalAuthUser } from "@/lib/auth/session";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { validateMoneyOSEnv } from "@/lib/env/validation";
+import {
+  parsePlaidLinkTarget,
+  type PlaidLinkTarget,
+} from "@/lib/plaid/plaid-env";
+import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
 
-// POST /api/plaid/create-link-token
-export async function POST() {
+// POST /api/plaid/create-link-token  { targetEnvironment?: "sandbox" | "production" }
+export async function POST(request: Request) {
   const env = validateMoneyOSEnv();
   const storage = await resolvePlaidStorageContext();
   const authUser = await getOptionalAuthUser();
 
+  let targetEnvironment: PlaidLinkTarget = "sandbox";
+  try {
+    const body = await request.json();
+    const parsed = parsePlaidLinkTarget(body?.targetEnvironment);
+    if (parsed) targetEnvironment = parsed;
+  } catch {
+    // default sandbox
+  }
+
   const baseMeta = {
     storageMode: storage.mode,
     plaidEnv: env.plaidEnv,
-    environment: env.plaidEnv,
+    targetEnvironment,
     authConfigured: storage.authConfigured,
     databaseConfigured: storage.databaseConfigured,
     encryptionConfigured: storage.encryptionConfigured,
+    livePlaidEnabled: env.livePlaidEnabled,
   };
 
   if (!env.plaidConfigured) {
@@ -31,7 +46,7 @@ export async function POST() {
         configured: false,
         errorCode: "plaid_config_missing",
         message:
-          "Plaid sandbox is not configured. Add PLAID_CLIENT_ID and PLAID_SECRET to .env.local.",
+          "Plaid is not configured. Add PLAID_CLIENT_ID and PLAID_SECRET to .env.local.",
         issues: env.issues.filter(
           (issue) =>
             issue.startsWith("plaid_client_id_") ||
@@ -43,7 +58,39 @@ export async function POST() {
     );
   }
 
-  if (!env.plaidConfigValid) {
+  if (targetEnvironment === "production") {
+    const liveCheck = validateLivePlaidAccess({
+      user: authUser,
+      targetEnvironment,
+    });
+    if (!liveCheck.ok) {
+      return NextResponse.json(
+        {
+          configured: true,
+          ok: false,
+          errorCode: liveCheck.errorCode,
+          message: liveCheck.message,
+          ...baseMeta,
+        },
+        { status: 403 },
+      );
+    }
+  } else if (!env.plaidConfigValid && env.plaidEnv === "production") {
+    // Sandbox links still allowed when live mode uses production env — validate sandbox secret separately
+    const sandboxClient = getPlaidClientForEnvironment("sandbox");
+    if (!sandboxClient) {
+      return NextResponse.json(
+        {
+          configured: false,
+          errorCode: "plaid_config_invalid",
+          message:
+            "Sandbox Plaid client could not be initialized. Set PLAID_SANDBOX_SECRET or use PLAID_ENV=sandbox.",
+          ...baseMeta,
+        },
+        { status: 503 },
+      );
+    }
+  } else if (!env.plaidConfigValid) {
     return NextResponse.json(
       {
         configured: false,
@@ -59,17 +106,31 @@ export async function POST() {
   }
 
   const config = getPlaidConfig();
-  const client = getPlaidClient();
+  const client = getPlaidClientForEnvironment(targetEnvironment);
 
   if (!config || !client) {
     return NextResponse.json(
       {
         configured: false,
         errorCode: "plaid_config_missing",
-        message: "Plaid client could not be initialized.",
+        message: `Plaid client could not be initialized for ${targetEnvironment}.`,
         ...baseMeta,
       },
       { status: 503 },
+    );
+  }
+
+  if (targetEnvironment === "production" && storage.mode !== "database") {
+    return NextResponse.json(
+      {
+        configured: true,
+        ok: false,
+        errorCode: "database_required",
+        message:
+          "Sign in with database configured to connect real financial accounts.",
+        ...baseMeta,
+      },
+      { status: 403 },
     );
   }
 

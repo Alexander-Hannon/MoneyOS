@@ -1,7 +1,7 @@
 import type { RemovedTransaction, Transaction } from "plaid";
 import {
   describePlaidError,
-  getPlaidClient,
+  getPlaidClientForEnvironment,
   getPlaidConfig,
 } from "@/lib/plaid/client";
 import {
@@ -20,6 +20,7 @@ import {
   getPlaidItemForUser,
   listActivePlaidItemsForUser,
   updateConnectedInstitutionSync,
+  updatePlaidItemBalanceRefresh,
   updatePlaidItemSyncState,
 } from "@/lib/db/plaid-items";
 import {
@@ -31,10 +32,16 @@ import { normalizeAccount, normalizePlaidTransaction } from "@/lib/plaid/normali
 import type { CountryCode } from "plaid";
 import type { LinkedAccount, MoneyTransaction } from "@/types/transactions";
 import { classifyTransaction } from "@/lib/transaction-utils";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import {
+  isPlaidEnvironment,
+  plaidSourceForEnvironment,
+} from "@/lib/plaid/plaid-env";
 
 export type PlaidSyncSummary = {
   plaidItemId: string;
   institutionName: string | null;
+  environment: PlaidEnvironment;
   accountCount: number;
   transactionCount: number;
   added: number;
@@ -42,6 +49,8 @@ export type PlaidSyncSummary = {
   removed: number;
   lastSyncAt: string;
 };
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function applyRuleOverride(
   txn: MoneyTransaction,
@@ -59,8 +68,11 @@ function applyRuleOverride(
   };
 }
 
-async function fetchInstitutionName(accessToken: string): Promise<string> {
-  const client = getPlaidClient();
+async function fetchInstitutionName(
+  accessToken: string,
+  environment: PlaidEnvironment,
+): Promise<string> {
+  const client = getPlaidClientForEnvironment(environment);
   const config = getPlaidConfig();
   if (!client || !config) return "Connected bank";
 
@@ -78,48 +90,74 @@ async function fetchInstitutionName(accessToken: string): Promise<string> {
   }
 }
 
+function resolveItemEnvironment(item: { environment: string }): PlaidEnvironment {
+  return isPlaidEnvironment(item.environment) ? item.environment : "sandbox";
+}
+
 export async function syncPlaidItemForUser(
   userId: string,
   plaidItemId: string,
+  options?: { refreshBalances?: boolean },
 ): Promise<PlaidSyncSummary> {
   const item = await getPlaidItemForUser(userId, plaidItemId);
   if (!item || item.status !== "connected") {
     throw new Error("Plaid item not found or disconnected.");
   }
 
+  const environment = resolveItemEnvironment(item);
+  const source = plaidSourceForEnvironment(environment);
+  const refreshBalances =
+    options?.refreshBalances ?? environment === "sandbox";
+
   const accessToken = await getPlaidItemAccessToken(userId, plaidItemId);
   if (!accessToken) {
     throw new Error("Could not decrypt Plaid access token.");
   }
 
-  const client = getPlaidClient();
-  const config = getPlaidConfig();
-  if (!client || !config) {
-    throw new Error("Plaid is not configured.");
+  const client = getPlaidClientForEnvironment(environment);
+  if (!client) {
+    throw new Error("Plaid is not configured for this environment.");
   }
 
   const institution =
-    item.institutionName ?? (await fetchInstitutionName(accessToken));
+    item.institutionName ?? (await fetchInstitutionName(accessToken, environment));
 
-  const accountsRes = await client.accountsGet({ access_token: accessToken });
-  const normalizedAccounts = accountsRes.data.accounts.map((a) =>
-    normalizeAccount(a, institution),
-  );
+  if (refreshBalances) {
+    const accountsRes = await client.accountsGet({ access_token: accessToken });
+    const normalizedAccounts = accountsRes.data.accounts.map((a) =>
+      normalizeAccount(a, institution, source),
+    );
 
-  const accountIdByPlaid = await upsertPlaidAccountsForItem({
-    userId,
-    plaidItemId,
-    accounts: normalizedAccounts.map((a) => ({
-      plaidAccountId: a.id,
-      name: a.name,
-      institution: a.institution,
-      type: a.type,
-      subtype: a.subtype ?? null,
-      mask: a.mask ?? null,
-      currentBalance: a.currentBalance ?? null,
-      availableBalance: a.availableBalance ?? null,
-    })),
-  });
+    await upsertPlaidAccountsForItem({
+      userId,
+      plaidItemId,
+      source,
+      accounts: normalizedAccounts.map((a) => ({
+        plaidAccountId: a.id,
+        name: a.name,
+        institution: a.institution,
+        type: a.type,
+        subtype: a.subtype ?? null,
+        mask: a.mask ?? null,
+        currentBalance: a.currentBalance ?? null,
+        availableBalance: a.availableBalance ?? null,
+      })),
+    });
+
+    await updatePlaidItemBalanceRefresh({
+      userId,
+      plaidItemId,
+      lastBalanceRefreshAt: new Date(),
+    });
+  }
+
+  const accountRows = await listPlaidAccountsForUser(userId, environment);
+  const accountIdByPlaid = new Map<string, string>();
+  for (const row of accountRows.filter((a) => a.plaidItemId === plaidItemId)) {
+    if (row.plaidAccountId) {
+      accountIdByPlaid.set(row.plaidAccountId, row.id);
+    }
+  }
 
   const rules = await listTransactionRulesForUser(userId);
 
@@ -144,7 +182,7 @@ export async function syncPlaidItemForUser(
   }
 
   const upsertBatch = [...added, ...modified].map((txn) => {
-    let normalized = normalizePlaidTransaction(txn);
+    let normalized = normalizePlaidTransaction(txn, source);
     normalized = applyRuleOverride(normalized, rules);
     const internalAccountId =
       accountIdByPlaid.get(txn.account_id) ??
@@ -170,6 +208,7 @@ export async function syncPlaidItemForUser(
   await upsertPlaidTransactionsForItem({
     userId,
     plaidItemId,
+    source,
     transactions: upsertBatch,
   });
 
@@ -190,8 +229,8 @@ export async function syncPlaidItemForUser(
   await updateConnectedInstitutionSync(userId, plaidItemId, lastSyncAt);
 
   const [accounts, transactions] = await Promise.all([
-    listPlaidAccountsForUser(userId),
-    listPlaidTransactionsForUser(userId),
+    listPlaidAccountsForUser(userId, environment),
+    listPlaidTransactionsForUser(userId, environment),
   ]);
 
   const itemAccounts = accounts.filter((a) => a.plaidItemId === plaidItemId);
@@ -199,6 +238,7 @@ export async function syncPlaidItemForUser(
   return {
     plaidItemId,
     institutionName: item.institutionName ?? institution,
+    environment,
     accountCount: itemAccounts.length,
     transactionCount: transactions.filter((t) => t.plaidItemId === plaidItemId)
       .length,
@@ -209,8 +249,11 @@ export async function syncPlaidItemForUser(
   };
 }
 
-export async function syncAllPlaidItemsForUser(userId: string) {
-  const items = await listActivePlaidItemsForUser(userId);
+export async function syncAllPlaidItemsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
+  const items = await listActivePlaidItemsForUser(userId, environment);
   const summaries: PlaidSyncSummary[] = [];
   for (const item of items) {
     try {
@@ -219,6 +262,7 @@ export async function syncAllPlaidItemsForUser(userId: string) {
       summaries.push({
         plaidItemId: item.id,
         institutionName: item.institutionName,
+        environment: resolveItemEnvironment(item),
         accountCount: 0,
         transactionCount: 0,
         added: 0,
@@ -232,15 +276,56 @@ export async function syncAllPlaidItemsForUser(userId: string) {
   return summaries;
 }
 
-export async function loadPersistedPlaidDataForUser(userId: string): Promise<{
+export async function refreshPlaidBalancesForUser(
+  userId: string,
+  plaidItemId?: string,
+  options?: { force?: boolean },
+): Promise<{ refreshed: number; lastBalanceRefreshAt: string | null }> {
+  const items = plaidItemId
+    ? [await getPlaidItemForUser(userId, plaidItemId)].filter(Boolean)
+    : await listActivePlaidItemsForUser(userId, "production");
+
+  let refreshed = 0;
+  let lastBalanceRefreshAt: string | null = null;
+
+  for (const item of items) {
+    if (!item || item.status !== "connected") continue;
+    const environment = resolveItemEnvironment(item);
+    if (environment !== "production") continue;
+
+    const lastRefresh = item.lastBalanceRefreshAt?.getTime() ?? 0;
+    if (
+      !options?.force &&
+      !plaidItemId &&
+      Date.now() - lastRefresh < ONE_DAY_MS
+    ) {
+      lastBalanceRefreshAt = item.lastBalanceRefreshAt?.toISOString() ?? null;
+      continue;
+    }
+
+    await syncPlaidItemForUser(userId, item.id, { refreshBalances: true });
+    refreshed += 1;
+    lastBalanceRefreshAt = new Date().toISOString();
+  }
+
+  return { refreshed, lastBalanceRefreshAt };
+}
+
+export async function loadPersistedPlaidDataForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+): Promise<{
   accounts: LinkedAccount[];
   transactions: MoneyTransaction[];
   lastSyncAt: string | null;
+  lastBalanceRefreshAt: string | null;
+  environment: PlaidEnvironment | null;
+  source: "plaid_sandbox" | "plaid_live" | null;
 }> {
   const [accounts, transactions, items] = await Promise.all([
-    listPlaidAccountsForUser(userId),
-    listPlaidTransactionsForUser(userId),
-    listActivePlaidItemsForUser(userId),
+    listPlaidAccountsForUser(userId, environment),
+    listPlaidTransactionsForUser(userId, environment),
+    listActivePlaidItemsForUser(userId, environment),
   ]);
 
   const lastSyncAt =
@@ -250,10 +335,32 @@ export async function loadPersistedPlaidDataForUser(userId: string): Promise<{
       .sort((a, b) => (b!.getTime() ?? 0) - (a!.getTime() ?? 0))[0]
       ?.toISOString() ?? null;
 
+  const lastBalanceRefreshAt =
+    items
+      .map((i) => i.lastBalanceRefreshAt)
+      .filter(Boolean)
+      .sort((a, b) => (b!.getTime() ?? 0) - (a!.getTime() ?? 0))[0]
+      ?.toISOString() ?? null;
+
+  const activeEnvironment =
+    environment ??
+    (items.some((i) => i.environment === "production")
+      ? ("production" as const)
+      : items.length > 0
+        ? ("sandbox" as const)
+        : null);
+
   return {
     accounts: accounts.map(dbAccountToLinkedAccount),
     transactions: transactions.map(dbTransactionToMoneyTransaction),
     lastSyncAt,
+    lastBalanceRefreshAt,
+    environment: activeEnvironment,
+    source: activeEnvironment
+      ? (plaidSourceForEnvironment(activeEnvironment) as
+          | "plaid_sandbox"
+          | "plaid_live")
+      : null,
   };
 }
 

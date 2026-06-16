@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   describePlaidError,
-  getPlaidClient,
+  getPlaidClientForEnvironment,
   getPlaidConfig,
 } from "@/lib/plaid/client";
 import {
@@ -11,24 +11,33 @@ import {
 } from "@/lib/plaid/persistent-items";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { setPlaidSession } from "@/lib/plaid/token-store";
+import { getOptionalAuthUser } from "@/lib/auth/session";
+import {
+  parsePlaidLinkTarget,
+  type PlaidLinkTarget,
+} from "@/lib/plaid/plaid-env";
+import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
 
-// POST /api/plaid/exchange-public-token  { public_token }
+// POST /api/plaid/exchange-public-token  { public_token, targetEnvironment? }
 export async function POST(request: Request) {
   const config = getPlaidConfig();
-  const client = getPlaidClient();
+  const authUser = await getOptionalAuthUser();
 
-  if (!config || !client) {
+  if (!config) {
     return NextResponse.json({
       configured: false,
       message:
-        "Plaid sandbox not configured yet. Add credentials to .env.local to enable token exchange.",
+        "Plaid is not configured yet. Add credentials to .env.local to enable token exchange.",
     });
   }
 
   let publicToken: string | undefined;
+  let targetEnvironment: PlaidLinkTarget = "sandbox";
   try {
     const body = await request.json();
     publicToken = body?.public_token;
+    const parsed = parsePlaidLinkTarget(body?.targetEnvironment);
+    if (parsed) targetEnvironment = parsed;
   } catch {
     // fall through
   }
@@ -40,7 +49,52 @@ export async function POST(request: Request) {
     );
   }
 
+  if (targetEnvironment === "production") {
+    const liveCheck = validateLivePlaidAccess({
+      user: authUser,
+      targetEnvironment,
+    });
+    if (!liveCheck.ok) {
+      return NextResponse.json(
+        {
+          configured: true,
+          ok: false,
+          errorCode: liveCheck.errorCode,
+          message: liveCheck.message,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
+  const client = getPlaidClientForEnvironment(targetEnvironment);
+  if (!client) {
+    return NextResponse.json(
+      {
+        configured: true,
+        ok: false,
+        error: `Plaid client not available for ${targetEnvironment}.`,
+      },
+      { status: 503 },
+    );
+  }
+
   const storage = await resolvePlaidStorageContext();
+
+  if (targetEnvironment === "production") {
+    if (storage.mode !== "database" || !storage.userId) {
+      return NextResponse.json(
+        {
+          configured: true,
+          ok: false,
+          errorCode: "database_required",
+          message:
+            "Live Plaid requires signed-in database persistence.",
+        },
+        { status: 403 },
+      );
+    }
+  }
 
   try {
     const response = await client.itemPublicTokenExchange({
@@ -49,7 +103,10 @@ export async function POST(request: Request) {
 
     const accessToken = response.data.access_token;
     const itemId = response.data.item_id;
-    const institution = await resolveInstitutionNameFromToken(accessToken);
+    const institution = await resolveInstitutionNameFromToken(
+      accessToken,
+      targetEnvironment,
+    );
 
     if (storage.mode === "database" && storage.userId) {
       try {
@@ -58,6 +115,7 @@ export async function POST(request: Request) {
           exchange: { item_id: itemId, access_token: accessToken },
           institutionId: institution.institutionId,
           institutionName: institution.institutionName,
+          environment: targetEnvironment,
         });
 
         return NextResponse.json({
@@ -65,13 +123,18 @@ export async function POST(request: Request) {
           ok: true,
           storageMode: "database",
           connected: true,
+          targetEnvironment,
+          source: summary.source,
           item_id: itemId,
           plaidItemId: summary.plaidItemId,
           institutionName: summary.institutionName,
           accountCount: summary.accountCount,
           transactionCount: summary.transactionCount,
           lastSyncAt: summary.lastSyncAt,
-          note: "Sandbox connection persisted with encrypted server-side token storage.",
+          note:
+            targetEnvironment === "production"
+              ? "Personal live connection persisted with encrypted server-side token storage."
+              : "Sandbox connection persisted with encrypted server-side token storage.",
         });
       } catch (error) {
         if (error instanceof PlaidPersistenceError) {
@@ -90,6 +153,19 @@ export async function POST(request: Request) {
       }
     }
 
+    if (targetEnvironment === "production") {
+      return NextResponse.json(
+        {
+          configured: true,
+          ok: false,
+          errorCode: "database_required",
+          message:
+            "Live Plaid cannot use in-memory token storage. Sign in with database configured.",
+        },
+        { status: 403 },
+      );
+    }
+
     setPlaidSession({
       accessToken,
       itemId,
@@ -102,6 +178,8 @@ export async function POST(request: Request) {
       ok: true,
       storageMode: "memory",
       connected: true,
+      targetEnvironment: "sandbox",
+      source: "plaid_sandbox",
       item_id: itemId,
       note: "access_token stored in dev-only server memory (not persisted). Sign in with database + encryption key to persist.",
     });

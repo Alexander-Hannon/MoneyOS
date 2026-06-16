@@ -5,9 +5,10 @@
 // - NEVER import this file from a client component. It is only used inside
 //   `src/app/api/plaid/*` route handlers (server).
 // - The PLAID_SECRET must never be sent to the browser.
-// - We intentionally do NOT persist access tokens anywhere in this phase.
+// - Access tokens are encrypted before database persistence in live mode.
 
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 
 export interface PlaidConfig {
   clientId: string;
@@ -15,6 +16,11 @@ export interface PlaidConfig {
   env: string;
   products: string[];
   countryCodes: string[];
+}
+
+function trimEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value || undefined;
 }
 
 /** Returns the Plaid config, or null when env vars are missing. */
@@ -42,25 +48,49 @@ export function isPlaidConfigured(): boolean {
   return getPlaidConfig() !== null;
 }
 
-/** Build a PlaidApi client, or null if not configured. */
-export function getPlaidClient(): PlaidApi | null {
+function resolveSecretForEnvironment(target: PlaidEnvironment): string | null {
   const config = getPlaidConfig();
   if (!config) return null;
 
+  if (target === "sandbox") {
+    return trimEnv("PLAID_SANDBOX_SECRET") ?? config.secret;
+  }
+
+  return config.secret;
+}
+
+/** Build a PlaidApi client for a specific API environment. */
+export function getPlaidClientForEnvironment(
+  target: PlaidEnvironment,
+): PlaidApi | null {
+  const config = getPlaidConfig();
+  const secret = resolveSecretForEnvironment(target);
+  if (!config || !secret) return null;
+
   const basePath =
-    PlaidEnvironments[config.env] ?? PlaidEnvironments.sandbox;
+    PlaidEnvironments[target] ?? PlaidEnvironments.sandbox;
 
   const configuration = new Configuration({
     basePath,
     baseOptions: {
       headers: {
         "PLAID-CLIENT-ID": config.clientId,
-        "PLAID-SECRET": config.secret,
+        "PLAID-SECRET": secret,
       },
     },
   });
 
   return new PlaidApi(configuration);
+}
+
+/** Build a PlaidApi client using PLAID_ENV, or null if not configured. */
+export function getPlaidClient(): PlaidApi | null {
+  const config = getPlaidConfig();
+  if (!config) return null;
+
+  const env =
+    config.env === "production" ? "production" : ("sandbox" as const);
+  return getPlaidClientForEnvironment(env);
 }
 
 /** Safe message extraction for error responses (no secrets leaked). */

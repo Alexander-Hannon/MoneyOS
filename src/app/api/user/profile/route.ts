@@ -7,9 +7,10 @@ function parseAppMode(value: unknown): AppMode | undefined {
     value === "demo" ||
     value === "local_user" ||
     value === "plaid_sandbox" ||
+    value === "personal_live" ||
     value === "future_plaid_live"
   ) {
-    return value;
+    return value === "future_plaid_live" ? "personal_live" : value;
   }
   return undefined;
 }

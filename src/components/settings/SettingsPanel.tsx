@@ -240,8 +240,8 @@ export function SettingsPanel() {
           )}
           <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
             {status.persistentPlaidEnabled
-              ? "Plaid sandbox tokens are encrypted at rest in Postgres for signed-in users. Live Plaid mode is still disabled."
-              : "Plaid sandbox persistence requires sign-in, DATABASE_URL, and PLAID_TOKEN_ENCRYPTION_KEY. Without all three, tokens stay in dev-only server memory."}
+              ? "Plaid tokens are encrypted at rest in Postgres for signed-in users. Personal live mode requires additional env flags and owner email allowlist."
+              : "Plaid persistence requires sign-in, DATABASE_URL, and PLAID_TOKEN_ENCRYPTION_KEY. Without all three, tokens stay in dev-only server memory."}
           </p>
         </CardContent>
       </Card>
@@ -305,6 +305,103 @@ export function SettingsPanel() {
           ) : (
             <p className="text-xs text-muted-foreground">
               No connected sandbox institutions yet.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-warning/30">
+        <CardContent className="space-y-4 pt-5">
+          <h2 className="text-sm font-medium">Personal live Plaid (Phase 12)</h2>
+          <p className="text-xs text-muted-foreground">
+            Private owner mode — not public SaaS launch. Real bank data through
+            Plaid Production when all safety checks pass.
+          </p>
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Live Plaid enabled</dt>
+              <dd className="font-medium">{fd.livePlaidEnabled ? "Yes" : "No"}</dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Current Plaid env</dt>
+              <dd className="font-medium">{fd.plaidEnv ?? "—"}</dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Allowed live user configured</dt>
+              <dd className="font-medium">
+                {fd.livePlaidEnabled ? (fd.liveUserAllowed ? "Yes (you)" : "Yes (other email)") : "No"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
+              <dt className="text-muted-foreground">Encryption configured</dt>
+              <dd className="font-medium">
+                {fd.encryptionConfigured ? "Yes" : "No"}
+              </dd>
+            </div>
+          </dl>
+          <div className="space-y-1 text-xs">
+            <p className="font-medium">Production safety checklist</p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>MONEYOS_ENABLE_LIVE_PLAID=true</li>
+              <li>MONEYOS_ALLOWED_LIVE_USER_EMAIL matches signed-in Clerk email</li>
+              <li>PLAID_ENV=production with production secret (never commit)</li>
+              <li>Clerk + DATABASE_URL + PLAID_TOKEN_ENCRYPTION_KEY configured</li>
+              <li>Same encryption key across devices sharing the database</li>
+            </ul>
+          </div>
+          {fd.liveInstitutions.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Connected live institutions</p>
+              <ul className="space-y-2">
+                {fd.liveInstitutions.map((inst) => (
+                  <li
+                    key={inst.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-2 text-xs"
+                  >
+                    <div>
+                      <p className="font-medium">{inst.institutionName}</p>
+                      <p className="text-muted-foreground">
+                        {inst.accountCount} accounts ·{" "}
+                        {inst.lastSyncAt
+                          ? new Date(inst.lastSyncAt).toLocaleString()
+                          : "Never synced"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-destructive hover:bg-destructive/10"
+                      disabled={fd.busy}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Disconnect live institution ${inst.institutionName}?`,
+                          )
+                        ) {
+                          return;
+                        }
+                        const deleteHistory = window.confirm(
+                          "Also delete all stored transactions and accounts for this institution?",
+                        );
+                        void fd.disconnectPlaid(inst.plaidItemId ?? undefined, {
+                          deleteHistory,
+                        });
+                        toast(
+                          deleteHistory
+                            ? "Live institution disconnected; history deleted"
+                            : "Live institution disconnected",
+                        );
+                      }}
+                    >
+                      <Unplug className="size-3.5" /> Disconnect live
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No personal live institutions connected.
             </p>
           )}
         </CardContent>

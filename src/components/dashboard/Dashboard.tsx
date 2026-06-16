@@ -21,6 +21,7 @@ import { SpendingLater } from "@/components/dashboard/SpendingLater";
 import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
 import { useFinancialData } from "@/hooks/useFinancialData";
+import { dashboardModeLabels } from "@/lib/data-source";
 import { incomeVsSpendingTrend } from "@/lib/transaction-utils";
 import {
   computeManualMonthlyProjection,
@@ -112,6 +113,19 @@ export function Dashboard() {
 
           <DataConfidenceStrip />
 
+          {fd.activePlaidEnvironment === "production" && (
+            <div className="flex flex-wrap gap-2">
+              {dashboardModeLabels(fd.activePlaidEnvironment).map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+
           <CashflowCard
             presentation={chartPresentation}
             chartDataSource={chartDataSource}
@@ -161,7 +175,11 @@ export function Dashboard() {
 
         <footer className="flex flex-col items-center gap-1 pt-2 text-center text-xs text-muted-foreground/60">
           <p>
-            MoneyOS by Apalym · Development / Sandbox mode · {fd.modeLabel}
+            MoneyOS by Apalym ·{" "}
+            {fd.activePlaidEnvironment === "production"
+              ? "Personal Live · Private owner mode"
+              : "Development / Sandbox mode"}{" "}
+            · {fd.modeLabel}
           </p>
           <Link href="/settings" className="hover:text-muted-foreground">
             Settings

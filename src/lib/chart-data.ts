@@ -25,7 +25,7 @@ export function hasHistoricalTransactionData(
   mode: AppMode,
   plaidConnected: boolean,
 ): boolean {
-  if (mode === "future_plaid_live") {
+  if (mode === "personal_live") {
     return transactions.some((t) => t.source === "plaid_live");
   }
   if (plaidConnected || mode === "plaid_sandbox") {
@@ -47,10 +47,13 @@ export function resolveChartDataSource(args: {
   const { storedMode, plaidConnected, transactions, hasManualIncomeOrBills } =
     args;
 
-  if (storedMode === "future_plaid_live") {
+  if (storedMode === "personal_live") {
     return transactions.some((t) => t.source === "plaid_live")
       ? "live"
       : "none";
+  }
+  if (plaidConnected && transactions.some((t) => t.source === "plaid_live")) {
+    return "live";
   }
   if (plaidConnected && transactions.length > 0) return "plaid_sandbox";
   if (storedMode === "demo" && transactions.length > 0) return "demo";

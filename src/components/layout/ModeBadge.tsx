@@ -8,7 +8,7 @@ const toneMap: Record<
   "Demo Mode": "info",
   "Local User Data": "neutral",
   "Plaid Sandbox": "success",
-  "Live mode disabled": "warning",
+  "Personal Live": "warning",
 };
 
 export function ModeBadge({ label }: { label: ModeDisplayLabel }) {

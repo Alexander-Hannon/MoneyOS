@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
 import { getPlaidSession } from "@/lib/plaid/token-store";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
-import { listActivePlaidItemsForUser } from "@/lib/db/plaid-items";
+import {
+  listActivePlaidItemsForUser,
+} from "@/lib/db/plaid-items";
 import { getConnectedInstitutionSummaries } from "@/lib/plaid/persistent-items";
 import { listPlaidAccountsForUser } from "@/lib/db/accounts";
 import { validateMoneyOSEnv } from "@/lib/env/validation";
 import { checkStoredEncryptionHealth } from "@/lib/env/encryption-health";
 import { getOptionalAuthUser } from "@/lib/auth/session";
+import {
+  canUserAccessLivePlaidUI,
+  getLivePlaidDiagnostics,
+} from "@/lib/plaid/live-mode";
+import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
 
 // GET /api/plaid/status
 export async function GET() {
   const env = validateMoneyOSEnv();
   const storage = await resolvePlaidStorageContext();
   const authUser = await getOptionalAuthUser();
+  const liveDiagnostics = getLivePlaidDiagnostics();
+  const liveUserAllowed = canUserAccessLivePlaidUI(authUser);
   const encryptionHealth = await checkStoredEncryptionHealth(
     authUser?.userId ?? null,
   );
@@ -25,6 +34,8 @@ export async function GET() {
     geminiConfigured: env.geminiConfigured,
     encryptionRoundTripOk: env.encryptionRoundTripOk,
     storedEncryptionHealth: encryptionHealth,
+    livePlaid: liveDiagnostics,
+    liveUserAllowed,
   };
 
   if (
@@ -46,14 +57,39 @@ export async function GET() {
   }
 
   if (storage.mode === "database" && storage.userId) {
-    const activeItems = await listActivePlaidItemsForUser(storage.userId);
-    const connected = env.plaidConfigValid && activeItems.length > 0;
-    const institutions = connected
-      ? await getConnectedInstitutionSummaries(storage.userId)
-      : [];
+    const [sandboxItems, liveItems] = await Promise.all([
+      listActivePlaidItemsForUser(storage.userId, "sandbox"),
+      listActivePlaidItemsForUser(storage.userId, "production"),
+    ]);
+
+    const sandboxConnected = env.plaidConfigValid && sandboxItems.length > 0;
+    const liveConnected = liveItems.length > 0;
+    const connected = sandboxConnected || liveConnected;
+
+    const activeEnvironment = liveConnected
+      ? ("production" as const)
+      : sandboxConnected
+        ? ("sandbox" as const)
+        : null;
+
+    const [sandboxInstitutions, liveInstitutions] = connected
+      ? await Promise.all([
+          sandboxConnected
+            ? getConnectedInstitutionSummaries(storage.userId, "sandbox")
+            : [],
+          liveConnected
+            ? getConnectedInstitutionSummaries(storage.userId, "production")
+            : [],
+        ])
+      : [[], []];
+
+    const institutions = [...sandboxInstitutions, ...liveInstitutions];
+
     const accounts = connected
-      ? await listPlaidAccountsForUser(storage.userId)
+      ? await listPlaidAccountsForUser(storage.userId, activeEnvironment ?? undefined)
       : [];
+
+    const activeItems = activeEnvironment === "production" ? liveItems : sandboxItems;
     const lastSyncAt =
       activeItems
         .map((i) => i.lastSyncAt)
@@ -64,6 +100,20 @@ export async function GET() {
         )[0]
         ?.toISOString() ?? null;
 
+    const lastBalanceRefreshAt =
+      liveItems
+        .map((i) => i.lastBalanceRefreshAt)
+        .filter(Boolean)
+        .sort(
+          (a, b) =>
+            new Date(String(b)).getTime() - new Date(String(a)).getTime(),
+        )[0]
+        ?.toISOString() ?? null;
+
+    const source = activeEnvironment
+      ? plaidSourceForEnvironment(activeEnvironment)
+      : "manual";
+
     return NextResponse.json({
       configured: env.plaidConfigured,
       plaidConfigured: env.plaidConfigured,
@@ -72,18 +122,26 @@ export async function GET() {
       plaidProducts: env.plaidProducts,
       plaidCountryCodes: env.plaidCountryCodes,
       connected,
+      sandboxConnected,
+      liveConnected,
+      activeEnvironment,
       status: connected ? "connected" : "not_connected",
-      source: connected ? "plaid_sandbox" : "mock",
+      source,
       storageMode: "database",
-      dataSource: connected ? "plaid_sandbox" : "manual",
+      dataSource: connected ? source : "manual",
       authConfigured: storage.authConfigured,
       databaseConfigured: storage.databaseConfigured,
       encryptionConfigured: storage.encryptionConfigured,
       persistentPlaidEnabled: storage.persistentPlaidEnabled,
+      livePlaidEnabled: env.livePlaidEnabled,
+      liveUserAllowed,
       institutionCount: institutions.length,
       accountCount: accounts.length,
       institutions,
+      sandboxInstitutions,
+      liveInstitutions,
       lastSyncAt,
+      lastBalanceRefreshAt,
       diagnostics,
     });
   }
@@ -99,6 +157,9 @@ export async function GET() {
     plaidProducts: env.plaidProducts,
     plaidCountryCodes: env.plaidCountryCodes,
     connected,
+    sandboxConnected: connected,
+    liveConnected: false,
+    activeEnvironment: connected ? "sandbox" : null,
     status: connected ? "connected" : "not_connected",
     source: connected ? "plaid_sandbox" : "mock",
     storageMode: connected ? "memory" : "none",
@@ -107,10 +168,15 @@ export async function GET() {
     databaseConfigured: storage.databaseConfigured,
     encryptionConfigured: storage.encryptionConfigured,
     persistentPlaidEnabled: storage.persistentPlaidEnabled,
+    livePlaidEnabled: env.livePlaidEnabled,
+    liveUserAllowed,
     institutionCount: connected ? 1 : 0,
     accountCount: 0,
     institutions: [],
+    sandboxInstitutions: [],
+    liveInstitutions: [],
     lastSyncAt: session?.lastSyncAt ?? null,
+    lastBalanceRefreshAt: null,
     devOnlyWarning: connected
       ? "Sandbox token stored in server memory only — lost on restart. Sign in with database + encryption key to persist."
       : undefined,

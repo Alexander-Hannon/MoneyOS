@@ -1,10 +1,13 @@
 import { getPrisma } from "@/lib/db/prisma";
 import type {
+  DataSource,
   MoneyTransaction,
   TransactionClassification,
   TransactionType,
 } from "@/types/transactions";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
 
 export async function listTransactionsForUser(userId: string) {
   const prisma = getPrisma();
@@ -16,11 +19,19 @@ export async function listTransactionsForUser(userId: string) {
   });
 }
 
-export async function listPlaidTransactionsForUser(userId: string) {
+export async function listPlaidTransactionsForUser(
+  userId: string,
+  environment?: PlaidEnvironment,
+) {
   const prisma = getPrisma();
   if (!prisma) return [];
+
+  const sources: DataSource[] = environment
+    ? [plaidSourceForEnvironment(environment)]
+    : ["plaid_sandbox", "plaid_live"];
+
   return prisma.moneyTransaction.findMany({
-    where: { userId, source: "plaid_sandbox" },
+    where: { userId, source: { in: sources } },
     orderBy: { date: "desc" },
     take: 1000,
   });
@@ -63,6 +74,7 @@ export function dbTransactionToMoneyTransaction(row: {
 export async function upsertPlaidTransactionsForItem(args: {
   userId: string;
   plaidItemId: string;
+  source: DataSource;
   transactions: Array<{
     plaidTransactionId: string;
     accountId: string;
@@ -106,7 +118,7 @@ export async function upsertPlaidTransactionsForItem(args: {
         category: txn.category,
         subcategory: txn.subcategory ?? null,
         pending: txn.pending,
-        source: "plaid_sandbox",
+        source: args.source,
         needsReview: txn.needsReview,
         notes: txn.notes ?? null,
       },
@@ -122,7 +134,7 @@ export async function upsertPlaidTransactionsForItem(args: {
         category: txn.category,
         subcategory: txn.subcategory ?? null,
         pending: txn.pending,
-        source: "plaid_sandbox",
+        source: args.source,
         needsReview: txn.needsReview,
         notes: txn.notes ?? null,
       },
@@ -156,7 +168,7 @@ export async function replaceTransactionsForUser(
 
   await prisma.$transaction(async (tx) => {
     await tx.moneyTransaction.deleteMany({
-      where: { userId, source: { not: "plaid_sandbox" } },
+      where: { userId, source: { notIn: ["plaid_sandbox", "plaid_live"] } },
     });
     for (const txn of transactions) {
       await tx.moneyTransaction.create({
