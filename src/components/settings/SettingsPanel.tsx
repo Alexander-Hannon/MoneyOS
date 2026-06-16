@@ -36,6 +36,31 @@ export function SettingsPanel() {
   const [importError, setImportError] = useState<string | null>(null);
   const [accountConsent, setAccountConsent] = useState<ConsentRecord[]>([]);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [encryptionMismatch, setEncryptionMismatch] = useState(false);
+
+  useEffect(() => {
+    if (!status.signedIn || !status.databaseConfigured) return;
+
+    let cancelled = false;
+    fetch("/api/plaid/status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const health = data.diagnostics?.storedEncryptionHealth;
+        setEncryptionMismatch(
+          Boolean(health?.hasStoredTokens && health?.decryptOk === false),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setEncryptionMismatch(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status.signedIn, status.databaseConfigured]);
+
+  const showEncryptionMismatch =
+    status.signedIn && status.databaseConfigured && encryptionMismatch;
 
   useEffect(() => {
     if (!status.signedIn) return;
@@ -118,10 +143,15 @@ export function SettingsPanel() {
           },
         }),
       });
-      if (!res.ok) throw new Error("Sync failed");
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message ?? "Sync failed");
+      }
       toast("Local data synced to account");
-    } catch {
-      toast("Could not sync to account");
+    } catch (e) {
+      toast(
+        e instanceof Error ? e.message : "Could not sync to account",
+      );
     } finally {
       setSyncBusy(false);
     }
@@ -200,6 +230,14 @@ export function SettingsPanel() {
               <dd className="font-medium">{storageModeLabel}</dd>
             </div>
           </dl>
+          {showEncryptionMismatch && (
+            <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
+              Plaid encryption key mismatch: this device cannot decrypt stored
+              Plaid tokens. Use the same PLAID_TOKEN_ENCRYPTION_KEY on every
+              device connected to this database, or reconnect sandbox
+              institutions from this device.
+            </p>
+          )}
           <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
             {status.persistentPlaidEnabled
               ? "Plaid sandbox tokens are encrypted at rest in Postgres for signed-in users. Live Plaid mode is still disabled."

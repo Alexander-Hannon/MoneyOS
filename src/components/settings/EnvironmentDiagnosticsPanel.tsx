@@ -130,9 +130,10 @@ export function EnvironmentDiagnosticsPanel() {
 
         {showMismatchWarning && (
           <Warning>
-            Stored Plaid tokens could not be decrypted with the current
-            PLAID_TOKEN_ENCRYPTION_KEY. If laptop and desktop share the same Neon
-            database, both must use the identical encryption key.
+            Plaid encryption key mismatch: this device cannot decrypt stored
+            Plaid tokens. Use the same PLAID_TOKEN_ENCRYPTION_KEY on every
+            device connected to this database, or reconnect sandbox
+            institutions from this device.
           </Warning>
         )}
 
