@@ -34,6 +34,7 @@ model User {
   accounts              Account[]
   transactions          MoneyTransaction[]
   transactionRules      TransactionRule[]
+  weeklyReviews         WeeklyReview[]
 }
 
 model UserSettings {
@@ -243,4 +244,37 @@ model TransactionRule {
 
   @@index([userId])
   @@index([userId, merchantPattern])
+}
+
+model WeeklyReview {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate     String
+  createdAt         DateTime @default(now())
+  status            String
+  cashAvailable     Float
+  billsDue7         Float
+  billsDue14        Float
+  billsDue30        Float
+  incomeExpected14  Float
+  monthlyRecurring  Float
+  reviewItemCount   Int
+  weeklyScore       Int
+  summary           String
+  whatMattersMost   Json
+  obligationsSnapshot Json
+  spendingSnapshot  Json
+  risks             Json
+  firstThreeActions Json
+  bestNextAction    String
+  userNotes         String?
+  completedActions  Json?
+  sourceMode        String
+  aiProvider        String
+  dataConfidence    String
+  reminderDrafts    Json?
+
+  @@index([userId])
+  @@index([userId, weekStartDate])
 }
