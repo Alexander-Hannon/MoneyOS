@@ -65,16 +65,58 @@ export function getPlaidClient(): PlaidApi | null {
 
 /** Safe message extraction for error responses (no secrets leaked). */
 export function describePlaidError(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "response" in error &&
-    typeof (error as { response?: unknown }).response === "object"
-  ) {
-    const data = (error as { response?: { data?: { error_message?: string } } })
-      .response?.data;
-    if (data?.error_message) return data.error_message;
-  }
+  const parsed = parsePlaidApiError(error);
+  if (parsed.plaidErrorMessage) return parsed.plaidErrorMessage;
   if (error instanceof Error) return error.message;
   return "Unknown Plaid error";
+}
+
+export type ParsedPlaidApiError = {
+  plaidErrorType: string | null;
+  plaidErrorCode: string | null;
+  plaidErrorMessage: string | null;
+  requestId: string | null;
+};
+
+/** Extract structured Plaid API error fields without leaking secrets. */
+export function parsePlaidApiError(error: unknown): ParsedPlaidApiError {
+  const empty: ParsedPlaidApiError = {
+    plaidErrorType: null,
+    plaidErrorCode: null,
+    plaidErrorMessage: null,
+    requestId: null,
+  };
+
+  if (typeof error !== "object" || error === null) return empty;
+
+  const response = (error as { response?: { data?: Record<string, unknown> } })
+    .response;
+  const data = response?.data;
+  if (!data || typeof data !== "object") return empty;
+
+  return {
+    plaidErrorType:
+      typeof data.error_type === "string" ? data.error_type : null,
+    plaidErrorCode:
+      typeof data.error_code === "string" ? data.error_code : null,
+    plaidErrorMessage:
+      typeof data.error_message === "string"
+        ? data.error_message
+        : typeof data.display_message === "string"
+          ? data.display_message
+          : null,
+    requestId: typeof data.request_id === "string" ? data.request_id : null,
+  };
+}
+
+/** Log Plaid errors server-side without printing secrets. */
+export function logPlaidError(context: string, error: unknown): void {
+  const parsed = parsePlaidApiError(error);
+  console.error(`[plaid] ${context}`, {
+    plaidErrorType: parsed.plaidErrorType,
+    plaidErrorCode: parsed.plaidErrorCode,
+    plaidErrorMessage: parsed.plaidErrorMessage,
+    requestId: parsed.requestId,
+    message: error instanceof Error ? error.message : "unknown",
+  });
 }

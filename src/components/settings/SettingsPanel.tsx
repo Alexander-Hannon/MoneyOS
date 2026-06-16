@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/toast";
 import { clearAllMoneyOSData } from "@/lib/storage/local-storage";
 import type { ConsentRecord } from "@/types/user";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
+import { EnvironmentDiagnosticsPanel } from "@/components/settings/EnvironmentDiagnosticsPanel";
 
 export function SettingsPanel() {
   const appMode = useAppMode();
@@ -270,6 +271,8 @@ export function SettingsPanel() {
           )}
         </CardContent>
       </Card>
+
+      <EnvironmentDiagnosticsPanel />
 
       <Card>
         <CardContent className="space-y-4 pt-5">

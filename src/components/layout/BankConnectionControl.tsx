@@ -16,6 +16,23 @@ import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { formatLastSync, plaidStatusLabel } from "@/lib/data-source";
 
+function formatLinkTokenError(data: Record<string, unknown>): string {
+  if (typeof data.message === "string" && data.message) return data.message;
+  if (typeof data.plaidErrorMessage === "string" && data.plaidErrorMessage) {
+    const code =
+      typeof data.plaidErrorCode === "string" ? ` (${data.plaidErrorCode})` : "";
+    return `${data.plaidErrorMessage}${code}`;
+  }
+  if (typeof data.error === "string" && data.error) return data.error;
+  if (data.errorCode === "plaid_config_missing") {
+    return "Plaid sandbox is not configured on the server.";
+  }
+  if (data.errorCode === "plaid_config_invalid") {
+    return "Plaid env vars are present but invalid — check Settings → Environment diagnostics.";
+  }
+  return "Could not start the Plaid connection.";
+}
+
 type LinkTokenState =
   | { status: "idle" }
   | { status: "loading" }
@@ -38,13 +55,16 @@ export function BankConnectionControl() {
       const res = await fetch("/api/plaid/create-link-token", { method: "POST" });
       const data = await res.json();
       if (data.configured === false) {
-        setTokenState({ status: "not_configured", message: data.message });
+        setTokenState({
+          status: "not_configured",
+          message: formatLinkTokenError(data),
+        });
       } else if (data.link_token) {
         setTokenState({ status: "ready", token: data.link_token });
       } else {
         setTokenState({
           status: "error",
-          message: data.error ?? "Could not start the Plaid connection.",
+          message: formatLinkTokenError(data),
         });
       }
     } catch {
