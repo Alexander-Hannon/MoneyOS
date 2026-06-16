@@ -120,7 +120,7 @@ export function getDataSourceLabel(
   if (plaidConnected && activePlaidEnvironment === "production") {
     if (storedMode === "demo") return "Mixed demo + sandbox";
     if (storedMode === "local_user" && !isEmpty) return "Mixed local + live";
-    return "Live bank data";
+    return "Personal Live Data";
   }
   if (plaidConnected) {
     if (storedMode === "demo") return "Mixed demo + sandbox";
