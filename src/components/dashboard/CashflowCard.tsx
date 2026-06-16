@@ -84,7 +84,9 @@ export function CashflowCard({
           }
         />
         {trendData && trendData.length > 0 ? (
-          <CashflowChart data={trendData} />
+          <div className="min-w-0">
+            <CashflowChart data={trendData} />
+          </div>
         ) : (
           <EmptyState
             icon={LineChart}

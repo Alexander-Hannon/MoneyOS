@@ -230,7 +230,9 @@ export function SpendingDashboard() {
                 <p className="mb-2 text-sm font-medium">Spending by category</p>
                 {byCategory.length > 0 ? (
                   <>
-                    <SpendingByCategoryChart data={byCategory} />
+                    <div className="min-w-0">
+                      <SpendingByCategoryChart data={byCategory} />
+                    </div>
                     <ul className="mt-3 space-y-1.5">
                       {byCategory.slice(0, 6).map((c, i) => (
                         <li
@@ -298,7 +300,13 @@ export function SpendingDashboard() {
                   </span>
                 </span>
               </div>
-              <CashflowChart data={trend} />
+              {trend.length > 0 ? (
+                <div className="min-w-0">
+                  <CashflowChart data={trend} />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No trend data yet.</p>
+              )}
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2">
