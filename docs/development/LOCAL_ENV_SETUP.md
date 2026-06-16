@@ -25,6 +25,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 See [SECRET_ROTATION.md](../security/SECRET_ROTATION.md) if secrets were ever committed.
 
+For laptop + desktop workflows, see [MULTI_DEVICE_SETUP.md](./MULTI_DEVICE_SETUP.md).
+
 ## Required vs optional variables
 
 ### Always safe to leave unset (local mode)
@@ -160,5 +162,6 @@ These should return JSON without Clerk proxy errors. In local mode, expect `auth
 ## Related docs
 
 - [Database setup](./DATABASE_SETUP.md)
+- [Multi-device setup](./MULTI_DEVICE_SETUP.md)
 - [Secret rotation](../security/SECRET_ROTATION.md)
 - [Plaid security notes](../security/PLAID_SECURITY_NOTES.md)

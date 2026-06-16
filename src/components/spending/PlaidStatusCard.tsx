@@ -21,6 +21,10 @@ export function PlaidStatusCard() {
           <dd className="font-medium">{fd.configured ? "Yes" : "No"}</dd>
         </div>
         <div className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">Plaid env</dt>
+          <dd className="font-medium">{fd.plaidEnv ?? "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Connection</dt>
           <dd className="font-medium">
             {plaidStatusLabel(fd.plaidConnectionStatus)}

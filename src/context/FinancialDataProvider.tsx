@@ -43,6 +43,7 @@ import type {
 export interface FinancialDataContextValue {
   loading: boolean;
   configured: boolean;
+  plaidEnv: string | null;
   busy: boolean;
   error: string | null;
 
@@ -119,6 +120,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
+  const [plaidEnv, setPlaidEnv] = useState<string | null>(null);
   const [plaidConnectionStatus, setPlaidConnectionStatus] =
     useState<PlaidConnectionStatus>("not_connected");
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
@@ -183,7 +185,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const refreshData = useCallback(async () => {
     try {
       const res = await fetch("/api/plaid/status").then((r) => r.json());
-      setConfigured(Boolean(res.configured));
+      setConfigured(Boolean(res.plaidConfigValid ?? res.configured));
+      setPlaidEnv(res.plaidEnv ?? null);
       setLastSyncAt(res.lastSyncAt ?? null);
       setPlaidStorageMode(res.storageMode ?? "none");
       setEncryptionConfigured(Boolean(res.encryptionConfigured));
@@ -474,6 +477,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     () => ({
       loading,
       configured,
+      plaidEnv,
       busy,
       error,
       storedMode,
@@ -513,6 +517,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     [
       loading,
       configured,
+      plaidEnv,
       busy,
       error,
       storedMode,
