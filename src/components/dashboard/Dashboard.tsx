@@ -73,7 +73,7 @@ export function Dashboard() {
       <Header />
       <Nav />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6">
+      <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6">
         <section id="dashboard" className="scroll-mt-20 space-y-6">
           <div>
             <p className="text-sm text-muted-foreground">

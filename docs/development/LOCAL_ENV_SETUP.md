@@ -67,7 +67,15 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
 
 When unset, the app skips auth and API routes return local-mode responses.
 
-When set, `src/middleware.ts` must export `clerkMiddleware()` (already configured when both Clerk keys are present).
+When set, `src/proxy.ts` exports `clerkMiddleware()` when both Clerk keys are present (Next.js 16 proxy convention).
+
+#### Clerk development key warning (expected in local dev)
+
+If you see a console warning that your Clerk key is a **development** key (`pk_test_...`), that is **normal** during local development. Clerk uses separate development and production instances.
+
+- **Local dev:** development keys in `.env.local` are fine.
+- **Production deploy:** use production Clerk keys (`pk_live_...` / live secret key) in your hosting platform environment variables — never development keys.
+- Do not treat the dev-key warning as a bug; it is a reminder not to ship development credentials.
 
 ### Database (optional — Neon Postgres)
 
@@ -147,7 +155,7 @@ curl -s http://localhost:3000/api/user/status | jq .
 curl -s http://localhost:3000/api/plaid/status | jq .
 ```
 
-These should return JSON without Clerk middleware errors. In local mode, expect `authConfigured: false` and mock/in-memory Plaid storage.
+These should return JSON without Clerk proxy errors. In local mode, expect `authConfigured: false` and mock/in-memory Plaid storage.
 
 ## Related docs
 

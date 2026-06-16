@@ -37,7 +37,7 @@ async function readClerkAuth(): Promise<ClerkAuthRead> {
         status: 503,
         body: {
           error:
-            "Clerk middleware is not active. Ensure src/middleware.ts exports clerkMiddleware().",
+            "Clerk proxy is not active. Ensure src/proxy.ts exports clerkMiddleware().",
           configured: false,
           authConfigured: true,
           databaseConfigured: isDatabaseConfigured(),

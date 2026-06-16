@@ -10,11 +10,14 @@ function isClerkEnvConfigured(): boolean {
 
 const clerkEnabled = isClerkEnvConfigured();
 
-const middleware = clerkEnabled
-  ? clerkMiddleware()
-  : () => NextResponse.next();
+function passThrough() {
+  return NextResponse.next();
+}
 
-export default middleware;
+const handler = clerkEnabled ? clerkMiddleware() : passThrough;
+
+export default handler;
+export { handler as proxy };
 
 export const config = {
   matcher: [
