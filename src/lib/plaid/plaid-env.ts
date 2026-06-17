@@ -14,6 +14,16 @@ export function parsePlaidLinkTarget(value: unknown): PlaidLinkTarget | null {
   return null;
 }
 
+/** Parse `environment` (preferred) or legacy `targetEnvironment` from a JSON body. */
+export function parsePlaidEnvironmentFromBody(body: unknown): PlaidLinkTarget | null {
+  if (!body || typeof body !== "object") return null;
+  const record = body as Record<string, unknown>;
+  return (
+    parsePlaidLinkTarget(record.environment) ??
+    parsePlaidLinkTarget(record.targetEnvironment)
+  );
+}
+
 /** MoneyOS data source for accounts/transactions synced from Plaid. */
 export function plaidSourceForEnvironment(env: PlaidEnvironment): DataSource {
   return env === "production" ? "plaid_live" : "plaid_sandbox";

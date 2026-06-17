@@ -34,6 +34,7 @@ import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
 import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
 import { useFinancialData } from "@/hooks/useFinancialData";
+import { shouldShowLiveConnectPrimary } from "@/hooks/usePlaidConnection";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
   buildSpendingAlerts,
@@ -82,9 +83,14 @@ const alertTone = { low: "info", medium: "warning", high: "danger" } as const;
 
 export function SpendingDashboard() {
   const fd = useFinancialData();
-  const usingSandbox = fd.plaidConnected;
+  const usingPlaid = fd.plaidConnected;
   const txns = fd.transactions;
   const hasData = txns.length > 0;
+  const showLiveEmptyLabel = shouldShowLiveConnectPrimary({
+    livePlaidEnabled: fd.livePlaidEnabled,
+    liveUserAllowed: fd.liveUserAllowed,
+    storedMode: fd.storedMode,
+  });
   const [showTransferNote, setShowTransferNote] = useState(true);
   const [categoryOverrides, setCategoryOverrides] = useState<
     Record<string, TransactionCategory>
@@ -101,13 +107,17 @@ export function SpendingDashboard() {
   const trend = useMemo(() => incomeVsSpendingTrend(txns), [txns]);
   const excludedTransfers = transferPaymentTotal(txns);
 
-  const sourceLabel = usingSandbox
-    ? fd.plaidStorageMode === "database"
-      ? "Plaid sandbox data — persisted to database (encrypted tokens server-side)"
-      : "Plaid sandbox data — not live bank data"
+  const sourceLabel = usingPlaid
+    ? fd.activePlaidEnvironment === "production"
+      ? "Personal live data — real bank data"
+      : fd.plaidStorageMode === "database"
+        ? "Plaid sandbox data — persisted to database (encrypted tokens server-side)"
+        : "Plaid sandbox data — not live bank data"
     : fd.storedMode === "demo"
       ? "Demo data — sample transactions for exploration"
-      : "Local user data — add accounts or connect Plaid sandbox";
+      : showLiveEmptyLabel
+        ? "Personal live data — connect real bank"
+        : "Local user data — add accounts or connect Plaid sandbox";
 
   const reviewAmount = fd.spendingSummary.reviewAmount;
 
@@ -121,9 +131,13 @@ export function SpendingDashboard() {
           meta={
             <span
               className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                usingSandbox
-                  ? "border-info/30 bg-info/10 text-info"
-                  : "border-border bg-muted/40 text-muted-foreground"
+                usingPlaid
+                  ? fd.activePlaidEnvironment === "production"
+                    ? "border-warning/30 bg-warning/10 text-warning"
+                    : "border-info/30 bg-info/10 text-info"
+                  : showLiveEmptyLabel
+                    ? "border-warning/30 bg-warning/10 text-warning"
+                    : "border-border bg-muted/40 text-muted-foreground"
               }`}
             >
               {sourceLabel}
@@ -136,7 +150,7 @@ export function SpendingDashboard() {
           <PlaidStatusCard />
         </div>
 
-        {usingSandbox && excludedTransfers > 0 && showTransferNote && (
+        {usingPlaid && excludedTransfers > 0 && showTransferNote && (
           <div className="flex items-start gap-2 rounded-[var(--radius-md)] border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
             <Info className="mt-0.5 size-4 shrink-0 text-info" />
             <p className="flex-1">
@@ -154,7 +168,7 @@ export function SpendingDashboard() {
           </div>
         )}
 
-        {usingSandbox && fd.linkedAccounts.length > 0 && (
+        {usingPlaid && fd.linkedAccounts.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {fd.linkedAccounts.map((a) => (
               <div
@@ -181,7 +195,7 @@ export function SpendingDashboard() {
           </div>
         )}
 
-        {usingSandbox && !hasData ? (
+        {usingPlaid && !hasData ? (
           <EmptyState
             icon={CreditCard}
             title="No sandbox transactions yet"
@@ -200,7 +214,7 @@ export function SpendingDashboard() {
               <StatTile
                 label="Income (this month)"
                 value={formatCurrency(income)}
-                hint={usingSandbox ? "sandbox inflows" : "mock transactions"}
+                hint={usingPlaid ? "sandbox inflows" : "mock transactions"}
                 icon={ArrowUpRight}
                 accent="text-success"
               />

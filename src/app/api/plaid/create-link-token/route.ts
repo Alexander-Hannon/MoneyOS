@@ -12,27 +12,34 @@ import { getOptionalAuthUser } from "@/lib/auth/session";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { validateMoneyOSEnv } from "@/lib/env/validation";
 import {
-  parsePlaidLinkTarget,
+  parsePlaidEnvironmentFromBody,
   type PlaidLinkTarget,
 } from "@/lib/plaid/plaid-env";
 import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
 
-// POST /api/plaid/create-link-token  { targetEnvironment?: "sandbox" | "production" }
+// POST /api/plaid/create-link-token  { environment: "sandbox" | "production" }
 export async function POST(request: Request) {
   const env = validateMoneyOSEnv();
   const storage = await resolvePlaidStorageContext();
   const authUser = await getOptionalAuthUser();
 
-  let targetEnvironment: PlaidLinkTarget = "sandbox";
+  let targetEnvironment: PlaidLinkTarget | null = null;
   try {
     const body = await request.json();
-    const parsed = parsePlaidLinkTarget(body?.targetEnvironment);
-    if (parsed) targetEnvironment = parsed;
+    targetEnvironment = parsePlaidEnvironmentFromBody(body);
   } catch {
-    // default sandbox
+    // empty or invalid JSON body
   }
 
-  const routingDebug = getPlaidRoutingDebug(targetEnvironment);
+  const routingDebug = targetEnvironment
+    ? getPlaidRoutingDebug(targetEnvironment)
+    : {
+        requestedEnvironment: null,
+        resolvedPlaidHost: null,
+        secretSource: "missing" as const,
+        clientIdLast4: null,
+        secretLength: 0,
+      };
 
   const baseMeta = {
     storageMode: storage.mode,
@@ -48,6 +55,19 @@ export async function POST(request: Request) {
     encryptionConfigured: storage.encryptionConfigured,
     livePlaidEnabled: env.livePlaidEnabled,
   };
+
+  if (!targetEnvironment) {
+    return NextResponse.json(
+      {
+        configured: env.plaidConfigured,
+        ok: false,
+        errorCode: "environment_required",
+        message: "Pass environment=sandbox or environment=production.",
+        ...baseMeta,
+      },
+      { status: 400 },
+    );
+  }
 
   if (!env.plaidConfigured && !canResolvePlaidCredentials(targetEnvironment)) {
     return NextResponse.json(

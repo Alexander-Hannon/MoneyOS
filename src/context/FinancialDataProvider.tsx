@@ -63,6 +63,7 @@ export interface FinancialDataContextValue {
 
   livePlaidEnabled: boolean;
   liveUserAllowed: boolean;
+  sandboxConnectAvailable: boolean;
   sandboxConnected: boolean;
   liveConnected: boolean;
 
@@ -154,6 +155,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<PlaidEnvironment | null>(null);
   const [livePlaidEnabled, setLivePlaidEnabled] = useState(false);
   const [liveUserAllowed, setLiveUserAllowed] = useState(false);
+  const [sandboxConnectAvailable, setSandboxConnectAvailable] = useState(false);
   const [sandboxConnected, setSandboxConnected] = useState(false);
   const [liveConnected, setLiveConnected] = useState(false);
   const [sandboxInstitutions, setSandboxInstitutions] = useState<
@@ -279,6 +281,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setDevOnlyPlaidWarning(res.devOnlyWarning ?? null);
       setLivePlaidEnabled(Boolean(res.livePlaidEnabled));
       setLiveUserAllowed(Boolean(res.liveUserAllowed));
+      setSandboxConnectAvailable(Boolean(res.sandboxConnectAvailable));
       setSandboxConnected(Boolean(res.sandboxConnected));
       setLiveConnected(Boolean(res.liveConnected));
       setActivePlaidEnvironment(res.activeEnvironment ?? null);
@@ -326,7 +329,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       try {
         const res = await postJson("/api/plaid/exchange-public-token", {
           public_token: publicToken,
-          targetEnvironment,
+          environment: targetEnvironment,
         });
         if (res.configured === false) {
           setError("Plaid is not configured.");
@@ -619,6 +622,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       lastBalanceRefreshAt,
       livePlaidEnabled,
       liveUserAllowed,
+      sandboxConnectAvailable,
       sandboxConnected,
       liveConnected,
       accounts,
@@ -668,6 +672,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       lastBalanceRefreshAt,
       livePlaidEnabled,
       liveUserAllowed,
+      sandboxConnectAvailable,
       sandboxConnected,
       liveConnected,
       accounts,

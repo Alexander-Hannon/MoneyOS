@@ -13,12 +13,12 @@ import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { setPlaidSession } from "@/lib/plaid/token-store";
 import { getOptionalAuthUser } from "@/lib/auth/session";
 import {
-  parsePlaidLinkTarget,
+  parsePlaidEnvironmentFromBody,
   type PlaidLinkTarget,
 } from "@/lib/plaid/plaid-env";
 import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
 
-// POST /api/plaid/exchange-public-token  { public_token, targetEnvironment? }
+// POST /api/plaid/exchange-public-token  { public_token, environment? }
 export async function POST(request: Request) {
   const config = getPlaidConfig();
   const authUser = await getOptionalAuthUser();
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     publicToken = body?.public_token;
-    const parsed = parsePlaidLinkTarget(body?.targetEnvironment);
+    const parsed = parsePlaidEnvironmentFromBody(body);
     if (parsed) targetEnvironment = parsed;
   } catch {
     // fall through
