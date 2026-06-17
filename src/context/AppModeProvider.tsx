@@ -25,6 +25,7 @@ import {
   saveString,
   STORAGE_KEYS,
 } from "@/lib/storage/local-storage";
+import type { PlaidLinkTarget } from "@/lib/plaid/plaid-env";
 import { useMoneyData } from "@/lib/storage/store";
 
 const CONSENT_VERSION = "2026-06-draft";
@@ -46,8 +47,9 @@ export interface AppModeContextValue {
   showOnboarding: boolean;
   consentHistory: ConsentRecord[];
   pendingPlaidConnect: boolean;
+  pendingPlaidEnvironment: PlaidLinkTarget | null;
   completeOnboarding: (choice: OnboardingChoice) => void;
-  requestPlaidConnect: () => void;
+  requestPlaidConnect: (environment?: PlaidLinkTarget) => void;
   recordPlaidConsent: () => ConsentRecord;
   clearPendingPlaidConnect: () => void;
   refreshConsentHistory: () => void;
@@ -67,6 +69,8 @@ export function AppModeProvider({
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [consentHistory, setConsentHistory] = useState<ConsentRecord[]>([]);
   const [pendingPlaidConnect, setPendingPlaidConnect] = useState(false);
+  const [pendingPlaidEnvironment, setPendingPlaidEnvironment] =
+    useState<PlaidLinkTarget | null>(null);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -131,19 +135,22 @@ export function AppModeProvider({
       if (choice === "connect_sandbox") {
         saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
         setPendingPlaidConnect(true);
+        setPendingPlaidEnvironment("sandbox");
       }
     },
     [money],
   );
 
-  const requestPlaidConnect = useCallback(() => {
+  const requestPlaidConnect = useCallback((environment: PlaidLinkTarget = "sandbox") => {
     saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
     setPendingPlaidConnect(true);
+    setPendingPlaidEnvironment(environment);
   }, []);
 
   const clearPendingPlaidConnect = useCallback(() => {
     saveString(STORAGE_KEYS.pendingPlaidConnect, "false");
     setPendingPlaidConnect(false);
+    setPendingPlaidEnvironment(null);
   }, []);
 
   const value = useMemo<AppModeContextValue>(
@@ -156,6 +163,7 @@ export function AppModeProvider({
       showOnboarding: money.hydrated && hydrated && !onboardingCompleted,
       consentHistory,
       pendingPlaidConnect,
+      pendingPlaidEnvironment,
       completeOnboarding,
       requestPlaidConnect,
       recordPlaidConsent,
@@ -171,6 +179,7 @@ export function AppModeProvider({
       onboardingCompleted,
       consentHistory,
       pendingPlaidConnect,
+      pendingPlaidEnvironment,
       completeOnboarding,
       requestPlaidConnect,
       recordPlaidConsent,

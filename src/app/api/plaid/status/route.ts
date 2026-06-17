@@ -14,6 +14,7 @@ import {
   getLivePlaidDiagnostics,
 } from "@/lib/plaid/live-mode";
 import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
+import { canResolvePlaidCredentials } from "@/lib/plaid/client";
 
 // GET /api/plaid/status
 export async function GET() {
@@ -135,6 +136,7 @@ export async function GET() {
       persistentPlaidEnabled: storage.persistentPlaidEnabled,
       livePlaidEnabled: env.livePlaidEnabled,
       liveUserAllowed,
+      sandboxConnectAvailable: canResolvePlaidCredentials("sandbox"),
       institutionCount: institutions.length,
       accountCount: accounts.length,
       institutions,
@@ -170,6 +172,7 @@ export async function GET() {
     persistentPlaidEnabled: storage.persistentPlaidEnabled,
     livePlaidEnabled: env.livePlaidEnabled,
     liveUserAllowed,
+    sandboxConnectAvailable: canResolvePlaidCredentials("sandbox"),
     institutionCount: connected ? 1 : 0,
     accountCount: 0,
     institutions: [],
