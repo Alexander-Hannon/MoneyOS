@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "verify:plaid-routing": "npx --yes tsx scripts/verify-plaid-credential-routing.ts",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "dotenv -e .env.local -- prisma db push",

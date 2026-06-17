@@ -1,14 +1,18 @@
 // SERVER-ONLY Plaid client setup.
 //
 // SAFETY:
-// - This module reads PLAID_SECRET / PLAID_CLIENT_ID from server-side env only.
-// - NEVER import this file from a client component. It is only used inside
-//   `src/app/api/plaid/*` route handlers (server).
-// - The PLAID_SECRET must never be sent to the browser.
-// - Access tokens are encrypted before database persistence in live mode.
+// - This module reads Plaid credentials from server-side env only.
+// - NEVER import this file from a client component.
+// - Secrets must never be sent to the browser.
 
-import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
+import { Configuration, PlaidApi } from "plaid";
 import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
+import {
+  canResolvePlaidCredentials,
+  resolvePlaidCredentials,
+  type PlaidRoutingDebug,
+  toPlaidRoutingDebug,
+} from "@/lib/plaid/credential-routing";
 
 export interface PlaidConfig {
   clientId: string;
@@ -23,21 +27,21 @@ function trimEnv(name: string): string | undefined {
   return value || undefined;
 }
 
-/** Returns the Plaid config, or null when env vars are missing. */
+/** Returns the default Plaid config snapshot, or null when base credentials are missing. */
 export function getPlaidConfig(): PlaidConfig | null {
-  const clientId = process.env.PLAID_CLIENT_ID;
-  const secret = process.env.PLAID_SECRET;
+  const clientId = trimEnv("PLAID_CLIENT_ID");
+  const secret = trimEnv("PLAID_SECRET");
   if (!clientId || !secret) return null;
 
   return {
     clientId,
     secret,
-    env: process.env.PLAID_ENV ?? "sandbox",
-    products: (process.env.PLAID_PRODUCTS ?? "transactions")
+    env: trimEnv("PLAID_ENV") ?? "sandbox",
+    products: (trimEnv("PLAID_PRODUCTS") ?? "transactions")
       .split(",")
       .map((p) => p.trim())
       .filter(Boolean),
-    countryCodes: (process.env.PLAID_COUNTRY_CODES ?? "US")
+    countryCodes: (trimEnv("PLAID_COUNTRY_CODES") ?? "US")
       .split(",")
       .map((c) => c.trim())
       .filter(Boolean),
@@ -45,37 +49,25 @@ export function getPlaidConfig(): PlaidConfig | null {
 }
 
 export function isPlaidConfigured(): boolean {
-  return getPlaidConfig() !== null;
-}
-
-function resolveSecretForEnvironment(target: PlaidEnvironment): string | null {
-  const config = getPlaidConfig();
-  if (!config) return null;
-
-  if (target === "sandbox") {
-    return trimEnv("PLAID_SANDBOX_SECRET") ?? config.secret;
-  }
-
-  return config.secret;
+  return (
+    canResolvePlaidCredentials("sandbox") ||
+    canResolvePlaidCredentials("production")
+  );
 }
 
 /** Build a PlaidApi client for a specific API environment. */
 export function getPlaidClientForEnvironment(
   target: PlaidEnvironment,
 ): PlaidApi | null {
-  const config = getPlaidConfig();
-  const secret = resolveSecretForEnvironment(target);
-  if (!config || !secret) return null;
-
-  const basePath =
-    PlaidEnvironments[target] ?? PlaidEnvironments.sandbox;
+  const creds = resolvePlaidCredentials(target);
+  if (!creds) return null;
 
   const configuration = new Configuration({
-    basePath,
+    basePath: creds.basePath,
     baseOptions: {
       headers: {
-        "PLAID-CLIENT-ID": config.clientId,
-        "PLAID-SECRET": secret,
+        "PLAID-CLIENT-ID": creds.clientId,
+        "PLAID-SECRET": creds.secret,
       },
     },
   });
@@ -83,14 +75,17 @@ export function getPlaidClientForEnvironment(
   return new PlaidApi(configuration);
 }
 
+export function getPlaidRoutingDebug(
+  target: PlaidEnvironment,
+): PlaidRoutingDebug {
+  return toPlaidRoutingDebug(target, resolvePlaidCredentials(target));
+}
+
 /** Build a PlaidApi client using PLAID_ENV, or null if not configured. */
 export function getPlaidClient(): PlaidApi | null {
-  const config = getPlaidConfig();
-  if (!config) return null;
-
-  const env =
-    config.env === "production" ? "production" : ("sandbox" as const);
-  return getPlaidClientForEnvironment(env);
+  const env = trimEnv("PLAID_ENV") ?? "sandbox";
+  const target = env === "production" ? "production" : "sandbox";
+  return getPlaidClientForEnvironment(target);
 }
 
 /** Safe message extraction for error responses (no secrets leaked). */
@@ -150,3 +145,12 @@ export function logPlaidError(context: string, error: unknown): void {
     message: error instanceof Error ? error.message : "unknown",
   });
 }
+
+export {
+  canResolvePlaidCredentials,
+  resolvePlaidCredentials,
+  selfTestPlaidCredentialRouting,
+  toPlaidRoutingDebug,
+  type PlaidRoutingDebug,
+  type PlaidSecretSource,
+} from "@/lib/plaid/credential-routing";

@@ -125,6 +125,7 @@ MONEYOS_ENABLE_LIVE_PLAID=false
 MONEYOS_ALLOWED_LIVE_USER_EMAIL=you@example.com
 PLAID_ENV=production
 PLAID_SECRET=           # production secret — NEVER commit
+PLAID_PRODUCTION_SECRET=  # optional explicit production secret (preferred)
 # Optional: keep sandbox Link working while PLAID_ENV=production
 PLAID_SANDBOX_SECRET=
 ```
