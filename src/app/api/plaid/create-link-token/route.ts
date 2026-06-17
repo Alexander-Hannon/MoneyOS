@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import type { CountryCode, Products } from "plaid";
 import {
+  canResolvePlaidCredentials,
   getPlaidClientForEnvironment,
   getPlaidConfig,
+  getPlaidRoutingDebug,
   logPlaidError,
   parsePlaidApiError,
 } from "@/lib/plaid/client";
@@ -30,23 +32,30 @@ export async function POST(request: Request) {
     // default sandbox
   }
 
+  const routingDebug = getPlaidRoutingDebug(targetEnvironment);
+
   const baseMeta = {
     storageMode: storage.mode,
     plaidEnv: env.plaidEnv,
     targetEnvironment,
+    requestedEnvironment: routingDebug.requestedEnvironment,
+    resolvedPlaidHost: routingDebug.resolvedPlaidHost,
+    secretSource: routingDebug.secretSource,
+    clientIdLast4: routingDebug.clientIdLast4,
+    secretLength: routingDebug.secretLength,
     authConfigured: storage.authConfigured,
     databaseConfigured: storage.databaseConfigured,
     encryptionConfigured: storage.encryptionConfigured,
     livePlaidEnabled: env.livePlaidEnabled,
   };
 
-  if (!env.plaidConfigured) {
+  if (!env.plaidConfigured && !canResolvePlaidCredentials(targetEnvironment)) {
     return NextResponse.json(
       {
         configured: false,
         errorCode: "plaid_config_missing",
         message:
-          "Plaid is not configured. Add PLAID_CLIENT_ID and PLAID_SECRET to .env.local.",
+          "Plaid is not configured. Add PLAID_CLIENT_ID and the appropriate Plaid secret(s) to .env.local.",
         issues: env.issues.filter(
           (issue) =>
             issue.startsWith("plaid_client_id_") ||
@@ -75,21 +84,19 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
-  } else if (!env.plaidConfigValid && env.plaidEnv === "production") {
-    // Sandbox links still allowed when live mode uses production env — validate sandbox secret separately
-    const sandboxClient = getPlaidClientForEnvironment("sandbox");
-    if (!sandboxClient) {
-      return NextResponse.json(
-        {
-          configured: false,
-          errorCode: "plaid_config_invalid",
-          message:
-            "Sandbox Plaid client could not be initialized. Set PLAID_SANDBOX_SECRET or use PLAID_ENV=sandbox.",
-          ...baseMeta,
-        },
-        { status: 503 },
-      );
-    }
+  } else if (!canResolvePlaidCredentials("sandbox")) {
+    return NextResponse.json(
+      {
+        configured: false,
+        errorCode: "plaid_config_invalid",
+        message:
+          env.plaidEnv === "production"
+            ? "Sandbox Plaid requires PLAID_SANDBOX_SECRET when PLAID_ENV=production. Production secret cannot be used against sandbox.plaid.com."
+            : "Sandbox Plaid client could not be initialized. Set PLAID_SECRET with PLAID_ENV=sandbox or provide PLAID_SANDBOX_SECRET.",
+        ...baseMeta,
+      },
+      { status: 503 },
+    );
   } else if (!env.plaidConfigValid) {
     return NextResponse.json(
       {
@@ -113,7 +120,7 @@ export async function POST(request: Request) {
       {
         configured: false,
         errorCode: "plaid_config_missing",
-        message: `Plaid client could not be initialized for ${targetEnvironment}.`,
+        message: `Plaid client could not be initialized for ${targetEnvironment}. Check secret routing (secretSource=${routingDebug.secretSource}).`,
         ...baseMeta,
       },
       { status: 503 },

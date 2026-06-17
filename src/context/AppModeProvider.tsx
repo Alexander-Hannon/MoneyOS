@@ -47,6 +47,7 @@ export interface AppModeContextValue {
   consentHistory: ConsentRecord[];
   pendingPlaidConnect: boolean;
   completeOnboarding: (choice: OnboardingChoice) => void;
+  requestPlaidConnect: () => void;
   recordPlaidConsent: () => ConsentRecord;
   clearPendingPlaidConnect: () => void;
   refreshConsentHistory: () => void;
@@ -135,6 +136,11 @@ export function AppModeProvider({
     [money],
   );
 
+  const requestPlaidConnect = useCallback(() => {
+    saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
+    setPendingPlaidConnect(true);
+  }, []);
+
   const clearPendingPlaidConnect = useCallback(() => {
     saveString(STORAGE_KEYS.pendingPlaidConnect, "false");
     setPendingPlaidConnect(false);
@@ -151,6 +157,7 @@ export function AppModeProvider({
       consentHistory,
       pendingPlaidConnect,
       completeOnboarding,
+      requestPlaidConnect,
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
@@ -165,6 +172,7 @@ export function AppModeProvider({
       consentHistory,
       pendingPlaidConnect,
       completeOnboarding,
+      requestPlaidConnect,
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
