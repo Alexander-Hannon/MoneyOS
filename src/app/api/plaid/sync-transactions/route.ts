@@ -35,12 +35,14 @@ export async function POST(request: Request) {
 
   let plaidItemId: string | undefined;
   let environment: PlaidEnvironment | undefined;
+  let cachedOnly = false;
   try {
     const body = await request.json();
     plaidItemId =
       typeof body?.plaidItemId === "string" ? body.plaidItemId : undefined;
     const parsed = parsePlaidLinkTarget(body?.environment);
     if (parsed) environment = parsed;
+    cachedOnly = body?.cachedOnly === true;
   } catch {
     // optional body
   }
@@ -64,10 +66,12 @@ export async function POST(request: Request) {
     }
 
     try {
-      if (plaidItemId) {
-        await syncPlaidItemForUser(storage.userId, plaidItemId);
-      } else {
-        await syncAllPlaidItemsForUser(storage.userId, environment);
+      if (!cachedOnly) {
+        if (plaidItemId) {
+          await syncPlaidItemForUser(storage.userId, plaidItemId);
+        } else {
+          await syncAllPlaidItemsForUser(storage.userId, environment);
+        }
       }
 
       const data = await loadPersistedPlaidDataForUser(

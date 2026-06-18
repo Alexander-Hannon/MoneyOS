@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useFinancialData } from "@/hooks/useFinancialData";
+import { recurringDetectionEmptyDescription } from "@/lib/plaid-ui-labels";
 import { useMoneyData } from "@/lib/storage/store";
 import { formatCurrency } from "@/lib/money-utils";
 import { useToast } from "@/components/ui/toast";
@@ -49,7 +50,8 @@ function incomeDraftFromSuggestion(suggestion: RecurringSuggestion) {
 }
 
 export function DetectedRecurringItems() {
-  const { recurringSuggestions } = useFinancialData();
+  const { recurringSuggestions, activePlaidEnvironment, plaidConnected } =
+    useFinancialData();
   const {
     addBill,
     addSubscription,
@@ -72,7 +74,10 @@ export function DetectedRecurringItems() {
           <EmptyState
             icon={Repeat2}
             title="No recurring patterns detected yet"
-            description="Connect Plaid sandbox or load demo data to see suggestions from transactions."
+            description={recurringDetectionEmptyDescription(
+              activePlaidEnvironment,
+              plaidConnected,
+            )}
           />
         ) : (
           <ul className="space-y-2">
@@ -154,10 +159,20 @@ export function DetectedRecurringItems() {
                       variant="ghost"
                       onClick={() => {
                         dismissRecurringSuggestion(suggestion.id);
+                        toast("Marked as transfer / internal movement");
+                      }}
+                    >
+                      Transfer / internal
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        dismissRecurringSuggestion(suggestion.id);
                         toast("Suggestion ignored");
                       }}
                     >
-                      Ignore
+                      Not recurring
                     </Button>
                   </div>
                 </div>

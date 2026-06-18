@@ -35,6 +35,10 @@ import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
 import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { shouldShowLiveConnectPrimary } from "@/hooks/usePlaidConnection";
+import {
+  spendingEmptyTitle,
+  spendingTransactionsHint,
+} from "@/lib/plaid-ui-labels";
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
   buildSpendingAlerts,
@@ -198,8 +202,12 @@ export function SpendingDashboard() {
         {usingPlaid && !hasData ? (
           <EmptyState
             icon={CreditCard}
-            title="No sandbox transactions yet"
-            description="Sandbox transactions can take a moment to generate. Use “Sync transactions” in the header to try again."
+            title={spendingEmptyTitle(fd.activePlaidEnvironment)}
+            description={
+              fd.activePlaidEnvironment === "production"
+                ? "Live transactions can take a moment to appear. Use Sync in the header to refresh."
+                : "Sandbox transactions can take a moment to generate. Use Sync in the header to try again."
+            }
           />
         ) : (
           <>
@@ -214,7 +222,11 @@ export function SpendingDashboard() {
               <StatTile
                 label="Income (this month)"
                 value={formatCurrency(income)}
-                hint={usingPlaid ? "sandbox inflows" : "mock transactions"}
+                hint={
+                  usingPlaid
+                    ? spendingTransactionsHint(fd.activePlaidEnvironment)
+                    : "mock transactions"
+                }
                 icon={ArrowUpRight}
                 accent="text-success"
               />

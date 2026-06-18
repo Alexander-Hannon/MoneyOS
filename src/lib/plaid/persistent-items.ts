@@ -109,7 +109,7 @@ export async function storePlaidItemForUser(args: {
   });
 
   const syncSummary = await syncPlaidItemForUser(args.userId, item.id, {
-    refreshBalances: args.environment === "sandbox",
+    refreshBalances: true,
   });
 
   return {
@@ -171,9 +171,15 @@ export async function getConnectedInstitutionSummaries(
     id: inst.id,
     plaidItemId: inst.plaidItemId,
     institutionName: inst.institutionName,
-    accountCount: accounts.filter(
-      (a) => a.plaidItemId === inst.plaidItemId,
-    ).length,
+    accountCount: accounts.filter((a) => {
+      if (inst.plaidItemId && a.plaidItemId) {
+        return a.plaidItemId === inst.plaidItemId;
+      }
+      return (
+        a.source === inst.source &&
+        a.institution.toLowerCase() === inst.institutionName.toLowerCase()
+      );
+    }).length,
     status: inst.status as "connected" | "disconnected" | "error" | "syncing",
     connectedAt: inst.connectedAt.toISOString(),
     lastSyncAt: inst.lastSyncAt?.toISOString() ?? null,

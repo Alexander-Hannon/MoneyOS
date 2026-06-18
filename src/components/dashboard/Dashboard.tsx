@@ -47,6 +47,7 @@ export function Dashboard() {
   const chartDataSource = resolveChartDataSource({
     storedMode: fd.storedMode,
     plaidConnected: fd.plaidConnected,
+    activePlaidEnvironment: fd.activePlaidEnvironment,
     transactions: fd.transactions,
     hasManualIncomeOrBills,
   });
@@ -97,6 +98,7 @@ export function Dashboard() {
             dataLabel={dashboardSummary.label}
             plaidConnected={fd.plaidConnected}
             storedMode={fd.storedMode}
+            activePlaidEnvironment={fd.activePlaidEnvironment}
           />
 
           <MoneySnapshot
@@ -109,6 +111,7 @@ export function Dashboard() {
             incomeSummary={fd.incomeSummary}
             plaidConnected={fd.plaidConnected}
             storedMode={fd.storedMode}
+            activePlaidEnvironment={fd.activePlaidEnvironment}
           />
 
           <DataConfidenceStrip />

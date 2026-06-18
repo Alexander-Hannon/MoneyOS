@@ -1,4 +1,5 @@
 import type { AppMode } from "@/types/app-mode";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import type { Bill, IncomeSource, Subscription } from "@/types/money";
 import type { MoneyTransaction } from "@/types/transactions";
 import {
@@ -41,13 +42,22 @@ export function hasHistoricalTransactionData(
 export function resolveChartDataSource(args: {
   storedMode: AppMode;
   plaidConnected: boolean;
+  activePlaidEnvironment?: PlaidEnvironment | null;
   transactions: MoneyTransaction[];
   hasManualIncomeOrBills: boolean;
 }): ChartDataSource {
-  const { storedMode, plaidConnected, transactions, hasManualIncomeOrBills } =
-    args;
+  const {
+    storedMode,
+    plaidConnected,
+    activePlaidEnvironment = null,
+    transactions,
+    hasManualIncomeOrBills,
+  } = args;
 
-  if (storedMode === "personal_live") {
+  if (
+    activePlaidEnvironment === "production" ||
+    storedMode === "personal_live"
+  ) {
     return transactions.some((t) => t.source === "plaid_live")
       ? "live"
       : "none";
@@ -113,6 +123,8 @@ export function chartSourceLabel(source: ChartDataSource): string {
       return "Demo trend — sample data only.";
     case "plaid_sandbox":
       return "Plaid sandbox transaction history — not live bank data.";
+    case "live":
+      return "Live bank transaction history — personal live data.";
     case "manual_projection":
       return "Manual projection — based on manual income and bills, not historical transactions.";
     case "live":
