@@ -10,12 +10,25 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePlaidLink } from "react-plaid-link";
+import {
+  usePlaidLink,
+  type PlaidLinkError,
+  type PlaidLinkOnEventMetadata,
+  type PlaidLinkOnExitMetadata,
+  type PlaidLinkOnSuccessMetadata,
+} from "react-plaid-link";
 import { PlaidConsentDialog } from "@/components/plaid/PlaidConsentDialog";
 import { LivePlaidConsentDialog } from "@/components/plaid/LivePlaidConsentDialog";
 import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import type { PlaidLinkTarget } from "@/lib/plaid/plaid-env";
+import {
+  buildPlaidExitDiagnostics,
+  logPlaidLinkEvent,
+  logPlaidLinkExit,
+  logPlaidLinkSuccess,
+  type PlaidLinkExitDiagnostics,
+} from "@/lib/plaid/link-diagnostics";
 
 export type StartPlaidConnectionArgs = {
   environment: PlaidLinkTarget;
@@ -23,8 +36,13 @@ export type StartPlaidConnectionArgs = {
 
 type PlaidConnectionContextValue = {
   startPlaidConnection: (args: StartPlaidConnectionArgs) => void;
+  retryPlaidConnection: () => void;
+  tryAnotherInstitution: () => void;
+  dismissLinkExit: () => void;
   linkBusy: boolean;
   linkError: string | null;
+  linkExitDiagnostics: PlaidLinkExitDiagnostics | null;
+  lastEnvironment: PlaidLinkTarget | null;
 };
 
 const PlaidConnectionContext = createContext<PlaidConnectionContextValue | null>(
@@ -51,26 +69,39 @@ function formatLinkTokenError(data: Record<string, unknown>): string {
   return "Could not start the Plaid connection.";
 }
 
-type LinkTokenState =
-  | { status: "idle" }
-  | { status: "loading"; environment: PlaidLinkTarget }
-  | { status: "ready"; environment: PlaidLinkTarget; token: string }
-  | { status: "error"; environment: PlaidLinkTarget; message: string };
-
 export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
   const fd = useFinancialData();
   const appMode = useAppMode();
   const [sandboxConsentOpen, setSandboxConsentOpen] = useState(false);
   const [liveConsentOpen, setLiveConsentOpen] = useState(false);
   const [linkTarget, setLinkTarget] = useState<PlaidLinkTarget>("sandbox");
-  const [tokenState, setTokenState] = useState<LinkTokenState>({ status: "idle" });
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [tokenLoading, setTokenLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [awaitingLinkOpen, setAwaitingLinkOpen] = useState(false);
+  const [linkExitDiagnostics, setLinkExitDiagnostics] =
+    useState<PlaidLinkExitDiagnostics | null>(null);
+  const [pendingOpen, setPendingOpen] = useState(false);
   const pendingHandled = useRef(false);
+  const linkTargetRef = useRef(linkTarget);
+  const selectedInstitutionRef = useRef<{
+    name: string | null;
+    id: string | null;
+  }>({ name: null, id: null });
+
+  useEffect(() => {
+    linkTargetRef.current = linkTarget;
+  }, [linkTarget]);
+
+  const clearLinkSession = useCallback(() => {
+    setLinkToken(null);
+    setPendingOpen(false);
+    setTokenLoading(false);
+  }, []);
 
   const fetchLinkToken = useCallback(async (environment: PlaidLinkTarget) => {
-    setTokenState({ status: "loading", environment });
+    setTokenLoading(true);
     setLinkError(null);
+    setLinkToken(null);
     try {
       const res = await fetch("/api/plaid/create-link-token", {
         method: "POST",
@@ -80,61 +111,136 @@ export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (!res.ok || data.configured === false || data.ok === false || !data.link_token) {
         const message = formatLinkTokenError(data);
-        setTokenState({ status: "error", environment, message });
         setLinkError(message);
-        setAwaitingLinkOpen(false);
+        setTokenLoading(false);
+        setPendingOpen(false);
         return false;
       }
-      setTokenState({ status: "ready", environment, token: data.link_token });
+      setLinkToken(data.link_token);
+      setTokenLoading(false);
       return true;
     } catch {
       const message = "Could not reach the Plaid endpoint.";
-      setTokenState({ status: "error", environment, message });
       setLinkError(message);
-      setAwaitingLinkOpen(false);
+      setTokenLoading(false);
+      setPendingOpen(false);
       return false;
     }
   }, []);
 
-  const token =
-    tokenState.status === "ready" && tokenState.environment === linkTarget
-      ? tokenState.token
-      : null;
+  const beginFreshLinkSession = useCallback(
+    async (environment: PlaidLinkTarget) => {
+      clearLinkSession();
+      setLinkTarget(environment);
+      linkTargetRef.current = environment;
+      selectedInstitutionRef.current = { name: null, id: null };
+      setPendingOpen(true);
+      await fetchLinkToken(environment);
+    },
+    [clearLinkSession, fetchLinkToken],
+  );
 
-  const { open, ready } = usePlaidLink({
-    token,
-    onSuccess: (publicToken) => {
+  const handleLinkExit = useCallback(
+    (error: PlaidLinkError | null, metadata: PlaidLinkOnExitMetadata) => {
+      const environment = linkTargetRef.current;
+      const exitMeta = { ...metadata };
+      if (!exitMeta.institution && selectedInstitutionRef.current.name) {
+        exitMeta.institution = {
+          name: selectedInstitutionRef.current.name,
+          institution_id: selectedInstitutionRef.current.id ?? "",
+        };
+      }
+
+      const diagnostics = buildPlaidExitDiagnostics({
+        error,
+        metadata: exitMeta,
+        environment,
+      });
+      logPlaidLinkExit(diagnostics);
+      setLinkExitDiagnostics(diagnostics);
+      clearLinkSession();
       setSandboxConsentOpen(false);
       setLiveConsentOpen(false);
-      setAwaitingLinkOpen(false);
-      appMode.clearPendingPlaidConnect();
-      void fd.handleLinkSuccess(publicToken, linkTarget);
     },
+    [clearLinkSession],
+  );
+
+  const handleLinkSuccess = useCallback(
+    (publicToken: string, metadata: PlaidLinkOnSuccessMetadata) => {
+      const environment = linkTargetRef.current;
+      logPlaidLinkSuccess(metadata, environment);
+      setLinkExitDiagnostics(null);
+      setSandboxConsentOpen(false);
+      setLiveConsentOpen(false);
+      clearLinkSession();
+      appMode.clearPendingPlaidConnect();
+      void fd.handleLinkSuccess(publicToken, environment).finally(() => {
+        clearLinkSession();
+      });
+    },
+    [appMode, clearLinkSession, fd],
+  );
+
+  const handleLinkEvent = useCallback(
+    (eventName: string, metadata: PlaidLinkOnEventMetadata) => {
+      logPlaidLinkEvent(eventName, metadata);
+      if (
+        eventName === "SELECT_INSTITUTION" ||
+        metadata.institution_name ||
+        metadata.institution_id
+      ) {
+        selectedInstitutionRef.current = {
+          name: metadata.institution_name,
+          id: metadata.institution_id,
+        };
+      }
+    },
+    [],
+  );
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: handleLinkSuccess,
+    onExit: handleLinkExit,
+    onEvent: handleLinkEvent,
   });
 
-  const startPlaidConnection = useCallback((args: StartPlaidConnectionArgs) => {
-    const { environment } = args;
-    setLinkTarget(environment);
-    setLinkError(null);
-    if (environment === "production") {
-      setLiveConsentOpen(true);
-    } else {
-      setSandboxConsentOpen(true);
-    }
-  }, []);
-
   useEffect(() => {
-    if (!awaitingLinkOpen) return;
-    if (
-      tokenState.status === "ready" &&
-      tokenState.environment === linkTarget &&
-      ready
-    ) {
-      open();
-      /* eslint-disable-next-line react-hooks/set-state-in-effect -- open Plaid Link once token + script are ready */
-      setAwaitingLinkOpen(false);
-    }
-  }, [awaitingLinkOpen, tokenState, linkTarget, ready, open]);
+    if (!pendingOpen || !linkToken || !ready) return;
+    open();
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- open Plaid Link once token + script are ready */
+    setPendingOpen(false);
+  }, [pendingOpen, linkToken, ready, open]);
+
+  const startPlaidConnection = useCallback(
+    (args: StartPlaidConnectionArgs) => {
+      const { environment } = args;
+      clearLinkSession();
+      setLinkError(null);
+      setLinkExitDiagnostics(null);
+      setLinkTarget(environment);
+      linkTargetRef.current = environment;
+      if (environment === "production") {
+        setLiveConsentOpen(true);
+      } else {
+        setSandboxConsentOpen(true);
+      }
+    },
+    [clearLinkSession],
+  );
+
+  const retryPlaidConnection = useCallback(() => {
+    setLinkExitDiagnostics(null);
+    void beginFreshLinkSession(linkTargetRef.current);
+  }, [beginFreshLinkSession]);
+
+  const tryAnotherInstitution = useCallback(() => {
+    retryPlaidConnection();
+  }, [retryPlaidConnection]);
+
+  const dismissLinkExit = useCallback(() => {
+    setLinkExitDiagnostics(null);
+  }, []);
 
   useEffect(() => {
     if (
@@ -158,35 +264,42 @@ export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
     startPlaidConnection,
   ]);
 
-  const beginLinkAfterConsent = (environment: PlaidLinkTarget) => {
-    setAwaitingLinkOpen(true);
-    void fetchLinkToken(environment);
-  };
-
   const onSandboxConsentAccept = () => {
     appMode.recordPlaidConsent();
     setSandboxConsentOpen(false);
-    beginLinkAfterConsent("sandbox");
+    void beginFreshLinkSession("sandbox");
   };
 
   const onLiveConsentAccept = () => {
     appMode.recordPlaidConsent();
     setLiveConsentOpen(false);
-    beginLinkAfterConsent("production");
+    void beginFreshLinkSession("production");
   };
 
   const linkBusy =
-    fd.busy ||
-    tokenState.status === "loading" ||
-    (awaitingLinkOpen && tokenState.status === "ready" && !ready);
+    fd.busy || tokenLoading || (pendingOpen && Boolean(linkToken) && !ready);
 
   const value = useMemo(
     () => ({
       startPlaidConnection,
+      retryPlaidConnection,
+      tryAnotherInstitution,
+      dismissLinkExit,
       linkBusy,
       linkError,
+      linkExitDiagnostics,
+      lastEnvironment: linkTarget,
     }),
-    [startPlaidConnection, linkBusy, linkError],
+    [
+      startPlaidConnection,
+      retryPlaidConnection,
+      tryAnotherInstitution,
+      dismissLinkExit,
+      linkBusy,
+      linkError,
+      linkExitDiagnostics,
+      linkTarget,
+    ],
   );
 
   return (
@@ -195,6 +308,7 @@ export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
         open={sandboxConsentOpen}
         onClose={() => {
           setSandboxConsentOpen(false);
+          clearLinkSession();
           appMode.clearPendingPlaidConnect();
         }}
         onAccept={onSandboxConsentAccept}
@@ -204,6 +318,7 @@ export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
         open={liveConsentOpen}
         onClose={() => {
           setLiveConsentOpen(false);
+          clearLinkSession();
           appMode.clearPendingPlaidConnect();
         }}
         onAccept={onLiveConsentAccept}

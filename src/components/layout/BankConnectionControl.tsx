@@ -10,6 +10,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PlaidLinkExitAlert } from "@/components/plaid/PlaidLinkExitAlert";
 import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import {
@@ -99,7 +100,15 @@ function InstitutionList({
 export function BankConnectionControl() {
   const fd = useFinancialData();
   const appMode = useAppMode();
-  const { startPlaidConnection, linkBusy } = usePlaidConnection();
+  const {
+    startPlaidConnection,
+    retryPlaidConnection,
+    tryAnotherInstitution,
+    dismissLinkExit,
+    linkBusy,
+    linkError,
+    linkExitDiagnostics,
+  } = usePlaidConnection();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +133,8 @@ export function BankConnectionControl() {
   const connectBusy = fd.busy || linkBusy;
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative flex flex-col items-end gap-2">
+      <div className="relative" ref={menuRef}>
       {fd.plaidConnected ? (
         <button
           type="button"
@@ -251,6 +261,26 @@ export function BankConnectionControl() {
               onAction={() => setMenuOpen(false)}
             />
 
+            {linkError && (
+              <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/5 p-2 text-[11px] text-destructive">
+                {linkError}
+              </p>
+            )}
+
+            {linkExitDiagnostics && (
+              <PlaidLinkExitAlert
+                diagnostics={linkExitDiagnostics}
+                busy={connectBusy}
+                onRetry={() => {
+                  retryPlaidConnection();
+                }}
+                onTryAnother={() => {
+                  tryAnotherInstitution();
+                }}
+                onDismiss={dismissLinkExit}
+              />
+            )}
+
             <div className="flex flex-col gap-1.5">
               {showLiveConnect && (
                 <button
@@ -301,6 +331,19 @@ export function BankConnectionControl() {
               Tokens stay server-side only
             </p>
           </div>
+        </div>
+        )}
+      </div>
+
+      {linkExitDiagnostics && !menuOpen && (
+        <div className="w-80 max-w-[calc(100vw-2rem)]">
+          <PlaidLinkExitAlert
+            diagnostics={linkExitDiagnostics}
+            busy={connectBusy}
+            onRetry={retryPlaidConnection}
+            onTryAnother={tryAnotherInstitution}
+            onDismiss={dismissLinkExit}
+          />
         </div>
       )}
     </div>
