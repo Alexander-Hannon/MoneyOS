@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PlaidLinkExitAlert } from "@/components/plaid/PlaidLinkExitAlert";
 import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import {
@@ -17,7 +18,15 @@ import {
 export function ConnectBankCard() {
   const fd = useFinancialData();
   const appMode = useAppMode();
-  const { startPlaidConnection, linkBusy, linkError } = usePlaidConnection();
+  const {
+    startPlaidConnection,
+    retryPlaidConnection,
+    tryAnotherInstitution,
+    dismissLinkExit,
+    linkBusy,
+    linkError,
+    linkExitDiagnostics,
+  } = usePlaidConnection();
 
   const showLivePrimary = shouldShowLiveConnectPrimary({
     livePlaidEnabled: fd.livePlaidEnabled,
@@ -100,6 +109,15 @@ export function ConnectBankCard() {
             {linkError && (
               <p className="mt-2 text-xs text-destructive">{linkError}</p>
             )}
+            {linkExitDiagnostics && (
+              <PlaidLinkExitAlert
+                diagnostics={linkExitDiagnostics}
+                busy={connectBusy}
+                onRetry={retryPlaidConnection}
+                onTryAnother={tryAnotherInstitution}
+                onDismiss={dismissLinkExit}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -139,6 +157,15 @@ export function ConnectBankCard() {
             </div>
             {linkError && (
               <p className="mt-2 text-xs text-destructive">{linkError}</p>
+            )}
+            {linkExitDiagnostics && (
+              <PlaidLinkExitAlert
+                diagnostics={linkExitDiagnostics}
+                busy={connectBusy}
+                onRetry={retryPlaidConnection}
+                onTryAnother={tryAnotherInstitution}
+                onDismiss={dismissLinkExit}
+              />
             )}
           </div>
         </div>
