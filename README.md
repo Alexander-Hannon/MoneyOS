@@ -27,6 +27,7 @@ It is intentionally *not* a public fintech SaaS, spreadsheet clone, or generic b
 ```bash
 npm install      # install dependencies
 npm run dev      # start the dev server on http://localhost:3000
+npm run db:push  # Sync Database / Make sure it is up
 ```
 
 ## Scripts
