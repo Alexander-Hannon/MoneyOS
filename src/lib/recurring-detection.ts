@@ -14,9 +14,39 @@ function suggestionId(merchant: string, amount: number): string {
   return `rec:${normalizeName(merchant)}:${Math.round(Math.abs(amount) * 100)}`;
 }
 
+const INTERNAL_BANK_MECHANICS =
+  /overdraft protection|internet transfer|round up|transferred from checking|transferred to|deposit internet transfer|withdrawal internet transfer|atm transfer|loan payment|credit card payment|payment to card|ach withdrawal|ach deposit|xfer|internal transfer|between accounts|sweep transfer|mobile transfer/i;
+
+const P2P_TRANSFER =
+  /venmo|cash app|paypal|zelle|apple cash|google pay send/i;
+
+function isInternalBankMechanics(txn: MoneyTransaction): boolean {
+  const text = `${txn.merchantName} ${txn.description}`.toLowerCase();
+
+  if (isTransferLikeTransaction(txn)) return true;
+  if (txn.category === "Transfer") return true;
+  if (INTERNAL_BANK_MECHANICS.test(text)) return true;
+
+  if (P2P_TRANSFER.test(text)) {
+    const subscriptionLike =
+      /subscription|membership|monthly|annual|premium|plus plan/.test(text);
+    if (!subscriptionLike) return true;
+  }
+
+  if (
+    /deposit|withdrawal/.test(text) &&
+    /transfer|protection|round up|checking|savings/.test(text)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function guessType(
   txn: MoneyTransaction,
 ): RecurringSuggestion["typeGuess"] {
+  if (isInternalBankMechanics(txn)) return "transfer";
   if (isIncomeTransaction(txn)) return "income";
   if (isTransferLikeTransaction(txn)) return "transfer";
   if (txn.category === "Bills") return "bill";
@@ -78,6 +108,8 @@ export function detectRecurringSuggestions(args: {
   >();
 
   for (const txn of transactions) {
+    if (isInternalBankMechanics(txn)) continue;
+
     const key = normalizeName(txn.merchantName);
     if (!key) continue;
     const cur = groups.get(key) ?? { txns: [], total: 0 };
@@ -90,6 +122,7 @@ export function detectRecurringSuggestions(args: {
 
   for (const [, group] of groups) {
     if (group.txns.length < 2) continue;
+    if (group.txns.every(isInternalBankMechanics)) continue;
 
     const sample = group.txns[0];
     const name = sample.merchantName;
@@ -100,6 +133,8 @@ export function detectRecurringSuggestions(args: {
     if (dismissed.has(id)) continue;
 
     const typeGuess = guessType(sample);
+    if (typeGuess === "transfer") continue;
+
     suggestions.push({
       id,
       name,

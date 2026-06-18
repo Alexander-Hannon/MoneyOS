@@ -106,6 +106,7 @@ export type DataSourceLabel =
   | "Plaid Sandbox"
   | "Personal Live Data"
   | "Mixed demo + sandbox"
+  | "Mixed demo + live"
   | "Mixed local + sandbox"
   | "Mixed local + live"
   | "Live bank data"
@@ -118,7 +119,7 @@ export function getDataSourceLabel(
   activePlaidEnvironment: PlaidEnvironment | null = null,
 ): DataSourceLabel {
   if (plaidConnected && activePlaidEnvironment === "production") {
-    if (storedMode === "demo") return "Mixed demo + sandbox";
+    if (storedMode === "demo") return "Mixed demo + live";
     if (storedMode === "local_user" && !isEmpty) return "Mixed local + live";
     return "Personal Live Data";
   }

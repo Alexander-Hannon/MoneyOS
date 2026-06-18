@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { formatLastSync, plaidStatusLabel } from "@/lib/data-source";
+import { plaidDataDisclaimer } from "@/lib/plaid-ui-labels";
 
 export function PlaidStatusCard() {
   const fd = useFinancialData();
@@ -27,7 +28,10 @@ export function PlaidStatusCard() {
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Connection</dt>
           <dd className="font-medium">
-            {plaidStatusLabel(fd.plaidConnectionStatus)}
+            {plaidStatusLabel(
+              fd.plaidConnectionStatus,
+              fd.activePlaidEnvironment,
+            )}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
@@ -62,7 +66,7 @@ export function PlaidStatusCard() {
       </Button>
 
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Sandbox data — not live bank data
+        {plaidDataDisclaimer(fd.activePlaidEnvironment)}
       </p>
     </div>
   );

@@ -106,8 +106,12 @@ export async function syncPlaidItemForUser(
 
   const environment = resolveItemEnvironment(item);
   const source = plaidSourceForEnvironment(environment);
+  const existingItemAccounts = (
+    await listPlaidAccountsForUser(userId, environment)
+  ).filter((a) => a.plaidItemId === plaidItemId);
   const refreshBalances =
-    options?.refreshBalances ?? environment === "sandbox";
+    options?.refreshBalances ??
+    (environment === "sandbox" || existingItemAccounts.length === 0);
 
   const accessToken = await getPlaidItemAccessToken(userId, plaidItemId);
   if (!accessToken) {

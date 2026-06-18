@@ -7,11 +7,19 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatLastSync } from "@/lib/data-source";
+import {
+  institutionEnvironmentLabel,
+  isLivePlaidEnvironment,
+  plaidDataDisclaimer,
+} from "@/lib/plaid-ui-labels";
 import { useFinancialData } from "@/hooks/useFinancialData";
 
 export function ConnectedInstitutionsSection() {
   const fd = useFinancialData();
   const persisted = fd.plaidStorageMode === "database";
+  const hasLive = fd.liveInstitutions.length > 0;
+  const hasSandbox = fd.sandboxInstitutions.length > 0;
+  const isLive = isLivePlaidEnvironment(fd.activePlaidEnvironment);
 
   return (
     <Card>
@@ -21,8 +29,10 @@ export function ConnectedInstitutionsSection() {
           title="Connected Institutions"
           description={
             persisted
-              ? "Plaid sandbox institutions persisted with encrypted server-side tokens"
-              : "Multiple bank connections supported — sandbox only in this build"
+              ? isLive
+                ? "Personal live institutions persisted with encrypted server-side tokens"
+                : "Plaid institutions persisted with encrypted server-side tokens"
+              : "Multiple bank connections supported"
           }
           meta={
             fd.connectedInstitutions.length > 0
@@ -41,7 +51,11 @@ export function ConnectedInstitutionsSection() {
           <EmptyState
             icon={Building2}
             title="No institutions connected"
-            description="Connect a Plaid sandbox bank from the header or Spending section. Live connections are not enabled yet."
+            description={
+              isLive || fd.livePlaidEnabled
+                ? "Connect a real bank from the header or Spending section."
+                : "Connect a Plaid sandbox bank from the header or Spending section."
+            }
           />
         ) : (
           <ul className="space-y-2">
@@ -54,7 +68,18 @@ export function ConnectedInstitutionsSection() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium">{inst.institutionName}</p>
                     <StatusBadge label={inst.status} tone="success" />
-                    <StatusBadge label="Plaid sandbox" tone="info" />
+                    <StatusBadge
+                      label={institutionEnvironmentLabel({
+                        environment: inst.environment,
+                        source: inst.source,
+                      })}
+                      tone={
+                        inst.environment === "production" ||
+                        inst.source === "plaid_live"
+                          ? "warning"
+                          : "info"
+                      }
+                    />
                     {persisted && (
                       <StatusBadge label="Persisted" tone="success" />
                     )}
@@ -88,7 +113,7 @@ export function ConnectedInstitutionsSection() {
                           `Disconnect ${inst.institutionName}? Historical transactions will be kept.`,
                         )
                       ) {
-                        void fd.disconnectSandbox(inst.plaidItemId ?? undefined);
+                        void fd.disconnectPlaid(inst.plaidItemId ?? undefined);
                       }
                     }}
                     className="gap-1.5 text-destructive"
@@ -104,9 +129,18 @@ export function ConnectedInstitutionsSection() {
 
         <p className="mt-3 text-[11px] text-muted-foreground">
           {persisted
-            ? "Plaid sandbox data — persisted to database with encrypted access tokens (server-side only)."
-            : "Sign in with database + PLAID_TOKEN_ENCRYPTION_KEY configured to persist sandbox connections across restarts."}
+            ? hasLive && !hasSandbox
+              ? "Personal live data — persisted to database with encrypted access tokens (server-side only)."
+              : hasLive && hasSandbox
+                ? "Sandbox and personal live data persisted to database with encrypted access tokens."
+                : "Plaid sandbox data — persisted to database with encrypted access tokens (server-side only)."
+            : "Sign in with database + PLAID_TOKEN_ENCRYPTION_KEY configured to persist connections across restarts."}
         </p>
+        {fd.plaidConnected && (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {plaidDataDisclaimer(fd.activePlaidEnvironment)}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

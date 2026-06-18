@@ -6,12 +6,14 @@ import {
 } from "lucide-react";
 import { ClickableStatCard } from "@/components/shared/ClickableStatCard";
 import type { AppMode } from "@/types/app-mode";
+import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import type {
   Bill,
   IncomeSource,
   Subscription,
 } from "@/types/money";
 import type { DataSourceLabel } from "@/lib/data-source";
+import { reviewItemsBadgeLabel } from "@/lib/plaid-ui-labels";
 import {
   activeIncomeCount,
   billsDueThisMonth,
@@ -27,6 +29,7 @@ export function SummaryCards({
   dataLabel,
   plaidConnected = false,
   storedMode = "local_user",
+  activePlaidEnvironment = null,
 }: {
   bills: Bill[];
   income: IncomeSource[];
@@ -35,6 +38,7 @@ export function SummaryCards({
   dataLabel?: DataSourceLabel;
   plaidConnected?: boolean;
   storedMode?: AppMode;
+  activePlaidEnvironment?: PlaidEnvironment | null;
 }) {
   const subsTotal = monthlySubscriptionTotal(subscriptions);
   const thisMonth = billsDueThisMonth(bills);
@@ -49,6 +53,13 @@ export function SummaryCards({
 
   const reviewHint =
     reviewCount === 0 ? "all clear" : "need a decision";
+
+  const reviewBadge = reviewItemsBadgeLabel({
+    plaidConnected,
+    environment: activePlaidEnvironment,
+    dataLabel,
+    manualBadge,
+  });
 
   return (
     <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -76,7 +87,7 @@ export function SummaryCards({
         value={String(reviewCount)}
         hint={reviewHint}
         accent="text-destructive"
-        badge={plaidConnected ? (dataLabel ?? "Plaid Sandbox") : manualBadge}
+        badge={reviewBadge}
         sectionId="alerts"
       />
       <ClickableStatCard
