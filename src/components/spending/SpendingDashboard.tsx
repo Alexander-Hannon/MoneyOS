@@ -35,6 +35,9 @@ import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
 import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { shouldShowLiveConnectPrimary } from "@/hooks/usePlaidConnection";
+import { resolveChartPresentationInfo } from "@/lib/chart-presentation";
+import { resolveCashflowTrend } from "@/lib/chart-trends";
+import { resolveChartDataSource } from "@/lib/chart-data";
 import {
   spendingEmptyTitle,
   spendingTransactionsHint,
@@ -42,7 +45,6 @@ import {
 import { formatCurrency, formatDate } from "@/lib/money-utils";
 import {
   buildSpendingAlerts,
-  incomeVsSpendingTrend,
   recentTransactions,
   recurringChargeCandidates,
   spendingByCategory,
@@ -108,8 +110,43 @@ export function SpendingDashboard() {
   const review = useMemo(() => transactionsNeedingReview(txns), [txns]);
   const recurring = useMemo(() => recurringChargeCandidates(txns), [txns]);
   const alerts = useMemo(() => buildSpendingAlerts(txns), [txns]);
-  const trend = useMemo(() => incomeVsSpendingTrend(txns), [txns]);
   const excludedTransfers = transferPaymentTotal(txns);
+
+  const chartDataSource = resolveChartDataSource({
+    storedMode: fd.storedMode,
+    plaidConnected: usingPlaid,
+    activePlaidEnvironment: fd.activePlaidEnvironment,
+    transactions: txns,
+    hasManualIncomeOrBills:
+      fd.income.length > 0 || fd.bills.length > 0 || fd.subscriptions.length > 0,
+  });
+  const allowSyntheticFallback =
+    chartDataSource === "demo" || chartDataSource === "plaid_sandbox";
+  const trendPoints = useMemo(
+    () =>
+      resolveCashflowTrend({
+        transactions: txns,
+        allowSyntheticFallback,
+      }),
+    [txns, allowSyntheticFallback],
+  );
+  const trendPresentation = useMemo(
+    () =>
+      resolveChartPresentationInfo({
+        chartDataSource,
+        trendPoints,
+      }),
+    [chartDataSource, trendPoints],
+  );
+  const trend = useMemo(
+    () =>
+      trendPoints.map(({ month, income, spending }) => ({
+        month,
+        income,
+        spending,
+      })),
+    [trendPoints],
+  );
 
   const sourceLabel = usingPlaid
     ? fd.activePlaidEnvironment === "production"
@@ -315,23 +352,46 @@ export function SpendingDashboard() {
             </div>
 
             <div className="min-w-0 rounded-[var(--radius)] border border-border bg-card p-5">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">Income vs spending</p>
-                <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-primary" /> Income
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-destructive" /> Spending
-                  </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {trendPresentation.label}
                 </span>
               </div>
-              {trend.length > 0 ? (
+              {trendPresentation.kind === "live_insufficient_history" ? (
+                <p className="text-sm text-muted-foreground">
+                  {trendPresentation.description}
+                </p>
+              ) : trendPresentation.kind === "live_current_month" ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {trendPresentation.description}
+                  </p>
+                  {trend.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Income</p>
+                        <p className="font-semibold text-success">
+                          {formatCurrency(trend[trend.length - 1]?.income ?? 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Spending</p>
+                        <p className="font-semibold text-destructive">
+                          {formatCurrency(trend[trend.length - 1]?.spending ?? 0)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : trend.length >= 2 ? (
                 <div className="min-w-0">
                   <CashflowChart data={trend} />
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No trend data yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  {trendPresentation.description}
+                </p>
               )}
             </div>
 

@@ -83,7 +83,7 @@ export function linkedAccountsToDashboardAccounts(
             ? "cash"
             : "checking",
       institution: a.institution,
-      balance: a.currentBalance ?? a.availableBalance ?? 0,
+      balance: a.availableBalance ?? a.currentBalance ?? 0,
       availableBalance: a.availableBalance,
       accessible: true,
       source,
@@ -118,6 +118,8 @@ export function resolveAccounts(
       return [...manual, ...plaidCash];
     }
     if (plaidCash.length > 0) return plaidCash;
+    if (manual.length > 0) return manual;
+    return [];
   }
   if (storedMode === "demo") return demoAccounts;
   if (manual.length > 0) return manual;

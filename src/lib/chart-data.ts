@@ -18,7 +18,8 @@ export type ChartPresentation =
   | "historical_trend"
   | "empty_state"
   | "manual_projection"
-  | "live_placeholder";
+  | "live_current_month"
+  | "live_insufficient_history";
 
 /** True only when real dated transaction history exists for charting. */
 export function hasHistoricalTransactionData(
@@ -77,16 +78,6 @@ export function resolveChartDataSource(args: {
   return "none";
 }
 
-export function resolveChartPresentation(args: {
-  chartDataSource: ChartDataSource;
-  hasHistorical: boolean;
-}): ChartPresentation {
-  if (args.hasHistorical) return "historical_trend";
-  if (args.chartDataSource === "manual_projection") return "manual_projection";
-  if (args.chartDataSource === "live") return "live_placeholder";
-  return "empty_state";
-}
-
 export type ManualMonthlyProjection = {
   expectedMonthlyIncome: number;
   expectedMonthlyObligations: number;
@@ -124,11 +115,9 @@ export function chartSourceLabel(source: ChartDataSource): string {
     case "plaid_sandbox":
       return "Plaid sandbox transaction history — not live bank data.";
     case "live":
-      return "Live bank transaction history — personal live data.";
+      return "Live bank transaction history — actual transaction data.";
     case "manual_projection":
       return "Manual projection — based on manual income and bills, not historical transactions.";
-    case "live":
-      return "Live transaction history.";
     default:
       return "No cashflow history yet.";
   }

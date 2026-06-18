@@ -4,6 +4,7 @@ import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import {
   listActivePlaidItemsForUser,
 } from "@/lib/db/plaid-items";
+import { ensurePlaidAccountsPersisted } from "@/lib/plaid/account-persistence";
 import { getConnectedInstitutionSummaries } from "@/lib/plaid/persistent-items";
 import { listPlaidAccountsForUser } from "@/lib/db/accounts";
 import { validateMoneyOSEnv } from "@/lib/env/validation";
@@ -72,6 +73,15 @@ export async function GET() {
       : sandboxConnected
         ? ("sandbox" as const)
         : null;
+
+    if (connected) {
+      if (liveConnected) {
+        await ensurePlaidAccountsPersisted(storage.userId, "production");
+      }
+      if (sandboxConnected) {
+        await ensurePlaidAccountsPersisted(storage.userId, "sandbox");
+      }
+    }
 
     const [sandboxInstitutions, liveInstitutions] = connected
       ? await Promise.all([
