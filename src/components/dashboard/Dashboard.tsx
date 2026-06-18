@@ -8,6 +8,7 @@ import { NextResponsibleAction } from "@/components/dashboard/NextResponsibleAct
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { MoneySnapshot } from "@/components/dashboard/MoneySnapshot";
 import { CashflowCard } from "@/components/dashboard/CashflowCard";
+import { LiveAccountsSection } from "@/components/dashboard/LiveAccountsSection";
 import { ManualAccountsSection } from "@/components/dashboard/ManualAccountsSection";
 import { BillsCommandCenter } from "@/components/dashboard/BillsCommandCenter";
 import { IncomePipeline } from "@/components/dashboard/IncomePipeline";
@@ -22,12 +23,11 @@ import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { nextResponsibleAction } from "@/lib/money-utils";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { dashboardModeLabels } from "@/lib/data-source";
-import { incomeVsSpendingTrend } from "@/lib/transaction-utils";
+import { resolveChartPresentationInfo } from "@/lib/chart-presentation";
+import { resolveCashflowTrend } from "@/lib/chart-trends";
 import {
   computeManualMonthlyProjection,
-  hasHistoricalTransactionData,
   resolveChartDataSource,
-  resolveChartPresentation,
 } from "@/lib/chart-data";
 
 export function Dashboard() {
@@ -38,12 +38,6 @@ export function Dashboard() {
   const hasManualIncomeOrBills =
     fd.income.length > 0 || fd.bills.length > 0 || fd.subscriptions.length > 0;
 
-  const hasHistorical = hasHistoricalTransactionData(
-    fd.transactions,
-    fd.storedMode,
-    fd.plaidConnected,
-  );
-
   const chartDataSource = resolveChartDataSource({
     storedMode: fd.storedMode,
     plaidConnected: fd.plaidConnected,
@@ -52,18 +46,27 @@ export function Dashboard() {
     hasManualIncomeOrBills,
   });
 
-  const chartPresentation = resolveChartPresentation({
-    chartDataSource,
-    hasHistorical,
+  const allowSyntheticFallback =
+    chartDataSource === "demo" || chartDataSource === "plaid_sandbox";
+
+  const trendPoints = resolveCashflowTrend({
+    transactions: fd.transactions,
+    allowSyntheticFallback,
   });
 
-  const trendData =
-    hasHistorical && (fd.plaidConnected || fd.storedMode === "demo")
-      ? incomeVsSpendingTrend(fd.transactions)
-      : undefined;
+  const chartPresentation = resolveChartPresentationInfo({
+    chartDataSource,
+    trendPoints,
+  });
+
+  const trendData = trendPoints.map(({ month, income, spending }) => ({
+    month,
+    income,
+    spending,
+  }));
 
   const projection =
-    chartPresentation === "manual_projection"
+    chartPresentation.kind === "manual_projection"
       ? computeManualMonthlyProjection({
           income: fd.income,
           bills: fd.bills,
@@ -113,6 +116,8 @@ export function Dashboard() {
             storedMode={fd.storedMode}
             activePlaidEnvironment={fd.activePlaidEnvironment}
           />
+
+          <LiveAccountsSection />
 
           <DataConfidenceStrip />
 

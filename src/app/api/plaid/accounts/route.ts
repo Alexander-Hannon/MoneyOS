@@ -7,16 +7,15 @@ import {
 } from "@/lib/plaid/client";
 import { getPlaidSession } from "@/lib/plaid/token-store";
 import { normalizeAccount } from "@/lib/plaid/normalize";
+import { loadPlaidAccountsWithDiagnostics } from "@/lib/plaid/account-persistence";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
-import { loadPersistedPlaidDataForUser } from "@/lib/plaid/sync-service";
 import { countActivePlaidItemsForUser } from "@/lib/db/plaid-items";
 import {
-  parsePlaidLinkTarget,
+  parsePlaidEnvironmentFromBody,
   type PlaidEnvironment,
 } from "@/lib/plaid/plaid-env";
 
-// POST /api/plaid/accounts  { environment? }
-// Returns cached DB balances for persisted mode — does not call Plaid on page load.
+// POST /api/plaid/accounts  { environment?, refreshIfEmpty? }
 export async function POST(request: Request) {
   const config = getPlaidConfig();
 
@@ -29,10 +28,11 @@ export async function POST(request: Request) {
   }
 
   let environment: PlaidEnvironment | undefined;
+  let refreshIfEmpty = true;
   try {
     const body = await request.json();
-    const parsed = parsePlaidLinkTarget(body?.environment);
-    if (parsed) environment = parsed;
+    environment = parsePlaidEnvironmentFromBody(body) ?? undefined;
+    if (body?.refreshIfEmpty === false) refreshIfEmpty = false;
   } catch {
     // optional body
   }
@@ -54,10 +54,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const data = await loadPersistedPlaidDataForUser(
+    const { data, diagnostics } = await loadPlaidAccountsWithDiagnostics(
       storage.userId,
       environment,
+      { refreshIfEmpty },
     );
+
     return NextResponse.json({
       configured: true,
       connected: true,
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
       accounts: data.accounts,
       lastSyncAt: data.lastSyncAt,
       lastBalanceRefreshAt: data.lastBalanceRefreshAt,
+      accountDiagnostics: diagnostics,
     });
   }
 
@@ -112,6 +115,14 @@ export async function POST(request: Request) {
       environment: "sandbox",
       source: "plaid_sandbox",
       accounts,
+      accountDiagnostics: {
+        accountCountFromPlaid: accounts.length,
+        accountCountSaved: accounts.length,
+        accountCountForItem: {},
+        accountTypesFound: [...new Set(accounts.map((a) => a.type))],
+        environment: "sandbox",
+        refreshedEmptyAccounts: false,
+      },
     });
   } catch (error) {
     return NextResponse.json(

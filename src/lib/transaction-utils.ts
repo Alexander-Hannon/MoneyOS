@@ -437,7 +437,7 @@ export function recurringChargeCandidates(
   return result;
 }
 
-/** Deterministic 6-month income-vs-spending trend anchored on current totals. */
+/** @deprecated Demo/sandbox synthetic trend — do not use for personal live mode. */
 export function incomeVsSpendingTrend(txns: MoneyTransaction[]) {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
   const spending = monthlySpendingTotal(txns) || 1800;

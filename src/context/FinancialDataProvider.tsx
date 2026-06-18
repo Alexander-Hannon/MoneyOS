@@ -329,6 +329,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
           environment: res.activeEnvironment ?? null,
           forceSync: false,
         });
+        try {
+          const refreshed = await fetch("/api/plaid/status").then((r) => r.json());
+          applyStatusResponse(refreshed);
+        } catch {
+          // Non-fatal — accounts/transactions already loaded.
+        }
       } else {
         setPlaidConnectionStatus("not_connected");
         setLinkedAccounts([]);
@@ -480,7 +486,24 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   );
 
   const connectedInstitutions = useMemo((): ConnectedInstitutionDisplay[] => {
-    const fromSplit = [...liveInstitutions, ...sandboxInstitutions];
+    const mergeAccountCounts = (
+      institutions: ConnectedInstitutionDisplay[],
+    ): ConnectedInstitutionDisplay[] =>
+      institutions.map((inst) => {
+        const actualCount = linkedAccounts.filter(
+          (a) =>
+            a.institution.toLowerCase() === inst.institutionName.toLowerCase() &&
+            a.source === inst.source,
+        ).length;
+        return actualCount > inst.accountCount
+          ? { ...inst, accountCount: actualCount }
+          : inst;
+      });
+
+    const fromSplit = mergeAccountCounts([
+      ...liveInstitutions,
+      ...sandboxInstitutions,
+    ]);
     if (fromSplit.length > 0) return fromSplit;
     if (apiInstitutions.length > 0) return apiInstitutions;
     if (!plaidConnected || linkedAccounts.length === 0) return [];
