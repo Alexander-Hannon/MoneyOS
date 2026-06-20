@@ -21,10 +21,13 @@ import { useFinancialData } from "@/hooks/useFinancialData";
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { useMoneyData, type UserDataExport } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
-import { clearAllMoneyOSData } from "@/lib/storage/local-storage";
+import { clearAllMoneyOSData, loadCollection, STORAGE_KEYS } from "@/lib/storage/local-storage";
+import { localDataFingerprint } from "@/lib/sync/account-data-utils";
 import type { ConsentRecord } from "@/types/user";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 import { EnvironmentDiagnosticsPanel } from "@/components/settings/EnvironmentDiagnosticsPanel";
+import { SyncDiagnosticsPanel } from "@/components/settings/SyncDiagnosticsPanel";
+import { DuplicateRepairPanel } from "@/components/settings/DuplicateRepairPanel";
 import { RefreshMoneyOSDataButton } from "@/components/sync/RefreshMoneyOSDataButton";
 import { RefreshLiveBalancesButton } from "@/components/plaid/RefreshLiveBalancesButton";
 import { useAccountDataSync } from "@/context/AccountDataSyncProvider";
@@ -136,13 +139,17 @@ export function SettingsPanel() {
     }
     setSyncBusy(true);
     try {
+      const payload = money.exportData();
+      const weeklyReviews = loadCollection(STORAGE_KEYS.weeklyReviews, []);
       const res = await fetch("/api/user/migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "merge_local",
+          deviceFingerprint: localDataFingerprint(payload),
           data: {
-            ...money.exportData(),
+            ...payload,
+            weeklyReviews,
             consentHistory: appMode.consentHistory,
           },
         }),
@@ -151,18 +158,24 @@ export function SettingsPanel() {
       if (!res.ok || data.success === false) {
         throw new Error(data.message ?? "Merge failed");
       }
-      const counts = data.counts;
-      const parts = [
-        counts?.bills ? `${counts.bills} bills` : null,
-        counts?.subscriptions ? `${counts.subscriptions} subscriptions` : null,
-        counts?.incomeSources ? `${counts.incomeSources} income sources` : null,
-      ].filter(Boolean);
-      toast(
-        parts.length > 0
-          ? `Merged ${parts.join(", ")} into your account`
-          : (data.message ?? "Local data merged into your account"),
-      );
-      await accountSync.refreshAccountData();
+      if (data.warning) {
+        toast(data.warning);
+      } else {
+        const counts = data.counts;
+        const parts = [
+          counts?.bills ? `${counts.bills} bills` : null,
+          counts?.subscriptions ? `${counts.subscriptions} subscriptions` : null,
+          counts?.incomeSources ? `${counts.incomeSources} income sources` : null,
+        ].filter(Boolean);
+        toast(
+          parts.length > 0
+            ? `Merged ${parts.join(", ")} into your account`
+            : (data.message ?? "Local data merged into your account"),
+        );
+      }
+      if (!data.warning) {
+        await accountSync.refreshAccountData();
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "Could not merge to account");
     } finally {
@@ -217,6 +230,7 @@ export function SettingsPanel() {
                 <CloudUpload className="size-3.5" /> Merge local data into my MoneyOS account
               </Button>
               <RefreshMoneyOSDataButton />
+              <SyncDiagnosticsPanel />
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
@@ -425,6 +439,7 @@ export function SettingsPanel() {
               No personal live institutions connected.
             </p>
           )}
+          <DuplicateRepairPanel />
         </CardContent>
       </Card>
 

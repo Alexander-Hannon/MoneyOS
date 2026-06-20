@@ -16,6 +16,7 @@ export async function GET() {
   if (!payload) {
     return Response.json({
       ok: true,
+      source: "empty" as const,
       updatedAt: null,
       lastAccountDataSyncAt: null,
       data: null,
@@ -26,14 +27,16 @@ export async function GET() {
         alerts: 0,
         manualAccounts: 0,
         spendingLater: 0,
+        weeklyReviews: 0,
       },
     });
   }
 
-  const { updatedAt, lastAccountDataSyncAt, counts, ...data } = payload;
+  const { updatedAt, lastAccountDataSyncAt, counts, source, ...data } = payload;
 
   return Response.json({
     ok: true,
+    source,
     updatedAt,
     lastAccountDataSyncAt,
     data,
@@ -48,7 +51,10 @@ export async function POST(request: Request) {
     return Response.json(auth.body, { status: auth.status });
   }
 
-  let body: { data?: UserDataBundle };
+  let body: {
+    data?: UserDataBundle;
+    source?: "local_mutation" | "explicit_push";
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -66,23 +72,34 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await syncAccountDataFromClient(auth.user.userId, body.data);
+    const result = await syncAccountDataFromClient(auth.user.userId, body.data, {
+      source: body.source,
+    });
     return Response.json({
       ok: true,
+      source: "database" as const,
       updatedAt: result.updatedAt,
       lastAccountDataSyncAt: result.lastAccountDataSyncAt,
-      counts: result.counts,
+      counts: {
+        bills: result.counts.bills,
+        income: result.counts.incomeSources,
+        subscriptions: result.counts.subscriptions,
+        alerts: result.counts.alerts,
+        manualAccounts: result.counts.manualAccounts,
+        spendingLater: result.counts.spendingLater,
+        weeklyReviews: result.counts.weeklyReviews,
+      },
     });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not sync account data.";
+    const status = message.includes("empty local state") ? 409 : 500;
     return Response.json(
       {
         ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Could not sync account data.",
+        message,
       },
-      { status: 500 },
+      { status },
     );
   }
 }

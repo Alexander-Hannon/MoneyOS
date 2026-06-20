@@ -56,6 +56,8 @@ export type UserDataExport = {
 
 interface MoneyDataContextValue {
   hydrated: boolean;
+  /** Increments on user CRUD edits — not on importData / account pull. */
+  userEditGeneration: number;
   appMode: AppMode;
   bills: Bill[];
   income: IncomeSource[];
@@ -140,6 +142,11 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     [],
   );
   const [dismissedActionIds, setDismissedActionIds] = useState<string[]>([]);
+  const [userEditGeneration, setUserEditGeneration] = useState(0);
+
+  const bumpUserEdit = useCallback(() => {
+    setUserEditGeneration((generation) => generation + 1);
+  }, []);
 
   useEffect(() => {
     const mode = loadAppModeFromStorage() ?? "local_user";
@@ -276,6 +283,7 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
 
   const value: MoneyDataContextValue = {
     hydrated,
+    userEditGeneration,
     appMode,
     bills,
     income,
@@ -284,41 +292,66 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     spendingLater,
     manualAccounts,
 
-    addBill: (draft) => commitBills([...bills, { ...draft, id: newId("bill") }]),
-    updateBill: (id, draft) =>
-      commitBills(bills.map((b) => (b.id === id ? { ...draft, id } : b))),
-    deleteBill: (id) => commitBills(bills.filter((b) => b.id !== id)),
-    setBillStatus: (id, status) =>
-      commitBills(bills.map((b) => (b.id === id ? { ...b, status } : b))),
+    addBill: (draft) => {
+      commitBills([...bills, { ...draft, id: newId("bill") }]);
+      bumpUserEdit();
+    },
+    updateBill: (id, draft) => {
+      commitBills(bills.map((b) => (b.id === id ? { ...draft, id } : b)));
+      bumpUserEdit();
+    },
+    deleteBill: (id) => {
+      commitBills(bills.filter((b) => b.id !== id));
+      bumpUserEdit();
+    },
+    setBillStatus: (id, status) => {
+      commitBills(bills.map((b) => (b.id === id ? { ...b, status } : b)));
+      bumpUserEdit();
+    },
 
     addIncome: (draft) => {
       const normalized = normalizeIncomeDraft(draft);
       commitIncome([...income, { ...normalized, id: newId("income") }]);
+      bumpUserEdit();
     },
     updateIncome: (id, draft) => {
       const normalized = normalizeIncomeDraft(draft);
       commitIncome(income.map((i) => (i.id === id ? { ...normalized, id } : i)));
+      bumpUserEdit();
     },
-    deleteIncome: (id) => commitIncome(income.filter((i) => i.id !== id)),
-    toggleIncomeActive: (id) =>
+    deleteIncome: (id) => {
+      commitIncome(income.filter((i) => i.id !== id));
+      bumpUserEdit();
+    },
+    toggleIncomeActive: (id) => {
       commitIncome(
         income.map((i) => (i.id === id ? { ...i, active: !i.active } : i)),
-      ),
+      );
+      bumpUserEdit();
+    },
 
-    addSubscription: (draft) =>
-      commitSubscriptions([...subscriptions, { ...draft, id: newId("sub") }]),
-    updateSubscription: (id, draft) =>
+    addSubscription: (draft) => {
+      commitSubscriptions([...subscriptions, { ...draft, id: newId("sub") }]);
+      bumpUserEdit();
+    },
+    updateSubscription: (id, draft) => {
       commitSubscriptions(
         subscriptions.map((s) => (s.id === id ? { ...draft, id } : s)),
-      ),
-    deleteSubscription: (id) =>
-      commitSubscriptions(subscriptions.filter((s) => s.id !== id)),
-    setSubscriptionStatus: (id, status) =>
+      );
+      bumpUserEdit();
+    },
+    deleteSubscription: (id) => {
+      commitSubscriptions(subscriptions.filter((s) => s.id !== id));
+      bumpUserEdit();
+    },
+    setSubscriptionStatus: (id, status) => {
       commitSubscriptions(
         subscriptions.map((s) => (s.id === id ? { ...s, status } : s)),
-      ),
+      );
+      bumpUserEdit();
+    },
 
-    addAlert: (draft) =>
+    addAlert: (draft) => {
       commitAlerts([
         {
           ...draft,
@@ -327,37 +360,54 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
           userCreated: true,
         },
         ...alerts,
-      ]),
-    updateAlert: (id, draft) =>
-      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, ...draft } : a))),
-    setAlertStatus: (id, status) =>
-      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, status } : a))),
-    deleteAlert: (id) => commitAlerts(alerts.filter((a) => a.id !== id)),
+      ]);
+      bumpUserEdit();
+    },
+    updateAlert: (id, draft) => {
+      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, ...draft } : a)));
+      bumpUserEdit();
+    },
+    setAlertStatus: (id, status) => {
+      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, status } : a)));
+      bumpUserEdit();
+    },
+    deleteAlert: (id) => {
+      commitAlerts(alerts.filter((a) => a.id !== id));
+      bumpUserEdit();
+    },
     replaceAlerts: commitAlerts,
 
-    addSpendingLater: (draft) =>
+    addSpendingLater: (draft) => {
       commitSpendingLater([
         ...spendingLater,
         { ...draft, id: newId("spend-later"), title: draft.title ?? draft.name },
-      ]),
-    updateSpendingLater: (id, draft) =>
+      ]);
+      bumpUserEdit();
+    },
+    updateSpendingLater: (id, draft) => {
       commitSpendingLater(
         spendingLater.map((item) =>
           item.id === id
             ? { ...draft, id, title: draft.title ?? draft.name }
             : item,
         ),
-      ),
-    deleteSpendingLater: (id) =>
-      commitSpendingLater(spendingLater.filter((item) => item.id !== id)),
+      );
+      bumpUserEdit();
+    },
+    deleteSpendingLater: (id) => {
+      commitSpendingLater(spendingLater.filter((item) => item.id !== id));
+      bumpUserEdit();
+    },
 
     dismissRecurringSuggestion: (id) => {
       if (dismissedRecurringIds.includes(id)) return;
       commitDismissedRecurring([...dismissedRecurringIds, id]);
+      bumpUserEdit();
     },
     dismissActionItem: (id) => {
       if (dismissedActionIds.includes(id)) return;
       commitDismissedActions([...dismissedActionIds, id]);
+      bumpUserEdit();
     },
     dismissedRecurringIds,
     dismissedActionIds,
@@ -374,6 +424,7 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
           updatedAt: now,
         },
       ]);
+      bumpUserEdit();
     },
     updateManualAccount: (id, draft) => {
       const now = new Date().toISOString();
@@ -384,9 +435,12 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
             : a,
         ),
       );
+      bumpUserEdit();
     },
-    deleteManualAccount: (id) =>
-      commitManualAccounts(manualAccounts.filter((a) => a.id !== id)),
+    deleteManualAccount: (id) => {
+      commitManualAccounts(manualAccounts.filter((a) => a.id !== id));
+      bumpUserEdit();
+    },
 
     applyModeData,
     startFresh,

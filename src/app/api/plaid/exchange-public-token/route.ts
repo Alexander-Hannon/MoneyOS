@@ -125,6 +125,7 @@ export async function POST(request: Request) {
           connected: true,
           targetEnvironment,
           source: summary.source,
+          connectionKind: summary.connectionKind,
           item_id: itemId,
           plaidItemId: summary.plaidItemId,
           institutionName: summary.institutionName,
@@ -132,9 +133,11 @@ export async function POST(request: Request) {
           transactionCount: summary.transactionCount,
           lastSyncAt: summary.lastSyncAt,
           note:
-            targetEnvironment === "production"
-              ? "Personal live connection persisted with encrypted server-side token storage."
-              : "Sandbox connection persisted with encrypted server-side token storage.",
+            summary.connectionKind === "refreshed"
+              ? "Existing bank connection refreshed."
+              : targetEnvironment === "production"
+                ? "New personal live bank connection added."
+                : "New sandbox bank connection added.",
         });
       } catch (error) {
         if (error instanceof PlaidPersistenceError) {

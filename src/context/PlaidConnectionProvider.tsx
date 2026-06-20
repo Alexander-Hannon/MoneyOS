@@ -22,6 +22,7 @@ import { LivePlaidConsentDialog } from "@/components/plaid/LivePlaidConsentDialo
 import { useAppMode } from "@/context/AppModeProvider";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import type { PlaidLinkTarget } from "@/lib/plaid/plaid-env";
+import { useToast } from "@/components/ui/toast";
 import {
   buildPlaidExitDiagnostics,
   logPlaidLinkEvent,
@@ -72,6 +73,7 @@ function formatLinkTokenError(data: Record<string, unknown>): string {
 export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
   const fd = useFinancialData();
   const appMode = useAppMode();
+  const toast = useToast();
   const [sandboxConsentOpen, setSandboxConsentOpen] = useState(false);
   const [liveConsentOpen, setLiveConsentOpen] = useState(false);
   const [linkTarget, setLinkTarget] = useState<PlaidLinkTarget>("sandbox");
@@ -174,11 +176,14 @@ export function PlaidConnectionProvider({ children }: { children: ReactNode }) {
       setLiveConsentOpen(false);
       clearLinkSession();
       appMode.clearPendingPlaidConnect();
-      void fd.handleLinkSuccess(publicToken, environment).finally(() => {
+      void fd.handleLinkSuccess(publicToken, environment).then((result) => {
+        if (result?.message) {
+          toast(result.message);
+        }
         clearLinkSession();
       });
     },
-    [appMode, clearLinkSession, fd],
+    [appMode, clearLinkSession, fd, toast],
   );
 
   const handleLinkEvent = useCallback(

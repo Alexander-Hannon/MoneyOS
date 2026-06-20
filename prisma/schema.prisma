@@ -38,6 +38,7 @@ model User {
   plannedExpenses       PlannedExpense[]
   balanceRefreshEvents  BalanceRefreshEvent[]
   lastAccountDataSyncAt DateTime?
+  migrationRecords      AccountMigrationRecord[]
 }
 
 model UserSettings {
@@ -157,6 +158,7 @@ model ConnectedInstitution {
 
   @@index([userId])
   @@index([userId, plaidItemIdHash])
+  @@index([userId, source, institutionName])
 }
 
 model PlaidItem {
@@ -178,6 +180,7 @@ model PlaidItem {
   updatedAt            DateTime  @updatedAt
 
   @@index([userId])
+  @@index([userId, institutionId, environment])
   @@unique([userId, itemIdHash])
 }
 
@@ -316,4 +319,19 @@ model BalanceRefreshEvent {
 
   @@index([userId, attemptedAt])
   @@index([userId, successfulAt])
+}
+
+model AccountMigrationRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceFingerprint String
+  mergedAt          DateTime @default(now())
+  beforeCounts      Json
+  afterCounts       Json
+  resultCounts      Json
+  skippedDuplicates Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  @@index([userId, mergedAt])
 }
