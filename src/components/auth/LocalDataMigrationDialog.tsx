@@ -5,6 +5,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useMoneyData } from "@/lib/storage/store";
 import { useAppMode } from "@/context/AppModeProvider";
+import { useAccountDataSync } from "@/context/AccountDataSyncProvider";
 import { useToast } from "@/components/ui/toast";
 import {
   hasExistingUserData,
@@ -20,13 +21,15 @@ type MigrationResponse = {
   errorCode?: string;
   message?: string;
   counts?: {
-    bills: number;
-    incomeSources: number;
-    subscriptions: number;
-    alerts: number;
-    consentRecords: number;
-    manualAccounts: number;
-    spendingLater: number;
+    bills?: number;
+    incomeSources?: number;
+    subscriptions?: number;
+    alerts?: number;
+    consentRecords?: number;
+    manualAccounts?: number;
+    spendingLater?: number;
+    skippedDuplicates?: number;
+    reviewNeeded?: number;
   };
   accountData?: {
     appMode?: string;
@@ -46,9 +49,39 @@ function migrationErrorMessage(data: MigrationResponse): string {
   return data.message ?? "Could not complete migration.";
 }
 
+function formatMergeCounts(counts: MigrationResponse["counts"]): string {
+  if (!counts) return "Local data merged into your MoneyOS account.";
+  const parts = [
+    counts.bills ? `${counts.bills} bill${counts.bills === 1 ? "" : "s"}` : null,
+    counts.subscriptions
+      ? `${counts.subscriptions} subscription${counts.subscriptions === 1 ? "" : "s"}`
+      : null,
+    counts.incomeSources
+      ? `${counts.incomeSources} income source${counts.incomeSources === 1 ? "" : "s"}`
+      : null,
+    counts.manualAccounts
+      ? `${counts.manualAccounts} manual account${counts.manualAccounts === 1 ? "" : "s"}`
+      : null,
+    counts.spendingLater
+      ? `${counts.spendingLater} planned expense${counts.spendingLater === 1 ? "" : "s"}`
+      : null,
+    counts.alerts
+      ? `${counts.alerts} alert${counts.alerts === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+  const summary =
+    parts.length > 0 ? parts.join(", ") : "records";
+  const skipped =
+    counts.skippedDuplicates && counts.skippedDuplicates > 0
+      ? ` (${counts.skippedDuplicates} duplicate${counts.skippedDuplicates === 1 ? "" : "s"} skipped — account records kept)`
+      : "";
+  return `Merged ${summary} into your MoneyOS account${skipped}.`;
+}
+
 export function LocalDataMigrationDialog() {
   const money = useMoneyData();
   const appMode = useAppMode();
+  const accountSync = useAccountDataSync();
   const toast = useToast();
   const { status, loading } = useUserStatus();
   const [dismissed, setDismissed] = useState(false);
@@ -60,6 +93,7 @@ export function LocalDataMigrationDialog() {
     !loading &&
     isClerkPublishableConfigured() &&
     status.signedIn &&
+    status.databaseConfigured &&
     !loadBoolean(STORAGE_KEYS.migrationCompleted) &&
     hasExistingUserData() &&
     !dismissed;
@@ -70,7 +104,7 @@ export function LocalDataMigrationDialog() {
     setError(null);
   };
 
-  const saveLocal = async () => {
+  const mergeLocal = async () => {
     setBusy(true);
     setError(null);
     try {
@@ -79,7 +113,7 @@ export function LocalDataMigrationDialog() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "save_local",
+          action: "merge_local",
           data: {
             ...payload,
             consentHistory: appMode.consentHistory,
@@ -91,21 +125,12 @@ export function LocalDataMigrationDialog() {
         throw new Error(migrationErrorMessage(data));
       }
 
-      const total =
-        (data.counts?.bills ?? 0) +
-        (data.counts?.incomeSources ?? 0) +
-        (data.counts?.subscriptions ?? 0) +
-        (data.counts?.alerts ?? 0);
-
-      toast(
-        total > 0
-          ? `Saved ${total} record${total === 1 ? "" : "s"} to your account`
-          : "Local data saved to your account",
-      );
+      toast(formatMergeCounts(data.counts));
+      await accountSync.refreshAccountData();
       complete();
     } catch (e) {
       const message =
-        e instanceof Error ? e.message : "Could not save data to account";
+        e instanceof Error ? e.message : "Could not merge data to account";
       setError(message);
       toast(message);
     } finally {
@@ -126,7 +151,7 @@ export function LocalDataMigrationDialog() {
       if (!res.ok || data.success === false) {
         throw new Error(migrationErrorMessage(data));
       }
-      toast("Keeping local data only");
+      toast("Keeping local data only on this device");
       complete();
     } catch (e) {
       const message =
@@ -163,7 +188,7 @@ export function LocalDataMigrationDialog() {
         spendingLater: (data.accountData.spendingLater ?? []) as never[],
         manualAccounts: (data.accountData.manualAccounts ?? []) as never[],
       });
-      toast("Loaded data from your account");
+      toast("Loaded data from your MoneyOS account");
       complete();
     } catch (e) {
       const message =
@@ -181,8 +206,8 @@ export function LocalDataMigrationDialog() {
     <Dialog
       open={shouldPrompt}
       onClose={() => {}}
-      title="Save your local MoneyOS data?"
-      description="You signed in with existing local data on this device. Choose how to proceed."
+      title="Merge local data into your MoneyOS account?"
+      description="You signed in with existing local data on this device. Your signed-in account is the source of truth across devices once merged."
       className="sm:max-w-lg"
     >
       <div className="space-y-3">
@@ -195,9 +220,9 @@ export function LocalDataMigrationDialog() {
           size="sm"
           className="w-full justify-start"
           disabled={busy}
-          onClick={() => void saveLocal()}
+          onClick={() => void mergeLocal()}
         >
-          Save to account
+          Merge local data into my MoneyOS account
         </Button>
         <Button
           size="sm"
@@ -206,7 +231,7 @@ export function LocalDataMigrationDialog() {
           disabled={busy}
           onClick={() => void keepLocal()}
         >
-          Keep local only
+          Keep local only on this device
         </Button>
         <Button
           size="sm"
@@ -215,14 +240,12 @@ export function LocalDataMigrationDialog() {
           disabled={busy}
           onClick={() => void loadAccountDataFromServer()}
         >
-          Replace with account data
+          Use account data on this device
         </Button>
         <p className="text-[11px] text-muted-foreground">
-          Your choice is remembered on this device only after a successful
-          response. Plaid sandbox tokens are persisted only when you are signed
-          in, the database is configured, and token encryption is enabled. If
-          you use the same database across devices, use the same
-          PLAID_TOKEN_ENCRYPTION_KEY on each device.
+          Local data is preserved until the server confirms a successful merge.
+          Running merge twice will not create obvious duplicates. Plaid live
+          tokens stay encrypted server-side only.
         </p>
       </div>
     </Dialog>

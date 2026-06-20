@@ -41,6 +41,7 @@ import type {
   PlaidConnectionStatus,
 } from "@/types/transactions";
 import type { PlaidEnvironment, PlaidLinkTarget } from "@/lib/plaid/plaid-env";
+import type { BalanceRefreshQuota } from "@/lib/db/balance-refresh-events";
 
 export interface FinancialDataContextValue {
   loading: boolean;
@@ -61,6 +62,7 @@ export interface FinancialDataContextValue {
   activePlaidEnvironment: PlaidEnvironment | null;
   lastSyncAt: string | null;
   lastBalanceRefreshAt: string | null;
+  balanceRefreshQuota: BalanceRefreshQuota | null;
 
   livePlaidEnabled: boolean;
   liveUserAllowed: boolean;
@@ -100,7 +102,10 @@ export interface FinancialDataContextValue {
     targetEnvironment?: PlaidLinkTarget,
   ) => Promise<void>;
   syncTransactions: (plaidItemId?: string) => Promise<void>;
-  refreshBalances: (plaidItemId?: string) => Promise<void>;
+  refreshBalances: (
+    plaidItemId?: string,
+  ) => Promise<{ ok: boolean; message?: string }>;
+  loadBalanceRefreshQuota: () => Promise<void>;
   disconnectPlaid: (
     plaidItemId?: string,
     options?: { deleteHistory?: boolean },
@@ -177,6 +182,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [balanceRefreshQuota, setBalanceRefreshQuota] =
+    useState<BalanceRefreshQuota | null>(null);
   const plaidLoadInFlightRef = useRef<string | null>(null);
 
   const plaidConnected = plaidConnectionStatus === "connected";
@@ -255,6 +262,18 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setSandboxInstitutions(mapList(res.sandboxInstitutions as unknown[]));
       setLiveInstitutions(mapList(res.liveInstitutions as unknown[]));
       setApiInstitutions(mapList(res.institutions as unknown[]));
+
+      if (
+        res.liveConnected &&
+        res.activeEnvironment === "production"
+      ) {
+        void fetch("/api/plaid/balance-refresh-quota")
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.quota) setBalanceRefreshQuota(data.quota);
+          })
+          .catch(() => setBalanceRefreshQuota(null));
+      }
     },
     [mapInstitution],
   );
@@ -409,26 +428,50 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     [loadPlaidData, activePlaidEnvironment, applyStatusResponse],
   );
 
-  const refreshBalances = useCallback(async (plaidItemId?: string) => {
-    setBusy(true);
-    setError(null);
+  const loadBalanceRefreshQuota = useCallback(async () => {
+    if (activePlaidEnvironment !== "production" || !liveConnected) return;
     try {
-      const res = await postJson("/api/plaid/refresh-balances", { plaidItemId });
-      if (res.error || res.errorCode) {
-        throw new Error(res.message ?? res.error ?? "Balance refresh failed.");
-      }
-      if (res.lastBalanceRefreshAt) {
-        setLastBalanceRefreshAt(res.lastBalanceRefreshAt);
-      }
-      await loadPlaidData({ environment: "production", plaidItemId });
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not refresh balances.",
+      const res = await fetch("/api/plaid/balance-refresh-quota").then((r) =>
+        r.json(),
       );
-    } finally {
-      setBusy(false);
+      if (res.quota) setBalanceRefreshQuota(res.quota);
+    } catch {
+      setBalanceRefreshQuota(null);
     }
-  }, [loadPlaidData]);
+  }, [activePlaidEnvironment, liveConnected]);
+
+  const refreshBalances = useCallback(
+    async (plaidItemId?: string): Promise<{ ok: boolean; message?: string }> => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await postJson("/api/plaid/refresh-balances", { plaidItemId });
+        if (res.quota) setBalanceRefreshQuota(res.quota);
+        if (res.ok === false || res.error || res.errorCode) {
+          const message =
+            res.message ?? res.error ?? "Balance refresh failed.";
+          setError(message);
+          return { ok: false, message };
+        }
+        if (res.lastBalanceRefreshAt) {
+          setLastBalanceRefreshAt(res.lastBalanceRefreshAt);
+        }
+        await loadPlaidData({ environment: "production", plaidItemId });
+        return {
+          ok: true,
+          message: (res.message as string) ?? "Live balances refreshed.",
+        };
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Could not refresh balances.";
+        setError(message);
+        return { ok: false, message };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadPlaidData],
+  );
 
   const disconnectPlaid = useCallback(
     async (plaidItemId?: string, options?: { deleteHistory?: boolean }) => {
@@ -685,6 +728,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       activePlaidEnvironment,
       lastSyncAt,
       lastBalanceRefreshAt,
+      balanceRefreshQuota,
       livePlaidEnabled,
       liveUserAllowed,
       sandboxConnectAvailable,
@@ -716,6 +760,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       handleLinkSuccess,
       syncTransactions,
       refreshBalances,
+      loadBalanceRefreshQuota,
       disconnectPlaid,
       disconnectSandbox,
       refreshData,
@@ -735,6 +780,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       activePlaidEnvironment,
       lastSyncAt,
       lastBalanceRefreshAt,
+      balanceRefreshQuota,
       livePlaidEnabled,
       liveUserAllowed,
       sandboxConnectAvailable,
@@ -766,6 +812,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       handleLinkSuccess,
       syncTransactions,
       refreshBalances,
+      loadBalanceRefreshQuota,
       disconnectPlaid,
       disconnectSandbox,
       refreshData,

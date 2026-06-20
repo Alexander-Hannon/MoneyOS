@@ -16,6 +16,8 @@ export const STORAGE_KEYS = {
   consentHistory: "moneyos:consent-history",
   pendingPlaidConnect: "moneyos:pending-plaid-connect",
   migrationCompleted: "moneyos:migration-completed",
+  accountDataSyncedAt: "moneyos:account-data-synced-at",
+  accountDataLocalModifiedAt: "moneyos:account-data-local-modified-at",
   dismissedRecurring: "moneyos:dismissed-recurring",
   dismissedActions: "moneyos:dismissed-actions",
   weeklyReviews: "moneyos:weekly-reviews",

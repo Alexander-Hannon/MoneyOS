@@ -24,15 +24,31 @@ export function ManualAccountsSection() {
 
   if (fd.storedMode === "demo" && !fd.plaidConnected) return null;
 
+  const isPersonalLive =
+    fd.effectiveMode === "personal_live" ||
+    fd.activePlaidEnvironment === "production";
+
   const accounts = money.manualAccounts;
+  const title = isPersonalLive
+    ? "Manual Cash & Accounts — optional"
+    : "Cash & Accounts";
+  const description = isPersonalLive
+    ? "Add off-bank cash or manually tracked accounts. Connected live bank accounts are shown above."
+    : "Manual balances for local user mode — not connected to a bank.";
+  const emptyTitle = isPersonalLive
+    ? "No manual cash accounts added"
+    : "No cash accounts added yet.";
+  const emptyDescription = isPersonalLive
+    ? "Your connected live bank accounts are listed above."
+    : "Add checking, savings, or cash balances to track total cash available.";
 
   return (
     <Card id="accounts">
       <CardContent className="pt-5">
         <SectionHeader
           icon={Landmark}
-          title="Cash & Accounts"
-          description="Manual balances for local user mode — not connected to a bank."
+          title={title}
+          description={description}
           meta={
             <Button size="sm" variant="secondary" onClick={() => { setEditing(null); setOpen(true); }}>
               <Plus className="size-3.5" /> Add account
@@ -43,8 +59,8 @@ export function ManualAccountsSection() {
         {accounts.length === 0 ? (
           <EmptyState
             icon={Landmark}
-            title="No cash accounts added yet."
-            description="Add checking, savings, or cash balances to track total cash available."
+            title={emptyTitle}
+            description={emptyDescription}
           />
         ) : (
           <div className="space-y-2">

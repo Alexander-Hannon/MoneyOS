@@ -8,7 +8,7 @@ import {
   type MigrationCounts,
 } from "@/lib/db/users";
 
-type MigrationAction = "save_local" | "keep_local" | "use_account";
+type MigrationAction = "save_local" | "merge_local" | "keep_local" | "use_account";
 
 function isMigrationTimeoutError(error: unknown): boolean {
   return (
@@ -80,14 +80,17 @@ export async function POST(request: Request) {
   }
 
   const action = body.action;
-  if (!action || !["save_local", "keep_local", "use_account"].includes(action)) {
+  if (
+    !action ||
+    !["save_local", "merge_local", "keep_local", "use_account"].includes(action)
+  ) {
     return Response.json(
       { success: false, errorCode: "invalid_action", message: "Invalid migration action." },
       { status: 400 },
     );
   }
 
-  if (action === "save_local") {
+  if (action === "save_local" || action === "merge_local") {
     if (!body.data) {
       return Response.json(
         {
@@ -136,6 +139,10 @@ export async function POST(request: Request) {
         action,
         migrated: true,
         counts,
+        message:
+          counts.skippedDuplicates > 0
+            ? `Merged with ${counts.skippedDuplicates} duplicate record${counts.skippedDuplicates === 1 ? "" : "s"} skipped. Account records were kept.`
+            : "Local data merged into your MoneyOS account.",
       });
     } catch (error) {
       console.error("[migrate] save_local failed", {

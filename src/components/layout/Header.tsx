@@ -6,6 +6,7 @@ import { AuthHeaderControls } from "@/components/auth/AuthHeaderControls";
 import { BankConnectionControl } from "@/components/layout/BankConnectionControl";
 import { ModeBadge } from "@/components/layout/ModeBadge";
 import { useFinancialData } from "@/hooks/useFinancialData";
+import { RefreshMoneyOSDataButton } from "@/components/sync/RefreshMoneyOSDataButton";
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 
@@ -40,6 +41,9 @@ export function Header() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <ModeBadge label={fd.modeLabel} />
+            {status.signedIn && status.databaseConfigured ? (
+              <RefreshMoneyOSDataButton variant="ghost" className="hidden sm:block" />
+            ) : null}
             <BankConnectionControl />
             <AuthHeaderControls />
             <Link
