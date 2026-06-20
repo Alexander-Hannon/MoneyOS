@@ -10,9 +10,11 @@ import { useToast } from "@/components/ui/toast";
 import {
   hasExistingUserData,
   loadBoolean,
+  loadCollection,
   saveBoolean,
   STORAGE_KEYS,
 } from "@/lib/storage/local-storage";
+import { localDataFingerprint } from "@/lib/sync/account-data-utils";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 import { useUserStatus } from "@/hooks/useUserStatus";
 
@@ -28,9 +30,13 @@ type MigrationResponse = {
     consentRecords?: number;
     manualAccounts?: number;
     spendingLater?: number;
+    weeklyReviews?: number;
     skippedDuplicates?: number;
     reviewNeeded?: number;
   };
+  beforeCounts?: Record<string, number>;
+  afterCounts?: Record<string, number>;
+  warning?: string;
   accountData?: {
     appMode?: string;
     bills?: unknown[];
@@ -109,13 +115,16 @@ export function LocalDataMigrationDialog() {
     setError(null);
     try {
       const payload = money.exportData();
+      const weeklyReviews = loadCollection(STORAGE_KEYS.weeklyReviews, []);
       const res = await fetch("/api/user/migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "merge_local",
+          deviceFingerprint: localDataFingerprint(payload),
           data: {
             ...payload,
+            weeklyReviews,
             consentHistory: appMode.consentHistory,
           },
         }),
@@ -125,7 +134,16 @@ export function LocalDataMigrationDialog() {
         throw new Error(migrationErrorMessage(data));
       }
 
-      toast(formatMergeCounts(data.counts));
+      if (data.warning) {
+        setError(data.warning);
+        toast(data.warning);
+      } else {
+        toast(formatMergeCounts(data.counts));
+      }
+      if (data.warning) {
+        return;
+      }
+
       await accountSync.refreshAccountData();
       complete();
     } catch (e) {

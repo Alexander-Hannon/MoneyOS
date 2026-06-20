@@ -100,7 +100,7 @@ export interface FinancialDataContextValue {
   handleLinkSuccess: (
     publicToken: string,
     targetEnvironment?: PlaidLinkTarget,
-  ) => Promise<void>;
+  ) => Promise<{ connectionKind: "new" | "refreshed"; message: string } | null>;
   syncTransactions: (plaidItemId?: string) => Promise<void>;
   refreshBalances: (
     plaidItemId?: string,
@@ -378,7 +378,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     async (
       publicToken: string,
       targetEnvironment: PlaidLinkTarget = "sandbox",
-    ) => {
+    ): Promise<{ connectionKind: "new" | "refreshed"; message: string } | null> => {
       setBusy(true);
       setPlaidConnectionStatus("connecting");
       setError(null);
@@ -390,7 +390,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         if (res.configured === false) {
           setError("Plaid is not configured.");
           setPlaidConnectionStatus("not_connected");
-          return;
+          return null;
         }
         if (res.error || res.errorCode) {
           throw new Error(res.message ?? res.error ?? "Connection failed.");
@@ -398,17 +398,37 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         if (targetEnvironment === "production") {
           setActivePlaidEnvironment("production");
         }
-        await refreshData();
+
+        const connectionKind =
+          res.connectionKind === "refreshed" ? "refreshed" : "new";
+        const message =
+          connectionKind === "refreshed"
+            ? "Existing bank connection refreshed."
+            : "New bank connection added.";
+
+        const statusRes = await fetch("/api/plaid/status").then((r) => r.json());
+        applyStatusResponse(statusRes);
+
+        if (statusRes.connected) {
+          setPlaidConnectionStatus("connected");
+          await loadPlaidData({
+            environment: statusRes.activeEnvironment ?? targetEnvironment,
+            forceSync: false,
+          });
+        }
+
+        return { connectionKind, message };
       } catch (e) {
         setPlaidConnectionStatus("error");
         setError(
           e instanceof Error ? e.message : "Could not connect the bank.",
         );
+        return null;
       } finally {
         setBusy(false);
       }
     },
-    [refreshData],
+    [applyStatusResponse, loadPlaidData],
   );
 
   const syncTransactions = useCallback(

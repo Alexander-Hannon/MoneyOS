@@ -21,6 +21,10 @@ import {
   upsertPlaidItemForUser,
 } from "@/lib/db/plaid-items";
 import { syncPlaidItemForUser, syncAllPlaidItemsForUser } from "@/lib/plaid/sync-service";
+import {
+  reconcileInstitutionReconnect,
+  type PlaidConnectionKind,
+} from "@/lib/plaid/plaid-reconnect";
 
 export type PlaidExchangeResult = {
   item_id: string;
@@ -33,6 +37,7 @@ export type SafePlaidConnectionSummary = {
   itemIdHash: string;
   environment: PlaidEnvironment;
   source: "plaid_sandbox" | "plaid_live";
+  connectionKind: PlaidConnectionKind;
   accountCount: number;
   transactionCount: number;
   lastSyncAt: string | null;
@@ -90,6 +95,14 @@ export async function storePlaidItemForUser(args: {
   const source = plaidSourceForEnvironment(args.environment) as
     | "plaid_sandbox"
     | "plaid_live";
+
+  const reconcile = await reconcileInstitutionReconnect({
+    userId: args.userId,
+    institutionId: args.institutionId,
+    environment: args.environment,
+    newItemId: args.exchange.item_id,
+  });
+
   const item = await upsertPlaidItemForUser({
     userId: args.userId,
     itemId: args.exchange.item_id,
@@ -106,6 +119,7 @@ export async function storePlaidItemForUser(args: {
     itemIdHash,
     institutionName: args.institutionName ?? "Connected bank",
     source,
+    institutionId: args.institutionId ?? null,
   });
 
   const syncSummary = await syncPlaidItemForUser(args.userId, item.id, {
@@ -118,6 +132,7 @@ export async function storePlaidItemForUser(args: {
     itemIdHash,
     environment: args.environment,
     source,
+    connectionKind: reconcile.connectionKind,
     accountCount: syncSummary.accountCount,
     transactionCount: syncSummary.transactionCount,
     lastSyncAt: syncSummary.lastSyncAt,

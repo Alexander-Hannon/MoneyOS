@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   migrationCompleted: "moneyos:migration-completed",
   accountDataSyncedAt: "moneyos:account-data-synced-at",
   accountDataLocalModifiedAt: "moneyos:account-data-local-modified-at",
+  accountSyncDiagnostics: "moneyos:account-sync-diagnostics",
   dismissedRecurring: "moneyos:dismissed-recurring",
   dismissedActions: "moneyos:dismissed-actions",
   weeklyReviews: "moneyos:weekly-reviews",

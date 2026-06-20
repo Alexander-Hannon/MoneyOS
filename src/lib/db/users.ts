@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { AppMode } from "@/types/app-mode";
 import { getPrisma } from "@/lib/db/prisma";
+import {
+  countBundleRecords,
+  type DomainCounts,
+  wouldWipeAccountData,
+} from "@/lib/sync/account-data-utils";
+import { saveWeeklyReviewForUser } from "@/lib/db/weekly-reviews";
 
 const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 };
 
@@ -19,16 +25,10 @@ export type MigrationCounts = {
 };
 
 export type AccountDataSyncMeta = {
+  source: "database" | "empty";
   updatedAt: string;
   lastAccountDataSyncAt: string | null;
-  counts: {
-    bills: number;
-    income: number;
-    subscriptions: number;
-    alerts: number;
-    manualAccounts: number;
-    spendingLater: number;
-  };
+  counts: DomainCounts;
 };
 
 export type UserDataBundle = {
@@ -39,6 +39,7 @@ export type UserDataBundle = {
   alerts: unknown[];
   manualAccounts?: unknown[];
   spendingLater?: unknown[];
+  weeklyReviews?: unknown[];
   consentHistory?: Array<Omit<import("@/types/user").ConsentRecord, "id" | "userId">>;
 };
 
@@ -143,6 +144,7 @@ export async function importUserDataBundle(
   const alerts = bundle.alerts as Record<string, unknown>[];
   const manualAccounts = (bundle.manualAccounts ?? []) as Record<string, unknown>[];
   const spendingLater = (bundle.spendingLater ?? []) as Record<string, unknown>[];
+  const weeklyReviews = (bundle.weeklyReviews ?? []) as Record<string, unknown>[];
 
   const [existingBills, existingIncome, existingSubs, existingAlerts, existingAccounts, existingPlanned] =
     await Promise.all([
@@ -278,6 +280,13 @@ export async function importUserDataBundle(
     spendingLaterCount += 1;
   }
 
+  let weeklyReviewCount = 0;
+  for (const row of weeklyReviews) {
+    if (!row.id || !row.weekStartDate) continue;
+    await saveWeeklyReviewForUser(userId, row as never);
+    weeklyReviewCount += 1;
+  }
+
   const now = new Date();
   await prisma.user.update({
     where: { id: userId },
@@ -300,7 +309,7 @@ export async function importUserDataBundle(
     consentRecords: 0,
     manualAccounts: manualAccountCount,
     spendingLater: spendingLaterCount,
-    weeklyReviews: 0,
+    weeklyReviews: weeklyReviewCount,
     transactionRules: 0,
     skippedDuplicates,
     reviewNeeded,
@@ -490,10 +499,102 @@ function mapPlannedExpenseFields(userId: string, row: Record<string, unknown>) {
   };
 }
 
+export async function getAccountDomainCountsFromDb(
+  userId: string,
+): Promise<DomainCounts> {
+  const prisma = getPrisma();
+  if (!prisma) {
+    return {
+      bills: 0,
+      income: 0,
+      subscriptions: 0,
+      alerts: 0,
+      manualAccounts: 0,
+      spendingLater: 0,
+      weeklyReviews: 0,
+    };
+  }
+
+  const counts = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      _count: {
+        select: {
+          bills: true,
+          incomeSources: true,
+          subscriptions: true,
+          alerts: true,
+          plannedExpenses: true,
+          weeklyReviews: true,
+        },
+      },
+    },
+  });
+
+  const manualAccounts = await prisma.account.count({
+    where: { userId, source: "manual" },
+  });
+
+  return {
+    bills: counts?._count.bills ?? 0,
+    income: counts?._count.incomeSources ?? 0,
+    subscriptions: counts?._count.subscriptions ?? 0,
+    alerts: counts?._count.alerts ?? 0,
+    manualAccounts,
+    spendingLater: counts?._count.plannedExpenses ?? 0,
+    weeklyReviews: counts?._count.weeklyReviews ?? 0,
+  };
+}
+
+export async function recordAccountMigration(args: {
+  userId: string;
+  deviceFingerprint: string;
+  beforeCounts: DomainCounts;
+  afterCounts: DomainCounts;
+  resultCounts: MigrationCounts;
+}) {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database is not configured.");
+
+  return prisma.accountMigrationRecord.create({
+    data: {
+      userId: args.userId,
+      deviceFingerprint: args.deviceFingerprint,
+      beforeCounts: args.beforeCounts,
+      afterCounts: args.afterCounts,
+      resultCounts: args.resultCounts,
+      skippedDuplicates: args.resultCounts.skippedDuplicates,
+    },
+  });
+}
+
 export async function syncAccountDataFromClient(
   userId: string,
   bundle: UserDataBundle,
+  options?: { allowEmptyOverwrite?: boolean; source?: "local_mutation" | "explicit_push" },
 ): Promise<{ counts: MigrationCounts; updatedAt: string; lastAccountDataSyncAt: string }> {
+  const existingCounts = await getAccountDomainCountsFromDb(userId);
+  const incomingCounts = countBundleRecords({
+    bills: bundle.bills as never[],
+    income: bundle.income as never[],
+    subscriptions: bundle.subscriptions as never[],
+    alerts: bundle.alerts as never[],
+    manualAccounts: bundle.manualAccounts as never[],
+    spendingLater: bundle.spendingLater as never[],
+  });
+
+  if (
+    wouldWipeAccountData({
+      existingCounts,
+      incomingCounts,
+    }) &&
+    !options?.allowEmptyOverwrite
+  ) {
+    throw new Error(
+      "Refusing to overwrite account-backed data with empty local state.",
+    );
+  }
+
   const counts = await importUserDataBundle(userId, bundle);
   const meta = await loadAccountDataWithMeta(userId);
   return {
@@ -524,12 +625,25 @@ export async function loadAccountDataWithMeta(
           incomeSources: true,
           subscriptions: true,
           alerts: true,
-          accounts: true,
           plannedExpenses: true,
+          weeklyReviews: true,
         },
       },
     },
   });
+
+  const manualAccountCount = await prisma.account.count({
+    where: { userId, source: "manual" },
+  });
+
+  const recordTotal =
+    (user?._count.bills ?? 0) +
+    (user?._count.incomeSources ?? 0) +
+    (user?._count.subscriptions ?? 0) +
+    (user?._count.alerts ?? 0) +
+    manualAccountCount +
+    (user?._count.plannedExpenses ?? 0) +
+    (user?._count.weeklyReviews ?? 0);
 
   const timestamps = await Promise.all([
     prisma.bill.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
@@ -548,13 +662,15 @@ export async function loadAccountDataWithMeta(
     ...bundle,
     updatedAt: new Date(maxUpdated).toISOString(),
     lastAccountDataSyncAt: user?.lastAccountDataSyncAt?.toISOString() ?? null,
+    source: recordTotal > 0 ? ("database" as const) : ("empty" as const),
     counts: {
       bills: user?._count.bills ?? 0,
       income: user?._count.incomeSources ?? 0,
       subscriptions: user?._count.subscriptions ?? 0,
       alerts: user?._count.alerts ?? 0,
-      manualAccounts: user?._count.accounts ?? 0,
+      manualAccounts: manualAccountCount,
       spendingLater: user?._count.plannedExpenses ?? 0,
+      weeklyReviews: user?._count.weeklyReviews ?? 0,
     },
   };
 }

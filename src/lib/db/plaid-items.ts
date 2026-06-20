@@ -165,10 +165,29 @@ export async function upsertConnectedInstitution(args: {
   plaidItemId: string;
   itemIdHash: string;
   institutionName: string;
+  institutionId?: string | null;
   source?: string;
 }) {
   const prisma = getPrisma();
   if (!prisma) throw new Error("Database is not configured.");
+
+  const source = args.source ?? "plaid_sandbox";
+  const now = new Date();
+
+  await prisma.connectedInstitution.updateMany({
+    where: {
+      userId: args.userId,
+      source,
+      status: "connected",
+      disconnectedAt: null,
+      institutionName: args.institutionName,
+      plaidItemId: { not: args.plaidItemId },
+    },
+    data: {
+      status: "disconnected",
+      disconnectedAt: now,
+    },
+  });
 
   const existing = await prisma.connectedInstitution.findFirst({
     where: { userId: args.userId, plaidItemIdHash: args.itemIdHash },
@@ -181,8 +200,8 @@ export async function upsertConnectedInstitution(args: {
         institutionName: args.institutionName,
         plaidItemId: args.plaidItemId,
         status: "connected",
-        source: args.source ?? "plaid_sandbox",
-        connectedAt: new Date(),
+        source,
+        connectedAt: now,
         disconnectedAt: null,
       },
     });
@@ -195,8 +214,8 @@ export async function upsertConnectedInstitution(args: {
       plaidItemIdHash: args.itemIdHash,
       plaidItemId: args.plaidItemId,
       status: "connected",
-      source: args.source ?? "plaid_sandbox",
-      connectedAt: new Date(),
+      source,
+      connectedAt: now,
     },
   });
 }
