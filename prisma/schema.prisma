@@ -35,6 +35,9 @@ model User {
   transactions          MoneyTransaction[]
   transactionRules      TransactionRule[]
   weeklyReviews         WeeklyReview[]
+  plannedExpenses       PlannedExpense[]
+  balanceRefreshEvents  BalanceRefreshEvent[]
+  lastAccountDataSyncAt DateTime?
 }
 
 model UserSettings {
@@ -278,4 +281,39 @@ model WeeklyReview {
 
   @@index([userId])
   @@index([userId, weekStartDate])
+}
+
+model PlannedExpense {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  title         String?
+  amount        Float?
+  targetDate    DateTime?
+  category      String    @default("General")
+  status        String    @default("planned")
+  priority      String?
+  notes         String?
+  fundingSource String?
+  reminderDate  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model BalanceRefreshEvent {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItemId  String?
+  environment  String    @default("production")
+  attemptedAt  DateTime  @default(now())
+  successfulAt DateTime?
+  status       String
+  errorCode    String?
+
+  @@index([userId, attemptedAt])
+  @@index([userId, successfulAt])
 }

@@ -82,3 +82,52 @@ export function computeDataConfidence(
 export function dataConfidenceLabel(level: DataConfidenceLevel): string {
   return level;
 }
+
+export function dataConfidenceDomainLabels(
+  detail: DataConfidenceDetail,
+): Record<keyof Omit<DataConfidenceDetail, "level">, string> {
+  const cashLabels: Record<DataConfidenceDetail["cash"], string> = {
+    missing: "Missing",
+    manual: "Manual",
+    sandbox: "Plaid sandbox",
+    live: "Live bank balances",
+    database: "Account-backed",
+    demo: "Demo",
+    mixed: "Mixed manual + live",
+  };
+
+  const incomeLabels: Record<DataConfidenceDetail["income"], string> = {
+    missing: "Missing",
+    estimated: "Estimated / live inflows",
+    confirmed: "Confirmed sources",
+  };
+
+  const billsLabels: Record<DataConfidenceDetail["bills"], string> = {
+    missing: "Missing / manual entry needed",
+    manual: "Manual entries",
+    synced_suggestion: "Detected suggestions",
+  };
+
+  const subscriptionsLabels: Record<
+    DataConfidenceDetail["subscriptions"],
+    string
+  > = {
+    missing: "Missing",
+    manual: "Manual entries",
+    detected: "Detected — review to confirm",
+  };
+
+  const spendingLabels: Record<DataConfidenceDetail["spending"], string> = {
+    missing: "Missing",
+    projection: "Projected / manual estimate",
+    transaction_history: "Live transaction history",
+  };
+
+  return {
+    cash: cashLabels[detail.cash],
+    income: incomeLabels[detail.income],
+    bills: billsLabels[detail.bills],
+    subscriptions: subscriptionsLabels[detail.subscriptions],
+    spending: spendingLabels[detail.spending],
+  };
+}

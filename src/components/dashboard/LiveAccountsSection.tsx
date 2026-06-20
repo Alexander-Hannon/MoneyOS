@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { institutionEnvironmentLabel, isLivePlaidEnvironment } from "@/lib/plaid-ui-labels";
+import { RefreshLiveBalancesButton } from "@/components/plaid/RefreshLiveBalancesButton";
 import { formatCurrency } from "@/lib/money-utils";
 
 function formatAccountName(name: string, mask?: string): string {
@@ -41,6 +42,12 @@ export function LiveAccountsSection() {
           }
           meta={`${accounts.length} account${accounts.length === 1 ? "" : "s"}`}
         />
+
+        {isLive && (
+          <div className="mb-4 rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-3">
+            <RefreshLiveBalancesButton variant="secondary" />
+          </div>
+        )}
 
         <ul className="space-y-2">
           {accounts.map((account) => (

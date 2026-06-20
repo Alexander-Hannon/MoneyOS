@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOptionalAuthUser } from "@/lib/auth/session";
+import {
+  getBalanceRefreshQuota,
+  markBalanceRefreshFailed,
+  markBalanceRefreshSuccess,
+  recordBalanceRefreshAttempt,
+} from "@/lib/db/balance-refresh-events";
 import { resolvePlaidStorageContext } from "@/lib/plaid/storage-mode";
 import { refreshPlaidBalancesForUser } from "@/lib/plaid/sync-service";
 import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
@@ -44,6 +50,25 @@ export async function POST(request: Request) {
     // optional
   }
 
+  const quotaBefore = await getBalanceRefreshQuota(storage.userId);
+  if (quotaBefore.remaining <= 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        errorCode: "quota_exceeded",
+        message: "Daily refresh limit reached.",
+        quota: quotaBefore,
+      },
+      { status: 429 },
+    );
+  }
+
+  const attempt = await recordBalanceRefreshAttempt({
+    userId: storage.userId,
+    plaidItemId,
+    environment: "production",
+  });
+
   try {
     const result = await refreshPlaidBalancesForUser(
       storage.userId,
@@ -51,23 +76,39 @@ export async function POST(request: Request) {
       { force: true },
     );
 
+    if (result.refreshed > 0) {
+      await markBalanceRefreshSuccess(attempt.id);
+    } else {
+      await markBalanceRefreshFailed(attempt.id, "no_live_items");
+    }
+
+    const quota = await getBalanceRefreshQuota(storage.userId);
+
     return NextResponse.json({
       ok: true,
       refreshed: result.refreshed,
       lastBalanceRefreshAt: result.lastBalanceRefreshAt,
+      quota,
       message:
         result.refreshed > 0
-          ? "Balances refreshed from Plaid."
-          : "Balances were refreshed within the last 24 hours. Use manual refresh to force update.",
+          ? "Live balances refreshed."
+          : "No live Plaid items were available to refresh.",
     });
   } catch (error) {
+    await markBalanceRefreshFailed(
+      attempt.id,
+      error instanceof Error ? "refresh_failed" : "unknown",
+    );
+
     return NextResponse.json(
       {
         ok: false,
-        error:
+        errorCode: "refresh_failed",
+        message:
           error instanceof Error
             ? error.message
             : "Could not refresh balances.",
+        quota: await getBalanceRefreshQuota(storage.userId),
       },
       { status: 502 },
     );

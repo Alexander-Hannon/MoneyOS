@@ -25,10 +25,14 @@ import { clearAllMoneyOSData } from "@/lib/storage/local-storage";
 import type { ConsentRecord } from "@/types/user";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 import { EnvironmentDiagnosticsPanel } from "@/components/settings/EnvironmentDiagnosticsPanel";
+import { RefreshMoneyOSDataButton } from "@/components/sync/RefreshMoneyOSDataButton";
+import { RefreshLiveBalancesButton } from "@/components/plaid/RefreshLiveBalancesButton";
+import { useAccountDataSync } from "@/context/AccountDataSyncProvider";
 
 export function SettingsPanel() {
   const appMode = useAppMode();
   const fd = useFinancialData();
+  const accountSync = useAccountDataSync();
   const money = useMoneyData();
   const toast = useToast();
   const { status } = useUserStatus();
@@ -122,10 +126,10 @@ export function SettingsPanel() {
         : "mixed"
       : "localStorage";
 
-  const syncToAccount = async () => {
+  const mergeToAccount = async () => {
     if (
       !window.confirm(
-        "Upload your current local MoneyOS data to your signed-in account?",
+        "Merge this device's local MoneyOS data into your signed-in account? Existing account records are kept when duplicates are detected.",
       )
     ) {
       return;
@@ -136,7 +140,7 @@ export function SettingsPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "save_local",
+          action: "merge_local",
           data: {
             ...money.exportData(),
             consentHistory: appMode.consentHistory,
@@ -145,13 +149,22 @@ export function SettingsPanel() {
       });
       const data = await res.json();
       if (!res.ok || data.success === false) {
-        throw new Error(data.message ?? "Sync failed");
+        throw new Error(data.message ?? "Merge failed");
       }
-      toast("Local data synced to account");
-    } catch (e) {
+      const counts = data.counts;
+      const parts = [
+        counts?.bills ? `${counts.bills} bills` : null,
+        counts?.subscriptions ? `${counts.subscriptions} subscriptions` : null,
+        counts?.incomeSources ? `${counts.incomeSources} income sources` : null,
+      ].filter(Boolean);
       toast(
-        e instanceof Error ? e.message : "Could not sync to account",
+        parts.length > 0
+          ? `Merged ${parts.join(", ")} into your account`
+          : (data.message ?? "Local data merged into your account"),
       );
+      await accountSync.refreshAccountData();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not merge to account");
     } finally {
       setSyncBusy(false);
     }
@@ -194,14 +207,17 @@ export function SettingsPanel() {
             </p>
           )}
           {status.signedIn && status.databaseConfigured && (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={syncBusy}
-              onClick={() => void syncToAccount()}
-            >
-              <CloudUpload className="size-3.5" /> Sync local data to account
-            </Button>
+            <div className="space-y-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={syncBusy || accountSync.busy}
+                onClick={() => void mergeToAccount()}
+              >
+                <CloudUpload className="size-3.5" /> Merge local data into my MoneyOS account
+              </Button>
+              <RefreshMoneyOSDataButton />
+            </div>
           )}
           <p className="text-[11px] text-muted-foreground">
             Future: request account deletion workflow (not implemented in Phase 9).
@@ -349,6 +365,11 @@ export function SettingsPanel() {
               <li>Same encryption key across devices sharing the database</li>
             </ul>
           </div>
+          {fd.liveConnected && (
+            <div className="rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-3">
+              <RefreshLiveBalancesButton variant="secondary" />
+            </div>
+          )}
           {fd.liveInstitutions.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs font-medium">Connected live institutions</p>

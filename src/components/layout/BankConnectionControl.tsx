@@ -18,6 +18,7 @@ import {
   usePlaidConnection,
 } from "@/hooks/usePlaidConnection";
 import { formatLastSync, plaidStatusLabel } from "@/lib/data-source";
+import { RefreshLiveBalancesButton } from "@/components/plaid/RefreshLiveBalancesButton";
 import type { ConnectedInstitutionDisplay } from "@/types/actions";
 
 function InstitutionList({
@@ -200,23 +201,11 @@ export function BankConnectionControl() {
 
             {isLiveActive && (
               <div className="rounded-[var(--radius-md)] border border-warning/20 bg-warning/5 p-2">
-                <p className="text-[10px] uppercase tracking-wide text-warning">
-                  Balance refresh
-                </p>
-                <p className="mt-0.5 font-medium text-foreground">
-                  {fd.lastBalanceRefreshAt
-                    ? `Last refreshed ${formatLastSync(fd.lastBalanceRefreshAt)}`
-                    : "Not refreshed yet"}
-                </p>
-                <button
-                  type="button"
-                  disabled={fd.busy}
-                  onClick={() => void fd.refreshBalances()}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
-                >
-                  <RefreshCw className="size-3" />
-                  Refresh balances
-                </button>
+                <RefreshLiveBalancesButton
+                  variant="ghost"
+                  showQuota
+                  className="w-full"
+                />
               </div>
             )}
 

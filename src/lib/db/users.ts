@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { AppMode } from "@/types/app-mode";
 import { getPrisma } from "@/lib/db/prisma";
 
-const BATCH_SIZE = 25;
 const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 };
 
 export type MigrationCounts = {
@@ -13,6 +12,23 @@ export type MigrationCounts = {
   consentRecords: number;
   manualAccounts: number;
   spendingLater: number;
+  weeklyReviews: number;
+  transactionRules: number;
+  skippedDuplicates: number;
+  reviewNeeded: number;
+};
+
+export type AccountDataSyncMeta = {
+  updatedAt: string;
+  lastAccountDataSyncAt: string | null;
+  counts: {
+    bills: number;
+    income: number;
+    subscriptions: number;
+    alerts: number;
+    manualAccounts: number;
+    spendingLater: number;
+  };
 };
 
 export type UserDataBundle = {
@@ -109,20 +125,10 @@ export async function updateUserSettings(
   });
 }
 
-async function runBatched<T>(
-  items: T[],
-  handler: (item: T) => Promise<void>,
-): Promise<number> {
-  for (let i = 0; i < items.length; i += BATCH_SIZE) {
-    const chunk = items.slice(i, i + BATCH_SIZE);
-    await Promise.all(chunk.map(handler));
-  }
-  return items.length;
-}
-
 /**
  * Import local user data into Postgres using batched upserts (no long interactive tx).
  * Re-running with the same local IDs updates records instead of duplicating them.
+ * Fingerprints prevent obvious duplicates when IDs differ.
  */
 export async function importUserDataBundle(
   userId: string,
@@ -136,69 +142,155 @@ export async function importUserDataBundle(
   const subscriptions = bundle.subscriptions as Record<string, unknown>[];
   const alerts = bundle.alerts as Record<string, unknown>[];
   const manualAccounts = (bundle.manualAccounts ?? []) as Record<string, unknown>[];
-  const spendingLater = bundle.spendingLater ?? [];
+  const spendingLater = (bundle.spendingLater ?? []) as Record<string, unknown>[];
 
-  const billCount = await runBatched(bills, async (bill) => {
+  const [existingBills, existingIncome, existingSubs, existingAlerts, existingAccounts, existingPlanned] =
+    await Promise.all([
+      prisma.bill.findMany({ where: { userId }, select: { id: true, name: true, amount: true, dueDate: true, frequency: true } }),
+      prisma.incomeSource.findMany({ where: { userId }, select: { id: true, source: true, expectedAmount: true, frequency: true, nextDate: true } }),
+      prisma.subscription.findMany({ where: { userId }, select: { id: true, name: true, amount: true, frequency: true, renewalDate: true } }),
+      prisma.moneyAlert.findMany({ where: { userId }, select: { id: true, title: true, category: true, severity: true } }),
+      prisma.account.findMany({ where: { userId, source: "manual" }, select: { id: true, name: true, institution: true, type: true, currentBalance: true } }),
+      prisma.plannedExpense.findMany({ where: { userId }, select: { id: true, name: true, amount: true, targetDate: true, category: true } }),
+    ]);
+
+  const billFingerprints = new Set(existingBills.map((b) => billFingerprint(b)));
+  const incomeFingerprints = new Set(existingIncome.map((i) => incomeFingerprint(i)));
+  const subFingerprints = new Set(existingSubs.map((s) => subscriptionFingerprint(s)));
+  const alertFingerprints = new Set(existingAlerts.map((a) => alertFingerprint(a)));
+  const accountFingerprints = new Set(existingAccounts.map((a) => manualAccountFingerprint(a)));
+  const plannedFingerprints = new Set(existingPlanned.map((p) => plannedExpenseFingerprint(p)));
+
+  let skippedDuplicates = 0;
+  let reviewNeeded = 0;
+
+  let billCount = 0;
+  for (const bill of bills) {
     const id = bill.id ? String(bill.id) : randomUUID();
+    const fp = billFingerprintFromInput(bill);
+    const existingById = existingBills.find((b) => b.id === id);
+    if (!existingById && billFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     const data = mapBillFields(userId, bill);
     await prisma.bill.upsert({
       where: { id },
       create: { id, ...data },
       update: data,
     });
-  });
+    billFingerprints.add(fp);
+    billCount += 1;
+  }
 
-  const incomeCount = await runBatched(income, async (row) => {
+  let incomeCount = 0;
+  for (const row of income) {
     const id = row.id ? String(row.id) : randomUUID();
+    const fp = incomeFingerprintFromInput(row);
+    const existingById = existingIncome.find((i) => i.id === id);
+    if (!existingById && incomeFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     const data = mapIncomeFields(userId, row);
     await prisma.incomeSource.upsert({
       where: { id },
       create: { id, ...data },
       update: data,
     });
-  });
+    incomeFingerprints.add(fp);
+    incomeCount += 1;
+  }
 
-  const subscriptionCount = await runBatched(subscriptions, async (row) => {
+  let subscriptionCount = 0;
+  for (const row of subscriptions) {
     const id = row.id ? String(row.id) : randomUUID();
+    const fp = subscriptionFingerprintFromInput(row);
+    const existingById = existingSubs.find((s) => s.id === id);
+    if (!existingById && subFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     const data = mapSubscriptionFields(userId, row);
     await prisma.subscription.upsert({
       where: { id },
       create: { id, ...data },
       update: data,
     });
-  });
+    subFingerprints.add(fp);
+    subscriptionCount += 1;
+  }
 
-  const alertCount = await runBatched(alerts, async (row) => {
+  let alertCount = 0;
+  for (const row of alerts) {
     const id = row.id ? String(row.id) : randomUUID();
+    const fp = alertFingerprintFromInput(row);
+    const existingById = existingAlerts.find((a) => a.id === id);
+    if (!existingById && alertFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     const data = mapAlertFields(userId, row);
     await prisma.moneyAlert.upsert({
       where: { id },
       create: { id, ...data },
       update: data,
     });
-  });
+    alertFingerprints.add(fp);
+    alertCount += 1;
+  }
 
-  const manualAccountCount = await runBatched(manualAccounts, async (row) => {
+  let manualAccountCount = 0;
+  for (const row of manualAccounts) {
     const id = row.id ? String(row.id) : randomUUID();
+    const fp = manualAccountFingerprintFromInput(row);
+    const existingById = existingAccounts.find((a) => a.id === id);
+    if (!existingById && accountFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
     const data = mapManualAccountFields(userId, row);
     await prisma.account.upsert({
       where: { id },
       create: { id, ...data },
       update: data,
     });
+    accountFingerprints.add(fp);
+    manualAccountCount += 1;
+  }
+
+  let spendingLaterCount = 0;
+  for (const row of spendingLater) {
+    const id = row.id ? String(row.id) : randomUUID();
+    const fp = plannedExpenseFingerprintFromInput(row);
+    const existingById = existingPlanned.find((p) => p.id === id);
+    if (!existingById && plannedFingerprints.has(fp)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+    const data = mapPlannedExpenseFields(userId, row);
+    await prisma.plannedExpense.upsert({
+      where: { id },
+      create: { id, ...data },
+      update: data,
+    });
+    plannedFingerprints.add(fp);
+    spendingLaterCount += 1;
+  }
+
+  const now = new Date();
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(bundle.appMode ? { appMode: String(bundle.appMode) } : {}),
+      migrationCompletedAt: now,
+      lastAccountDataSyncAt: now,
+    },
   });
 
-  await prisma.$transaction(async (tx) => {
-    if (bundle.appMode) {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          appMode: String(bundle.appMode),
-          migrationCompletedAt: new Date(),
-        },
-      });
-    }
-  }, TX_OPTIONS);
+  if (skippedDuplicates > 0) {
+    reviewNeeded = skippedDuplicates;
+  }
 
   return {
     bills: billCount,
@@ -207,7 +299,11 @@ export async function importUserDataBundle(
     alerts: alertCount,
     consentRecords: 0,
     manualAccounts: manualAccountCount,
-    spendingLater: spendingLater.length,
+    spendingLater: spendingLaterCount,
+    weeklyReviews: 0,
+    transactionRules: 0,
+    skippedDuplicates,
+    reviewNeeded,
   };
 }
 
@@ -294,6 +390,172 @@ export async function replaceUserDataBundle(
     consentRecords: 0,
     manualAccounts: manualAccounts.length,
     spendingLater: 0,
+    weeklyReviews: 0,
+    transactionRules: 0,
+    skippedDuplicates: 0,
+    reviewNeeded: 0,
+  };
+}
+
+function billFingerprint(b: {
+  name: string;
+  amount: number | null;
+  dueDate: Date | null;
+  frequency: string;
+}): string {
+  return `${b.name}|${b.amount ?? ""}|${b.dueDate?.toISOString().slice(0, 10) ?? ""}|${b.frequency}`.toLowerCase();
+}
+
+function billFingerprintFromInput(b: Record<string, unknown>): string {
+  return `${b.name ?? ""}|${b.amount ?? ""}|${b.dueDate ?? ""}|${b.frequency ?? "monthly"}`.toLowerCase();
+}
+
+function incomeFingerprint(i: {
+  source: string;
+  expectedAmount: number | null;
+  frequency: string;
+  nextDate: Date | null;
+}): string {
+  return `${i.source}|${i.expectedAmount ?? ""}|${i.frequency}|${i.nextDate?.toISOString().slice(0, 10) ?? ""}`.toLowerCase();
+}
+
+function incomeFingerprintFromInput(row: Record<string, unknown>): string {
+  return `${row.source ?? ""}|${row.expectedAmount ?? ""}|${row.frequency ?? "monthly"}|${row.nextDate ?? ""}`.toLowerCase();
+}
+
+function subscriptionFingerprint(s: {
+  name: string;
+  amount: number;
+  frequency: string;
+  renewalDate: Date | null;
+}): string {
+  return `${s.name}|${s.amount}|${s.frequency}|${s.renewalDate?.toISOString().slice(0, 10) ?? ""}`.toLowerCase();
+}
+
+function subscriptionFingerprintFromInput(row: Record<string, unknown>): string {
+  return `${row.name ?? ""}|${row.amount ?? 0}|${row.frequency ?? "monthly"}|${row.renewalDate ?? ""}`.toLowerCase();
+}
+
+function alertFingerprint(a: {
+  title: string;
+  category: string;
+  severity: string;
+}): string {
+  return `${a.title}|${a.category}|${a.severity}`.toLowerCase();
+}
+
+function alertFingerprintFromInput(row: Record<string, unknown>): string {
+  return `${row.title ?? ""}|${row.category ?? ""}|${row.severity ?? "medium"}`.toLowerCase();
+}
+
+function manualAccountFingerprint(a: {
+  name: string;
+  institution: string;
+  type: string;
+  currentBalance: number | null;
+}): string {
+  return `${a.name}|${a.institution}|${a.type}|${a.currentBalance ?? 0}`.toLowerCase();
+}
+
+function manualAccountFingerprintFromInput(row: Record<string, unknown>): string {
+  return `${row.name ?? ""}|${row.institution ?? ""}|${row.type ?? ""}|${row.balance ?? 0}`.toLowerCase();
+}
+
+function plannedExpenseFingerprint(p: {
+  name: string;
+  amount: number | null;
+  targetDate: Date | null;
+  category: string;
+}): string {
+  return `${p.name}|${p.amount ?? ""}|${p.targetDate?.toISOString().slice(0, 10) ?? ""}|${p.category}`.toLowerCase();
+}
+
+function plannedExpenseFingerprintFromInput(row: Record<string, unknown>): string {
+  return `${row.name ?? row.title ?? ""}|${row.amount ?? ""}|${row.targetDate ?? ""}|${row.category ?? "General"}`.toLowerCase();
+}
+
+function mapPlannedExpenseFields(userId: string, row: Record<string, unknown>) {
+  return {
+    userId,
+    name: String(row.name ?? row.title ?? "Planned expense"),
+    title: row.title ? String(row.title) : null,
+    amount: row.amount == null ? null : Number(row.amount),
+    targetDate: parseDate(row.targetDate),
+    category: String(row.category ?? "General"),
+    status: String(row.status ?? "planned"),
+    priority: row.priority ? String(row.priority) : null,
+    notes: row.notes ? String(row.notes) : null,
+    fundingSource: row.fundingSource ? String(row.fundingSource) : null,
+    reminderDate: parseDate(row.reminderDate),
+  };
+}
+
+export async function syncAccountDataFromClient(
+  userId: string,
+  bundle: UserDataBundle,
+): Promise<{ counts: MigrationCounts; updatedAt: string; lastAccountDataSyncAt: string }> {
+  const counts = await importUserDataBundle(userId, bundle);
+  const meta = await loadAccountDataWithMeta(userId);
+  return {
+    counts,
+    updatedAt: meta?.updatedAt ?? new Date().toISOString(),
+    lastAccountDataSyncAt:
+      meta?.lastAccountDataSyncAt ?? new Date().toISOString(),
+  };
+}
+
+export async function loadAccountDataWithMeta(
+  userId: string,
+): Promise<(ReturnType<typeof loadUserDataBundle> extends Promise<infer T> ? T : never) & AccountDataSyncMeta | null> {
+  const bundle = await loadUserDataBundle(userId);
+  if (!bundle) return null;
+
+  const prisma = getPrisma();
+  if (!prisma) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      lastAccountDataSyncAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          bills: true,
+          incomeSources: true,
+          subscriptions: true,
+          alerts: true,
+          accounts: true,
+          plannedExpenses: true,
+        },
+      },
+    },
+  });
+
+  const timestamps = await Promise.all([
+    prisma.bill.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+    prisma.incomeSource.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+    prisma.subscription.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+    prisma.moneyAlert.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+    prisma.account.findFirst({ where: { userId, source: "manual" }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+    prisma.plannedExpense.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+  ]);
+
+  const maxUpdated = timestamps
+    .map((t) => t?.updatedAt?.getTime() ?? 0)
+    .reduce((a, b) => Math.max(a, b), user?.updatedAt.getTime() ?? 0);
+
+  return {
+    ...bundle,
+    updatedAt: new Date(maxUpdated).toISOString(),
+    lastAccountDataSyncAt: user?.lastAccountDataSyncAt?.toISOString() ?? null,
+    counts: {
+      bills: user?._count.bills ?? 0,
+      income: user?._count.incomeSources ?? 0,
+      subscriptions: user?._count.subscriptions ?? 0,
+      alerts: user?._count.alerts ?? 0,
+      manualAccounts: user?._count.accounts ?? 0,
+      spendingLater: user?._count.plannedExpenses ?? 0,
+    },
   };
 }
 
@@ -395,6 +657,7 @@ export async function loadUserDataBundle(userId: string) {
       accounts: {
         where: { source: "manual" },
       },
+      plannedExpenses: true,
     },
   });
   if (!user) return null;
@@ -406,7 +669,35 @@ export async function loadUserDataBundle(userId: string) {
     subscriptions: user.subscriptions.map(toDomainSubscription),
     alerts: user.alerts.map(toDomainAlert),
     manualAccounts: user.accounts.map(toDomainManualAccount),
-    spendingLater: [],
+    spendingLater: user.plannedExpenses.map(toDomainPlannedExpense),
+  };
+}
+
+function toDomainPlannedExpense(p: {
+  id: string;
+  name: string;
+  title: string | null;
+  amount: number | null;
+  targetDate: Date | null;
+  category: string;
+  status: string;
+  priority: string | null;
+  notes: string | null;
+  fundingSource: string | null;
+  reminderDate: Date | null;
+}) {
+  return {
+    id: p.id,
+    name: p.name,
+    title: p.title ?? undefined,
+    amount: p.amount,
+    targetDate: p.targetDate?.toISOString().slice(0, 10),
+    category: p.category,
+    status: p.status,
+    priority: p.priority ?? undefined,
+    notes: p.notes ?? undefined,
+    fundingSource: p.fundingSource ?? undefined,
+    reminderDate: p.reminderDate?.toISOString().slice(0, 10),
   };
 }
 
