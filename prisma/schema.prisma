@@ -230,6 +230,19 @@ model MoneyTransaction {
   source                 String
   needsReview            Boolean  @default(false)
   notes                  String?
+  userConfirmedCategory  String?
+  reviewState            String   @default("needs_review")
+  classificationSource   String?
+  linkedBillId           String?
+  linkedSubscriptionId   String?
+  plaidCategoryPrimary   String?
+  plaidCategoryDetailed  String?
+  isTransferInternal     Boolean  @default(false)
+  isRefund               Boolean  @default(false)
+  isIncomeFlag           Boolean  @default(false)
+  isRecurringExcluded    Boolean  @default(false)
+  recurringReviewState   String?
+  reviewedAt             DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

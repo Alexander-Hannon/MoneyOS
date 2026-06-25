@@ -75,6 +75,10 @@ export function normalizePlaidTransaction(
     pending: txn.pending,
     source,
     needsReview: classified.needsReview,
+    plaidCategoryPrimary: txn.personal_finance_category?.primary ?? null,
+    plaidCategoryDetailed: txn.personal_finance_category?.detailed ?? null,
+    reviewState: classified.needsReview ? "needs_review" : "categorized",
+    classificationSource: "plaid",
   };
 }
 

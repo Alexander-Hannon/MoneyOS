@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   accountDataSyncedAt: "moneyos:account-data-synced-at",
   accountDataLocalModifiedAt: "moneyos:account-data-local-modified-at",
   accountSyncDiagnostics: "moneyos:account-sync-diagnostics",
+  transactionReviewOverrides: "moneyos:transaction-review-overrides",
   dismissedRecurring: "moneyos:dismissed-recurring",
   dismissedActions: "moneyos:dismissed-actions",
   weeklyReviews: "moneyos:weekly-reviews",

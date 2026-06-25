@@ -28,6 +28,16 @@ import { syncAlerts, countActiveReviewAlerts } from "@/lib/alert-sync";
 import { buildActionItems } from "@/lib/action-center";
 import { detectRecurringSuggestions } from "@/lib/recurring-detection";
 import {
+  applyTransactionReviewDecision,
+  mergeReviewDecisionIntoTransaction,
+} from "@/lib/transaction-review/apply-decision";
+import { recurringSuggestionIdForTransaction } from "@/lib/transaction-review/reconciliation";
+import {
+  applyTransactionReviewOverrides,
+  saveTransactionReviewOverride,
+} from "@/lib/storage/transaction-review-overrides";
+import type { TransactionReviewPayload } from "@/types/transaction-review";
+import {
   getModeDisplayLabel,
   resolveEffectiveMode,
 } from "@/lib/app-mode";
@@ -113,6 +123,15 @@ export interface FinancialDataContextValue {
   /** @deprecated Use disconnectPlaid */
   disconnectSandbox: (plaidItemId?: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  submitTransactionReview: (
+    transactionId: string,
+    payload: TransactionReviewPayload,
+  ) => Promise<{
+    ok: boolean;
+    transaction?: MoneyTransaction;
+    persisted: "database" | "local";
+    error?: string;
+  }>;
 }
 
 const FinancialDataContext = createContext<FinancialDataContextValue | null>(
@@ -142,6 +161,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     dismissedRecurringIds,
     dismissedActionIds,
     replaceAlerts,
+    dismissRecurringSuggestion,
   } = money;
 
   const [loading, setLoading] = useState(true);
@@ -184,6 +204,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [balanceRefreshQuota, setBalanceRefreshQuota] =
     useState<BalanceRefreshQuota | null>(null);
+  const [reviewOverrideVersion, setReviewOverrideVersion] = useState(0);
   const plaidLoadInFlightRef = useRef<string | null>(null);
 
   const plaidConnected = plaidConnectionStatus === "connected";
@@ -517,6 +538,140 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
   const disconnectSandbox = disconnectPlaid;
 
+  const baseTransactions = resolveTransactions(
+    plaidConnected,
+    plaidTransactions,
+    storedMode,
+    activePlaidEnvironment,
+  );
+  const transactions = useMemo(() => {
+    void reviewOverrideVersion;
+    return applyTransactionReviewOverrides(baseTransactions);
+  }, [baseTransactions, reviewOverrideVersion]);
+
+  const submitTransactionReview = useCallback(
+    async (transactionId: string, payload: TransactionReviewPayload) => {
+      const current =
+        transactions.find((t) => t.id === transactionId) ??
+        plaidTransactions.find((t) => t.id === transactionId);
+      if (!current) {
+        return {
+          ok: false,
+          persisted: "local" as const,
+          error: "Transaction not found.",
+        };
+      }
+
+      const bill = payload.linkedBillId
+        ? (bills.find((b) => b.id === payload.linkedBillId) ?? null)
+        : null;
+      const subscription = payload.linkedSubscriptionId
+        ? (subscriptions.find((s) => s.id === payload.linkedSubscriptionId) ??
+          null)
+        : null;
+
+      const decision = applyTransactionReviewDecision({
+        payload,
+        bill,
+        subscription,
+      });
+      const optimistic = mergeReviewDecisionIntoTransaction(current, decision);
+      const previousPlaid = plaidTransactions;
+
+      if (plaidConnected) {
+        setPlaidTransactions((prev) =>
+          prev.map((t) => (t.id === transactionId ? optimistic : t)),
+        );
+      }
+
+      const dismissRecurringFor = (txn: MoneyTransaction) => {
+        if (
+          decision.isRecurringExcluded ||
+          decision.recurringReviewState === "linked_to_bill" ||
+          decision.recurringReviewState === "linked_to_subscription" ||
+          decision.recurringReviewState === "not_recurring"
+        ) {
+          dismissRecurringSuggestion(recurringSuggestionIdForTransaction(txn));
+        }
+      };
+      dismissRecurringFor(optimistic);
+
+      try {
+        const res = await fetch(`/api/user/transactions/${transactionId}/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            merchantPattern:
+              payload.merchantPattern ??
+              current.merchantName ??
+              current.description,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.transaction) {
+          setPlaidTransactions((prev) =>
+            prev.map((t) => (t.id === transactionId ? data.transaction : t)),
+          );
+          return {
+            ok: true,
+            transaction: data.transaction as MoneyTransaction,
+            persisted: "database" as const,
+          };
+        }
+
+        if (res.status === 503 || res.status === 401 || res.status === 404) {
+          saveTransactionReviewOverride(transactionId, {
+            category: optimistic.category,
+            classification: optimistic.classification,
+            type: optimistic.type,
+            needsReview: optimistic.needsReview,
+            userConfirmedCategory: optimistic.userConfirmedCategory,
+            reviewState: optimistic.reviewState,
+            classificationSource: optimistic.classificationSource,
+            linkedBillId: optimistic.linkedBillId,
+            linkedSubscriptionId: optimistic.linkedSubscriptionId,
+            isTransferInternal: optimistic.isTransferInternal,
+            isRefund: optimistic.isRefund,
+            isIncomeFlag: optimistic.isIncomeFlag,
+            isRecurringExcluded: optimistic.isRecurringExcluded,
+            recurringReviewState: optimistic.recurringReviewState,
+            reviewedAt: optimistic.reviewedAt,
+          });
+          setReviewOverrideVersion((v) => v + 1);
+          return {
+            ok: true,
+            transaction: optimistic,
+            persisted: "local" as const,
+          };
+        }
+
+        throw new Error(data.error ?? "Could not save transaction review.");
+      } catch (error) {
+        if (plaidConnected) {
+          setPlaidTransactions(previousPlaid);
+        }
+        return {
+          ok: false,
+          persisted: "local" as const,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not save transaction review.",
+        };
+      }
+    },
+    [
+      transactions,
+      plaidTransactions,
+      bills,
+      subscriptions,
+      plaidConnected,
+      dismissRecurringSuggestion,
+    ],
+  );
+
   const dataSource = resolveDataSource(
     plaidConnected,
     storedMode,
@@ -529,23 +684,18 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     manualAccounts,
     activePlaidEnvironment,
   );
-  const transactions = resolveTransactions(
-    plaidConnected,
-    plaidTransactions,
-    storedMode,
-    activePlaidEnvironment,
-  );
+  const transactionsForContext = transactions;
 
   const recurringSuggestions = useMemo(
     () =>
       detectRecurringSuggestions({
-        transactions,
+        transactions: transactionsForContext,
         bills,
         subscriptions,
         income,
         dismissedIds: dismissedRecurringIds,
       }),
-    [transactions, bills, subscriptions, income, dismissedRecurringIds],
+    [transactionsForContext, bills, subscriptions, income, dismissedRecurringIds],
   );
 
   const connectedInstitutions = useMemo((): ConnectedInstitutionDisplay[] => {
@@ -599,23 +749,23 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         income,
         storedMode,
         plaidConnected,
-        transactions,
+        transactionsForContext,
         manualEmpty,
         activePlaidEnvironment,
       ),
-    [income, storedMode, plaidConnected, transactions, manualEmpty, activePlaidEnvironment],
+    [income, storedMode, plaidConnected, transactionsForContext, manualEmpty, activePlaidEnvironment],
   );
 
   const spendingSummary = useMemo(
     () =>
       computeSpendingSummary(
-        transactions,
+        transactionsForContext,
         storedMode,
         plaidConnected,
         manualEmpty,
         activePlaidEnvironment,
       ),
-    [transactions, storedMode, plaidConnected, manualEmpty, activePlaidEnvironment],
+    [transactionsForContext, storedMode, plaidConnected, manualEmpty, activePlaidEnvironment],
   );
 
   const dashboardSummary = useMemo(
@@ -628,7 +778,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         alerts: storedAlerts,
         storedMode,
         plaidConnected,
-        transactions,
+        transactions: transactionsForContext,
         activePlaidEnvironment,
       }),
     [
@@ -639,7 +789,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       storedAlerts,
       storedMode,
       plaidConnected,
-      transactions,
+      transactionsForContext,
       activePlaidEnvironment,
     ],
   );
@@ -652,7 +802,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         subscriptions,
         spendingLater,
         accounts,
-        transactions,
+        transactions: transactionsForContext,
         recurringSuggestions,
         dashboardStatus: dashboardSummary.status,
         cashAvailable: dashboardSummary.cashAvailable,
@@ -664,7 +814,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       subscriptions,
       spendingLater,
       accounts,
-      transactions,
+      transactionsForContext,
       recurringSuggestions,
       dashboardSummary.status,
       dashboardSummary.cashAvailable,
@@ -784,6 +934,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       disconnectPlaid,
       disconnectSandbox,
       refreshData,
+      submitTransactionReview,
     }),
     [
       loading,
@@ -836,6 +987,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       disconnectPlaid,
       disconnectSandbox,
       refreshData,
+      submitTransactionReview,
     ],
   );
 

@@ -2,8 +2,6 @@ import { getPrisma } from "@/lib/db/prisma";
 import type {
   DataSource,
   MoneyTransaction,
-  TransactionClassification,
-  TransactionType,
 } from "@/types/transactions";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
 import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
@@ -52,6 +50,19 @@ export function dbTransactionToMoneyTransaction(row: {
   source: string;
   needsReview: boolean;
   notes: string | null;
+  userConfirmedCategory?: string | null;
+  reviewState?: string | null;
+  classificationSource?: string | null;
+  linkedBillId?: string | null;
+  linkedSubscriptionId?: string | null;
+  plaidCategoryPrimary?: string | null;
+  plaidCategoryDetailed?: string | null;
+  isTransferInternal?: boolean | null;
+  isRefund?: boolean | null;
+  isIncomeFlag?: boolean | null;
+  isRecurringExcluded?: boolean | null;
+  recurringReviewState?: string | null;
+  reviewedAt?: Date | null;
 }): MoneyTransaction {
   return {
     id: row.id,
@@ -60,14 +71,32 @@ export function dbTransactionToMoneyTransaction(row: {
     merchantName: row.merchantName ?? row.description,
     description: row.description,
     amount: row.amount,
-    type: row.type as TransactionType,
-    classification: row.classification as TransactionClassification,
+    type: row.type as MoneyTransaction["type"],
+    classification: row.classification as MoneyTransaction["classification"],
     category: row.category as MoneyTransaction["category"],
     subcategory: row.subcategory ?? undefined,
     pending: row.pending,
     source: row.source as MoneyTransaction["source"],
     needsReview: row.needsReview,
     notes: row.notes ?? undefined,
+    userConfirmedCategory: row.userConfirmedCategory ?? null,
+    reviewState: (row.reviewState as MoneyTransaction["reviewState"]) ?? undefined,
+    classificationSource:
+      (row.classificationSource as MoneyTransaction["classificationSource"]) ??
+      null,
+    linkedBillId: row.linkedBillId ?? null,
+    linkedSubscriptionId: row.linkedSubscriptionId ?? null,
+    plaidCategoryPrimary: row.plaidCategoryPrimary ?? null,
+    plaidCategoryDetailed:
+      row.plaidCategoryDetailed ?? row.subcategory ?? null,
+    isTransferInternal: Boolean(row.isTransferInternal),
+    isRefund: Boolean(row.isRefund),
+    isIncomeFlag: Boolean(row.isIncomeFlag),
+    isRecurringExcluded: Boolean(row.isRecurringExcluded),
+    recurringReviewState:
+      (row.recurringReviewState as MoneyTransaction["recurringReviewState"]) ??
+      null,
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
   };
 }
 
@@ -89,6 +118,8 @@ export async function upsertPlaidTransactionsForItem(args: {
     pending: boolean;
     needsReview: boolean;
     notes?: string;
+    plaidCategoryPrimary?: string | null;
+    plaidCategoryDetailed?: string | null;
   }>;
 }) {
   const prisma = getPrisma();
@@ -96,6 +127,37 @@ export async function upsertPlaidTransactionsForItem(args: {
 
   for (const txn of args.transactions) {
     const plaidTransactionIdHash = hashPlaidId(txn.plaidTransactionId);
+    const existing = await prisma.moneyTransaction.findUnique({
+      where: {
+        userId_plaidTransactionIdHash: {
+          userId: args.userId,
+          plaidTransactionIdHash,
+        },
+      },
+    });
+
+    const sharedFields = {
+      plaidItemId: args.plaidItemId,
+      accountId: txn.accountId,
+      date: new Date(`${txn.date.slice(0, 10)}T00:00:00`),
+      merchantName: txn.merchantName,
+      description: txn.description,
+      amount: txn.amount,
+      pending: txn.pending,
+      source: args.source,
+      plaidCategoryPrimary: txn.plaidCategoryPrimary ?? null,
+      plaidCategoryDetailed: txn.plaidCategoryDetailed ?? txn.subcategory ?? null,
+      subcategory: txn.subcategory ?? null,
+    };
+
+    if (existing?.reviewedAt) {
+      await prisma.moneyTransaction.update({
+        where: { id: existing.id },
+        data: sharedFields,
+      });
+      continue;
+    }
+
     await prisma.moneyTransaction.upsert({
       where: {
         userId_plaidTransactionIdHash: {
@@ -121,20 +183,16 @@ export async function upsertPlaidTransactionsForItem(args: {
         source: args.source,
         needsReview: txn.needsReview,
         notes: txn.notes ?? null,
+        plaidCategoryPrimary: txn.plaidCategoryPrimary ?? null,
+        plaidCategoryDetailed: txn.plaidCategoryDetailed ?? txn.subcategory ?? null,
+        reviewState: txn.needsReview ? "needs_review" : "categorized",
+        classificationSource: "plaid",
       },
       update: {
-        plaidItemId: args.plaidItemId,
-        accountId: txn.accountId,
-        date: new Date(`${txn.date.slice(0, 10)}T00:00:00`),
-        merchantName: txn.merchantName,
-        description: txn.description,
-        amount: txn.amount,
+        ...sharedFields,
         type: txn.type,
         classification: txn.classification,
         category: txn.category,
-        subcategory: txn.subcategory ?? null,
-        pending: txn.pending,
-        source: args.source,
         needsReview: txn.needsReview,
         notes: txn.notes ?? null,
       },

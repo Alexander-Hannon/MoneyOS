@@ -82,11 +82,34 @@ function alreadyTracked(
   subscriptions: Subscription[],
   income: IncomeSource[],
 ): boolean {
-  const n = normalizeName(name);
+  const fuzzy = (left: string, right: string) => {
+    const a = normalizeName(left);
+    const b = normalizeName(right);
+    if (!a || !b) return false;
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+    const tokens = (value: string) =>
+      value.split(/\s+/).filter((token) => token.length >= 3);
+    const aTokens = tokens(a);
+    const bTokens = tokens(b);
+    return aTokens.some((token) => bTokens.includes(token));
+  };
+
   return (
-    bills.some((b) => normalizeName(b.name) === n) ||
-    subscriptions.some((s) => normalizeName(s.name) === n) ||
-    income.some((i) => normalizeName(i.source) === n)
+    bills.some((b) => fuzzy(name, b.name) || (b.payeeName && fuzzy(name, b.payeeName))) ||
+    subscriptions.some((s) => fuzzy(name, s.name)) ||
+    income.some((i) => fuzzy(name, i.source))
+  );
+}
+
+function isRecurringExcludedTransaction(txn: MoneyTransaction): boolean {
+  if (txn.isRecurringExcluded) return true;
+  if (txn.linkedBillId || txn.linkedSubscriptionId) return true;
+  const state = txn.recurringReviewState;
+  return (
+    state === "linked_to_bill" ||
+    state === "linked_to_subscription" ||
+    state === "not_recurring" ||
+    state === "ignored"
   );
 }
 
@@ -109,6 +132,7 @@ export function detectRecurringSuggestions(args: {
 
   for (const txn of transactions) {
     if (isInternalBankMechanics(txn)) continue;
+    if (isRecurringExcludedTransaction(txn)) continue;
 
     const key = normalizeName(txn.merchantName);
     if (!key) continue;

@@ -92,6 +92,23 @@ export interface MoneyTransaction {
   source: DataSource;
   needsReview: boolean;
   notes?: string;
+  userConfirmedCategory?: string | null;
+  reviewState?: import("@/types/transaction-review").TransactionReviewState;
+  classificationSource?:
+    | import("@/types/transaction-review").ClassificationSource
+    | null;
+  linkedBillId?: string | null;
+  linkedSubscriptionId?: string | null;
+  plaidCategoryPrimary?: string | null;
+  plaidCategoryDetailed?: string | null;
+  isTransferInternal?: boolean;
+  isRefund?: boolean;
+  isIncomeFlag?: boolean;
+  isRecurringExcluded?: boolean;
+  recurringReviewState?:
+    | import("@/types/transaction-review").RecurringReviewState
+    | null;
+  reviewedAt?: string | null;
 }
 
 export interface TransactionSyncState {
