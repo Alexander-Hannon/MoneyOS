@@ -1,3 +1,4 @@
+import type { ActionDestinationKey } from "@/lib/action-destinations";
 import type { ActionItem } from "@/types/actions";
 import type { RecurringSuggestion } from "@/types/actions";
 import type {
@@ -40,6 +41,7 @@ export function buildActionItems(args: {
         dueDate: bill.dueDate,
         source: "Bills",
         href: bill.paymentUrl,
+        destinationKey: "pay_bill",
         actionLabel: bill.paymentUrl ? "Open payment" : "Review bill",
         dismissible: true,
       });
@@ -61,6 +63,7 @@ export function buildActionItems(args: {
           dueDate: sub.trialEndDate,
           source: "Subscriptions",
           href: sub.cancellationUrl,
+          destinationKey: "subscriptions_trial",
           actionLabel: sub.cancellationUrl ? "Cancel/manage" : "Review trial",
           dismissible: true,
         });
@@ -77,6 +80,7 @@ export function buildActionItems(args: {
         priority: "medium",
         source: "Subscriptions",
         href: sub.cancellationUrl,
+        destinationKey: "subscriptions_review",
         actionLabel: sub.cancellationUrl ? "Cancel/manage" : "Review",
         dismissible: true,
       });
@@ -95,9 +99,12 @@ export function buildActionItems(args: {
           ? "classify_transaction"
           : alert.syncType === "setup_needed"
             ? "setup"
-            : "review_alert",
+            : alert.syncType === "recurring_candidate_detected"
+              ? "recurring_suggestion"
+              : "review_alert",
       priority: priorityFromSeverity(alert.severity),
       source: "Alerts",
+      destinationKey: destinationKeyForSyncedAlert(alert),
       actionLabel: "Review",
       dismissible: true,
     });
@@ -118,6 +125,7 @@ export function buildActionItems(args: {
         priority: item.priority === "high" ? "high" : "medium",
         dueDate: date,
         source: "Spending Later",
+        destinationKey: "spending_later",
         actionLabel: "Review",
         dismissible: true,
       });
@@ -138,6 +146,7 @@ export function buildActionItems(args: {
             ? "medium"
             : "low",
       source: "Transactions",
+      destinationKey: "recurring_candidates",
       actionLabel: "Review suggestion",
       dismissible: true,
     });
@@ -152,6 +161,7 @@ export function buildActionItems(args: {
         type: "ai_recommendation",
         priority: "medium",
         source: "AI Brief",
+        destinationKey: "ai_recommendation",
         actionLabel: "Review guidance",
         dismissible: true,
       });
@@ -168,4 +178,28 @@ export function buildActionItems(args: {
     if (b.dueDate) return 1;
     return a.title.localeCompare(b.title);
   });
+}
+
+function destinationKeyForSyncedAlert(alert: Alert): ActionDestinationKey {
+  switch (alert.syncType) {
+    case "transaction_needs_classification":
+      return "classify_transactions";
+    case "recurring_candidate_detected":
+      return "recurring_candidates";
+    case "bill_due_soon":
+    case "bill_overdue":
+    case "variable_bill_review":
+    case "low_cash_coverage":
+      return "bills_due";
+    case "subscription_review":
+      return "subscriptions_review";
+    case "trial_ending":
+      return "subscriptions_trial";
+    case "spending_later_due":
+      return "spending_later";
+    case "setup_needed":
+      return "setup_accounts";
+    default:
+      return "alerts";
+  }
 }

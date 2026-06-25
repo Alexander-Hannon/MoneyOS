@@ -34,7 +34,11 @@ function expectedLabel(src: IncomeSource): string {
   return src.amountType === "commission" ? `${base} + commission` : base;
 }
 
-export function IncomePipeline() {
+export function IncomePipeline({
+  reviewOnly = false,
+}: {
+  reviewOnly?: boolean;
+}) {
   const { income, addIncome, updateIncome, deleteIncome, toggleIncomeActive } =
     useMoneyData();
   const toast = useToast();
@@ -42,6 +46,10 @@ export function IncomePipeline() {
   const [editing, setEditing] = useState<IncomeSource | null>(null);
 
   const activeCount = income.filter((i) => i.active).length;
+  const visibleIncome = income.filter((row) => {
+    if (!reviewOnly) return true;
+    return !row.active || row.reliability === "low" || row.expectedAmount === null;
+  });
 
   return (
     <Card>
@@ -64,10 +72,14 @@ export function IncomePipeline() {
           }
         />
 
-        {income.length === 0 ? (
+        {visibleIncome.length === 0 ? (
           <EmptyState
             icon={TrendingUp}
-            title="No income sources added yet."
+            title={
+              reviewOnly
+                ? "No income sources need review."
+                : "No income sources added yet."
+            }
             description="Add the places your money comes from."
           />
         ) : (
@@ -83,7 +95,7 @@ export function IncomePipeline() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {income.map((src) => (
+              {visibleIncome.map((src) => (
                 <TableRow key={src.id}>
                   <TableCell className="font-medium whitespace-nowrap">
                     {src.source}

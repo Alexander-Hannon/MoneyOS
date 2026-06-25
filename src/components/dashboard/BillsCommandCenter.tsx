@@ -37,15 +37,23 @@ function amountLabel(bill: Bill): string {
 
 const statusOptions: BillStatus[] = ["unpaid", "scheduled", "paid", "review"];
 
-export function BillsCommandCenter() {
+export function BillsCommandCenter({
+  dueOnly = false,
+}: {
+  dueOnly?: boolean;
+}) {
   const { bills, addBill, updateBill, deleteBill, setBillStatus } = useMoneyData();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Bill | null>(null);
 
-  const sorted = [...bills].sort(
-    (a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate),
-  );
+  const sorted = [...bills]
+    .filter((bill) => {
+      if (!dueOnly) return true;
+      if (bill.status === "paid") return false;
+      return daysUntil(bill.dueDate) <= 14;
+    })
+    .sort((a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate));
   const due = billsDueWithin(bills, 14);
 
   return (

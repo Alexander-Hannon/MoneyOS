@@ -139,6 +139,7 @@ export function MoneySnapshot({
         accent="text-info"
         badge={label}
         sectionId="recurring-detected"
+        destinationKey="recurring_candidates"
       />
       <ClickableStatusCard
         label="Current status"
