@@ -22,7 +22,11 @@ import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 import type { Subscription } from "@/types/money";
 
-export function SubscriptionWatchlist() {
+export function SubscriptionWatchlist({
+  statusFilter = null,
+}: {
+  statusFilter?: "review" | "trial" | null;
+}) {
   const {
     subscriptions,
     addSubscription,
@@ -34,6 +38,11 @@ export function SubscriptionWatchlist() {
   const [editing, setEditing] = useState<Subscription | null>(null);
 
   const monthlyTotal = monthlySubscriptionTotal(subscriptions);
+  const visibleSubscriptions = subscriptions.filter((sub) => {
+    if (statusFilter === "review") return sub.status === "review";
+    if (statusFilter === "trial") return Boolean(sub.isTrial);
+    return true;
+  });
   const flagged = subscriptions.filter((s) => s.status === "review").length;
 
   return (
@@ -57,15 +66,19 @@ export function SubscriptionWatchlist() {
           }
         />
 
-        {subscriptions.length === 0 ? (
+        {visibleSubscriptions.length === 0 ? (
           <EmptyState
             icon={Repeat}
-            title="No subscriptions added yet."
+            title={
+              statusFilter
+                ? "No subscriptions match this filter."
+                : "No subscriptions added yet."
+            }
             description="Add recurring services to keep an eye on them."
           />
         ) : (
           <ul className="space-y-2">
-            {subscriptions.map((sub) => (
+            {visibleSubscriptions.map((sub) => (
               <li
                 key={sub.id}
                 className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border/60 bg-muted/20 px-3.5 py-2.5 transition-colors hover:border-foreground/15"

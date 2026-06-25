@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { scrollToSection } from "@/lib/scroll-nav";
+import { useActionNavigation } from "@/hooks/useActionNavigation";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { useMoneyData } from "@/lib/storage/store";
 import { generateFirstThreeActions } from "@/lib/action-priority";
@@ -32,39 +32,11 @@ const typeTone: Record<ActionItem["type"], Tone> = {
   review_alert: "warning",
 };
 
-function handleAction(item: ActionItem) {
-  if (item.href) {
-    window.open(item.href, "_blank", "noopener,noreferrer");
-    return;
-  }
-  switch (item.type) {
-    case "pay_bill":
-    case "review_alert":
-      scrollToSection("bills");
-      break;
-    case "trial_ending":
-    case "subscription_review":
-      scrollToSection("subscriptions");
-      break;
-    case "classify_transaction":
-    case "recurring_suggestion":
-      scrollToSection("recurring-detected");
-      break;
-    case "spending_later":
-      scrollToSection("spending-later");
-      break;
-    case "setup":
-      scrollToSection("accounts");
-      break;
-    default:
-      scrollToSection("alerts");
-  }
-}
-
 export function ActionCenter() {
   const fd = useFinancialData();
   const { actionItems } = fd;
   const { dismissActionItem } = useMoneyData();
+  const { navigateToActionItem } = useActionNavigation();
 
   const firstThree = useMemo(() => generateFirstThreeActions(fd), [fd]);
   const visible = actionItems.slice(0, 12);
@@ -130,7 +102,7 @@ export function ActionCenter() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => handleAction(item)}
+                    onClick={() => navigateToActionItem(item)}
                     className="gap-1.5"
                   >
                     {item.href ? (

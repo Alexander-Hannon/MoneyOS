@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -32,6 +33,7 @@ import {
 } from "@/components/spending/SpendingByCategoryChart";
 import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
+import { TransactionClassificationReview } from "@/components/spending/TransactionClassificationReview";
 import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { shouldShowLiveConnectPrimary } from "@/hooks/usePlaidConnection";
@@ -61,6 +63,7 @@ function StatTile({
   icon: Icon,
   accent,
   title,
+  onClick,
 }: {
   label: string;
   value: string;
@@ -68,9 +71,10 @@ function StatTile({
   icon: LucideIcon;
   accent: string;
   title?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <Card className="p-4" title={title}>
+  const content = (
+    <>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
@@ -81,6 +85,25 @@ function StatTile({
         {value}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={title}
+        className="rounded-[var(--radius)] border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/30"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Card className="p-4" title={title}>
+      {content}
     </Card>
   );
 }
@@ -89,6 +112,12 @@ const alertTone = { low: "info", medium: "warning", high: "danger" } as const;
 
 export function SpendingDashboard() {
   const fd = useFinancialData();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeFilter = searchParams.get("filter");
+  const classificationFilterActive =
+    activeFilter === "needs-classification" && pathname === "/spending";
   const usingPlaid = fd.plaidConnected;
   const txns = fd.transactions;
   const hasData = txns.length > 0;
@@ -161,6 +190,10 @@ export function SpendingDashboard() {
         : "Local user data — add accounts or connect Plaid sandbox";
 
   const reviewAmount = fd.spendingSummary.reviewAmount;
+
+  const clearClassificationFilter = () => {
+    router.push("/spending");
+  };
 
   return (
     <Card className="min-w-0">
@@ -248,6 +281,32 @@ export function SpendingDashboard() {
           />
         ) : (
           <>
+            {classificationFilterActive ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <span className="font-medium">Filter: Needs classification</span>
+                <button
+                  type="button"
+                  className="text-warning/80 underline-offset-2 hover:underline"
+                  onClick={clearClassificationFilter}
+                >
+                  Clear filter
+                </button>
+              </div>
+            ) : null}
+
+            <TransactionClassificationReview
+              transactions={txns}
+              active={classificationFilterActive}
+              categoryOverrides={categoryOverrides}
+              onCategoryOverride={(transactionId, category) =>
+                setCategoryOverrides((prev) => ({
+                  ...prev,
+                  [transactionId]: category,
+                }))
+              }
+              onClearFilter={clearClassificationFilter}
+            />
+
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatTile
                 label="Monthly spending"
@@ -278,6 +337,11 @@ export function SpendingDashboard() {
                 icon={ClipboardList}
                 accent="text-warning"
                 title="Review includes uncategorized transactions that may need manual classification. Transfers and payments are excluded."
+                onClick={
+                  review.length > 0
+                    ? () => router.push("/spending?filter=needs-classification")
+                    : undefined
+                }
               />
               <StatTile
                 label="Recurring charges"

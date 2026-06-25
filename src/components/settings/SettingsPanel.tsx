@@ -340,7 +340,7 @@ export function SettingsPanel() {
         </CardContent>
       </Card>
 
-      <Card className="border-warning/30">
+      <Card className="border-warning/30" id="live-bank-accounts">
         <CardContent className="space-y-4 pt-5">
           <h2 className="text-sm font-medium">Personal live Plaid (Phase 12)</h2>
           <p className="text-xs text-muted-foreground">

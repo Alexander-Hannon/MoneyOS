@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Archive,
   ArrowRight,
@@ -24,10 +24,9 @@ import { ExplainAlertButton } from "@/components/ai/ExplainAlertButton";
 import { MoneyAgentBrief } from "@/components/ai/MoneyAgentBrief";
 import { AlertForm } from "@/components/forms/AlertForm";
 import { sortAlerts, toneForAlertSeverity } from "@/lib/money-utils";
+import { useActionNavigation } from "@/hooks/useActionNavigation";
 import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
-import { useHighlight } from "@/components/providers/highlight";
-import { cn } from "@/lib/utils";
 import type { Alert, AlertSeverity, AlertStatus } from "@/types/money";
 
 const iconBySeverity: Record<AlertSeverity, { icon: LucideIcon; tint: string }> = {
@@ -42,25 +41,10 @@ export function MoneyAgentAlerts() {
   const { alerts, addAlert, updateAlert, setAlertStatus, deleteAlert } =
     useMoneyData();
   const toast = useToast();
-  const { highlightedId } = useHighlight();
+  const { navigateToAlert } = useActionNavigation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Alert | null>(null);
   const [filter, setFilter] = useState<AlertStatus>("active");
-
-  // When "Take action" highlights an alert, switch to its tab and scroll to it.
-  useEffect(() => {
-    if (!highlightedId) return;
-    const target = alerts.find((a) => a.id === highlightedId);
-    if (!target) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFilter(target.status);
-    const t = setTimeout(() => {
-      document
-        .getElementById(`alert-card-${highlightedId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 60);
-    return () => clearTimeout(t);
-  }, [highlightedId, alerts]);
 
   const visible = sortAlerts(alerts.filter((a) => a.status === filter));
   const activeReviewCount = alerts.filter(
@@ -129,10 +113,7 @@ export function MoneyAgentAlerts() {
                 <div
                   key={alert.id}
                   id={`alert-card-${alert.id}`}
-                  className={cn(
-                    "flex flex-col rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-foreground/15",
-                    highlightedId === alert.id && "highlight-target",
-                  )}
+                  className="flex flex-col rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-foreground/15"
                 >
                   <div className="flex items-start gap-3">
                     <span
@@ -178,6 +159,16 @@ export function MoneyAgentAlerts() {
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-border/50 pt-2.5">
+                    {alert.reviewRequired && alert.status === "active" ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigateToAlert(alert)}
+                      >
+                        <ArrowRight className="size-3.5" />
+                        Review
+                      </Button>
+                    ) : null}
                     <ExplainAlertButton alert={alert} />
                     {alert.status !== "active" && (
                       <button

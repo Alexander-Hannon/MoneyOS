@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { scrollToSection } from "@/lib/scroll-nav";
+import { useActionNavigation } from "@/hooks/useActionNavigation";
+import type { ActionDestinationKey } from "@/lib/action-destinations";
 import { cn } from "@/lib/utils";
 
 const cardBase =
@@ -16,6 +18,7 @@ export function ClickableStatCard({
   accent,
   badge,
   sectionId,
+  destinationKey,
   className,
   layout = "horizontal",
 }: {
@@ -25,17 +28,29 @@ export function ClickableStatCard({
   icon: LucideIcon;
   accent: string;
   badge?: string;
-  sectionId: string;
+  sectionId?: string;
+  destinationKey?: ActionDestinationKey;
   className?: string;
   layout?: "horizontal" | "vertical";
 }) {
+  const { navigateToKey } = useActionNavigation();
   const ariaLabel = `Go to ${label}`;
+
+  const handleClick = () => {
+    if (destinationKey) {
+      navigateToKey(destinationKey);
+      return;
+    }
+    if (sectionId) {
+      scrollToSection(sectionId);
+    }
+  };
 
   if (layout === "vertical") {
     return (
       <button
         type="button"
-        onClick={() => scrollToSection(sectionId)}
+        onClick={handleClick}
         aria-label={ariaLabel}
         className={cn(cardBase, "w-full p-4 text-left", className)}
       >
@@ -61,7 +76,7 @@ export function ClickableStatCard({
   return (
     <button
       type="button"
-      onClick={() => scrollToSection(sectionId)}
+      onClick={handleClick}
       aria-label={ariaLabel}
       className={cn(
         cardBase,
@@ -99,17 +114,31 @@ export function ClickableStatusCard({
   label,
   children,
   sectionId,
+  destinationKey,
   className,
 }: {
   label: string;
   children: ReactNode;
-  sectionId: string;
+  sectionId?: string;
+  destinationKey?: ActionDestinationKey;
   className?: string;
 }) {
+  const { navigateToKey } = useActionNavigation();
+
+  const handleClick = () => {
+    if (destinationKey) {
+      navigateToKey(destinationKey);
+      return;
+    }
+    if (sectionId) {
+      scrollToSection(sectionId);
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={() => scrollToSection(sectionId)}
+      onClick={handleClick}
       aria-label={`Go to ${label}`}
       className={cn(
         cardBase,

@@ -4,7 +4,7 @@ import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { toneForAlertSeverity } from "@/lib/money-utils";
-import { useHighlight } from "@/components/providers/highlight";
+import { useActionNavigation } from "@/hooks/useActionNavigation";
 import type { Alert } from "@/types/money";
 
 const severityRing: Record<Alert["severity"], string> = {
@@ -14,7 +14,7 @@ const severityRing: Record<Alert["severity"], string> = {
 };
 
 export function NextResponsibleAction({ action }: { action: Alert | null }) {
-  const { highlight } = useHighlight();
+  const { navigateToAlert } = useActionNavigation();
 
   if (!action) {
     return (
@@ -64,7 +64,7 @@ export function NextResponsibleAction({ action }: { action: Alert | null }) {
         <Button
           size="lg"
           className="shrink-0 self-start lg:self-auto"
-          onClick={() => highlight(action.id)}
+          onClick={() => navigateToAlert(action)}
         >
           Take action
           <ArrowRight />

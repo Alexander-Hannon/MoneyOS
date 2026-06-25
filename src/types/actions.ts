@@ -40,6 +40,7 @@ export interface ActionItem {
   dueDate?: string;
   source: string;
   href?: string;
+  destinationKey?: import("@/lib/action-destinations").ActionDestinationKey;
   actionLabel: string;
   dismissible: boolean;
 }

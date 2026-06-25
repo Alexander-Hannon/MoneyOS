@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
@@ -15,6 +16,7 @@ import { IncomePipeline } from "@/components/dashboard/IncomePipeline";
 import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchlist";
 import { MoneyAgentAlerts } from "@/components/dashboard/MoneyAgentAlerts";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
+import { DashboardHashScroll } from "@/components/dashboard/DashboardHashScroll";
 import { ActionCenter } from "@/components/dashboard/ActionCenter";
 import { DetectedRecurringItems } from "@/components/dashboard/DetectedRecurringItems";
 import { ConnectedInstitutionsSection } from "@/components/dashboard/ConnectedInstitutionsSection";
@@ -76,6 +78,7 @@ export function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <DashboardHashScroll />
       <Header />
       <Nav />
 
@@ -158,7 +161,9 @@ export function Dashboard() {
         </div>
 
         <section id="spending" className="scroll-mt-20">
-          <SpendingDashboard />
+          <Suspense fallback={null}>
+            <SpendingDashboard />
+          </Suspense>
         </section>
 
         <section id="action-center" className="scroll-mt-20">
@@ -169,7 +174,7 @@ export function Dashboard() {
           <MoneyAgentAlerts />
         </section>
 
-        <section id="recurring-detected" className="scroll-mt-20">
+        <section id="subscriptions-recurring-detected" className="scroll-mt-20">
           <DetectedRecurringItems />
         </section>
 

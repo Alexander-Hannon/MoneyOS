@@ -61,7 +61,7 @@ export function DetectedRecurringItems() {
   const toast = useToast();
 
   return (
-    <Card>
+    <Card id="subscriptions-recurring-detected">
       <CardContent className="pt-5">
         <SectionHeader
           icon={Repeat2}
