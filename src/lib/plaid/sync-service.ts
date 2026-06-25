@@ -206,6 +206,8 @@ export async function syncPlaidItemForUser(
       subcategory: normalized.subcategory,
       pending: normalized.pending,
       needsReview: normalized.needsReview,
+      plaidCategoryPrimary: normalized.plaidCategoryPrimary ?? null,
+      plaidCategoryDetailed: normalized.plaidCategoryDetailed ?? null,
     };
   });
 

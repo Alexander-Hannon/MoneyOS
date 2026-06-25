@@ -107,7 +107,7 @@ export function SuggestCategoryButton({
                   setOpen(false);
                 }}
               >
-                Approve suggestion (this session)
+                Approve suggestion
               </Button>
               <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>
                 Dismiss
@@ -115,8 +115,8 @@ export function SuggestCategoryButton({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {AI_DISCLAIMER} Category changes apply to this browser session
-              only until transaction editing is added.
+              {AI_DISCLAIMER} Open Review on the transaction row to persist your
+              decision across devices.
             </p>
           </div>
         )}

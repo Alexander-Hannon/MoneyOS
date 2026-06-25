@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -34,7 +35,7 @@ import {
 import { ConnectBankCard } from "@/components/spending/ConnectBankCard";
 import { PlaidStatusCard } from "@/components/spending/PlaidStatusCard";
 import { TransactionClassificationReview } from "@/components/spending/TransactionClassificationReview";
-import { SuggestCategoryButton } from "@/components/ai/SuggestCategoryButton";
+import { TransactionReviewDrawer } from "@/components/spending/TransactionReviewDrawer";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { shouldShowLiveConnectPrimary } from "@/hooks/usePlaidConnection";
 import { resolveChartPresentationInfo } from "@/lib/chart-presentation";
@@ -54,7 +55,7 @@ import {
   transactionsNeedingReview,
   transferPaymentTotal,
 } from "@/lib/transaction-utils";
-import type { TransactionCategory } from "@/types/transactions";
+import { reviewStateLabel } from "@/lib/transaction-review/categories";
 
 function StatTile({
   label,
@@ -127,9 +128,7 @@ export function SpendingDashboard() {
     storedMode: fd.storedMode,
   });
   const [showTransferNote, setShowTransferNote] = useState(true);
-  const [categoryOverrides, setCategoryOverrides] = useState<
-    Record<string, TransactionCategory>
-  >({});
+  const [recentReviewId, setRecentReviewId] = useState<string | null>(null);
 
   const spending = fd.spendingSummary.monthlySpending;
   const income = fd.spendingSummary.monthlyIncome;
@@ -297,13 +296,6 @@ export function SpendingDashboard() {
             <TransactionClassificationReview
               transactions={txns}
               active={classificationFilterActive}
-              categoryOverrides={categoryOverrides}
-              onCategoryOverride={(transactionId, category) =>
-                setCategoryOverrides((prev) => ({
-                  ...prev,
-                  [transactionId]: category,
-                }))
-              }
               onClearFilter={clearClassificationFilter}
             />
 
@@ -473,11 +465,22 @@ export function SpendingDashboard() {
                   </TableHeader>
                   <TableBody>
                     {recent.map((t) => {
-                      const displayCategory =
-                        categoryOverrides[t.id] ??
-                        (t.classification === "review" ? "Review" : t.category);
                       const needsReview =
-                        t.classification === "review" && !categoryOverrides[t.id];
+                        t.classification === "review" && t.needsReview;
+                      const displayCategory = needsReview
+                        ? "Review"
+                        : (t.userConfirmedCategory ??
+                          reviewStateLabel(t.reviewState, {
+                            linkedBillName: t.linkedBillId
+                              ? fd.bills.find((b) => b.id === t.linkedBillId)
+                                  ?.name
+                              : null,
+                            linkedSubscriptionName: t.linkedSubscriptionId
+                              ? fd.subscriptions.find(
+                                  (s) => s.id === t.linkedSubscriptionId,
+                                )?.name
+                              : null,
+                          }));
 
                       return (
                       <TableRow key={t.id}>
@@ -497,17 +500,17 @@ export function SpendingDashboard() {
                             label={displayCategory}
                             tone={needsReview ? "warning" : "neutral"}
                           />
-                          {needsReview && (
-                            <SuggestCategoryButton
-                              transaction={t}
-                              onApprove={(cat) =>
-                                setCategoryOverrides((prev) => ({
-                                  ...prev,
-                                  [t.id]: cat,
-                                }))
-                              }
-                            />
-                          )}
+                          {needsReview ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="ml-1 h-auto px-1 py-0 text-[10px] text-primary"
+                              onClick={() => setRecentReviewId(t.id)}
+                            >
+                              Review
+                            </Button>
+                          ) : null}
                         </TableCell>
                         <TableCell
                           className={`text-right tabular-nums whitespace-nowrap ${
@@ -588,6 +591,17 @@ export function SpendingDashboard() {
           </>
         )}
       </CardContent>
+
+      <TransactionReviewDrawer
+        open={recentReviewId != null}
+        onClose={() => setRecentReviewId(null)}
+        transaction={txns.find((t) => t.id === recentReviewId) ?? null}
+        bills={fd.bills}
+        subscriptions={fd.subscriptions}
+        linkedAccounts={fd.linkedAccounts}
+        remainingCount={review.length}
+        totalCount={review.length}
+      />
     </Card>
   );
 }

@@ -308,7 +308,20 @@ export function shouldCountInMonthlySpending(txn: MoneyTransaction): boolean {
 }
 
 export function shouldCountAsReview(txn: MoneyTransaction): boolean {
-  return txn.classification === "review" && txn.needsReview;
+  if (txn.needsReview === false) return false;
+  if (txn.linkedBillId || txn.linkedSubscriptionId) return false;
+  if (
+    txn.reviewState === "linked_bill" ||
+    txn.reviewState === "linked_subscription" ||
+    txn.reviewState === "categorized" ||
+    txn.reviewState === "transfer" ||
+    txn.reviewState === "refund" ||
+    txn.reviewState === "income"
+  ) {
+    return false;
+  }
+  if (txn.isTransferInternal) return false;
+  return txn.classification === "review" || txn.needsReview;
 }
 
 /** @deprecated Use isSpendingTransaction */
@@ -411,7 +424,12 @@ export function transactionsNeedingReview(
 export function recurringChargeCandidates(
   txns: MoneyTransaction[],
 ): MoneyTransaction[] {
-  const monthTxns = filterCurrentMonth(txns).filter(shouldCountInMonthlySpending);
+  const monthTxns = filterCurrentMonth(txns).filter((t) => {
+    if (!shouldCountInMonthlySpending(t)) return false;
+    if (t.isRecurringExcluded) return false;
+    if (t.linkedBillId || t.linkedSubscriptionId) return false;
+    return true;
+  });
   const counts = new Map<string, number>();
   monthTxns.forEach((t) =>
     counts.set(t.merchantName, (counts.get(t.merchantName) ?? 0) + 1),
