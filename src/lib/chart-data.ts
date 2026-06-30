@@ -3,9 +3,10 @@ import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import type { Bill, IncomeSource, Subscription } from "@/types/money";
 import type { MoneyTransaction } from "@/types/transactions";
 import {
-  expectedMonthlyIncome as sumExpectedMonthlyIncome,
-  monthlyRecurringCost,
-} from "@/lib/money-utils";
+  confirmedBillsMonthlyTotal,
+  approvedSubscriptionsMonthlyTotal,
+} from "@/lib/recurring-obligations";
+import { expectedMonthlyIncome as sumExpectedMonthlyIncome } from "@/lib/money-utils";
 
 export type ChartDataSource =
   | "none"
@@ -93,10 +94,9 @@ export function computeManualMonthlyProjection(args: {
   subscriptions: Subscription[];
 }): ManualMonthlyProjection {
   const expectedMonthlyIncomeValue = sumExpectedMonthlyIncome(args.income);
-  const expectedMonthlyObligations = monthlyRecurringCost(
-    args.bills,
-    args.subscriptions,
-  );
+  const expectedMonthlyObligations =
+    confirmedBillsMonthlyTotal(args.bills) +
+    approvedSubscriptionsMonthlyTotal(args.subscriptions);
 
   return {
     expectedMonthlyIncome: expectedMonthlyIncomeValue,

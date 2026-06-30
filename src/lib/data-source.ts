@@ -9,13 +9,15 @@ import {
 import { demoAccounts } from "@/lib/data/demo-user-data";
 import { getMockTransactions } from "@/lib/data/mock-transactions";
 import { countActiveReviewAlerts } from "@/lib/alert-sync";
+import { computeRecurringObligationsBreakdown } from "@/lib/recurring-obligations";
+import type { RecurringObligationsBreakdown } from "@/lib/recurring-obligations";
+import type { RecurringSuggestion } from "@/types/actions";
 import {
   billsDueWithin,
   computeDashboardStatus,
   expectedIncomeWithin,
   expectedMonthlyIncome,
   hasHighSeverityReview,
-  monthlyRecurringCost,
   overdueUnpaidCount,
   totalCashAvailable,
 } from "@/lib/money-utils";
@@ -213,6 +215,7 @@ export type DashboardSummary = {
   billsDue14: ReturnType<typeof billsDueWithin>;
   income14: ReturnType<typeof expectedIncomeWithin>;
   monthlyRecurring: number;
+  recurringBreakdown: RecurringObligationsBreakdown;
   expectedMonthlyIncome: number;
   manualReviewItems: number;
   syncedReviewCount: number;
@@ -235,6 +238,7 @@ export function computeDashboardSummary(args: {
   plaidConnected: boolean;
   transactions: MoneyTransaction[];
   activePlaidEnvironment?: PlaidEnvironment | null;
+  recurringSuggestions?: RecurringSuggestion[];
 }): DashboardSummary {
   const {
     accounts,
@@ -246,6 +250,7 @@ export function computeDashboardSummary(args: {
     plaidConnected,
     transactions,
     activePlaidEnvironment = null,
+    recurringSuggestions = [],
   } = args;
 
   const manualEmpty = isManualDataEmpty({ bills, income, subscriptions, alerts });
@@ -254,16 +259,14 @@ export function computeDashboardSummary(args: {
   const billsDue14 = billsDueWithin(bills, 14);
   const income14 = expectedIncomeWithin(income, 14);
   const monthlyIncomeEstimate = expectedMonthlyIncome(income);
-  let monthlyRecurring = monthlyRecurringCost(bills, subscriptions);
-
-  if (plaidConnected) {
-    const recurringTxns = recurringChargeCandidates(transactions);
-    const sandboxRecurring = recurringTxns.reduce(
-      (sum, t) => sum + Math.abs(t.amount),
-      0,
-    );
-    monthlyRecurring += sandboxRecurring;
-  }
+  const recurringBreakdown = computeRecurringObligationsBreakdown({
+    bills,
+    subscriptions,
+    recurringSuggestions,
+    transactions,
+    plaidConnected,
+  });
+  const monthlyRecurring = recurringBreakdown.totalConfirmedMonthlyObligations;
 
   const manualReviewItems = countActiveReviewAlerts(alerts);
   const syncedReviewCount = manualReviewItems;
@@ -308,6 +311,7 @@ export function computeDashboardSummary(args: {
     billsDue14,
     income14,
     monthlyRecurring,
+    recurringBreakdown,
     expectedMonthlyIncome: monthlyIncomeEstimate,
     manualReviewItems,
     syncedReviewCount,

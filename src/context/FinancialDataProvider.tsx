@@ -780,6 +780,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         plaidConnected,
         transactions: transactionsForContext,
         activePlaidEnvironment,
+        recurringSuggestions,
       }),
     [
       accounts,
@@ -790,6 +791,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       storedMode,
       plaidConnected,
       transactionsForContext,
+      recurringSuggestions,
       activePlaidEnvironment,
     ],
   );

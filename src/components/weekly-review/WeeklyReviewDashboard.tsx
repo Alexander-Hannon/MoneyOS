@@ -192,7 +192,7 @@ export function WeeklyReviewDashboard() {
           value={formatCurrency(input.incomeExpected14)}
         />
         <MetricCard
-          label="Monthly recurring"
+          label="Confirmed monthly obligations"
           value={formatCurrency(input.monthlyRecurring)}
         />
         <MetricCard
