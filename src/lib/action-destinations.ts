@@ -4,6 +4,9 @@ import type { Alert } from "@/types/money";
 export type ActionDestinationKey =
   | "classify_transactions"
   | "recurring_candidates"
+  | "recurring_obligations"
+  | "cash_available"
+  | "review_items"
   | "bills_due"
   | "income_review"
   | "spending_later"
@@ -30,8 +33,17 @@ export const ACTION_DESTINATIONS: Record<
     query: { filter: "needs-classification" },
   },
   recurring_candidates: {
-    path: "/subscriptions",
-    query: { filter: "detected" },
+    path: "/recurring",
+    query: { section: "detected" },
+  },
+  recurring_obligations: {
+    path: "/recurring",
+  },
+  cash_available: {
+    path: "/cash",
+  },
+  review_items: {
+    path: "/action-center",
   },
   bills_due: { path: "/bills", query: { filter: "due" } },
   income_review: { path: "/income", query: { filter: "review" } },
@@ -48,7 +60,8 @@ export const ACTION_DESTINATIONS: Record<
   pay_bill: { path: "/bills", query: { filter: "due" } },
   alerts: { path: "/", hash: "alerts" },
   ai_recommendation: { path: "/", hash: "action-center" },
-  accounts: { path: "/", hash: "accounts" },
+  /** @deprecated Use cash_available */
+  accounts: { path: "/cash" },
 };
 
 export function buildDestinationUrl(dest: ActionDestination): string {
@@ -96,7 +109,7 @@ export function resolveDestinationKeyForAlert(
   if (alert.category === "bill") return "bills_due";
   if (alert.category === "subscription") return "subscriptions_review";
   if (alert.category === "spending") return "spending_later";
-  if (alert.category === "account") return "setup_accounts";
+  if (alert.category === "account") return "cash_available";
   return "alerts";
 }
 
@@ -123,7 +136,7 @@ export function resolveDestinationKeyForActionItem(
     case "ai_recommendation":
       return "ai_recommendation";
     case "review_alert":
-      return "alerts";
+      return "review_items";
     default:
       return "alerts";
   }

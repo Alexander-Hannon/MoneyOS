@@ -38,12 +38,15 @@ export function transactionReviewLabel(
   return `${count} ${noun}${count === 1 ? "" : "s"} need classification`;
 }
 
-export function monthlyRecurringHint(
-  environment: PlaidEnvironment | null | undefined,
+import { formatCurrency } from "@/lib/money-utils";
+
+export function confirmedMonthlyObligationsHint(
+  detectedCandidatesTotal: number,
 ): string {
-  return isLivePlaidEnvironment(environment)
-    ? "bills + subscriptions + live recurring"
-    : "bills + subscriptions + sandbox recurring";
+  if (detectedCandidatesTotal > 0) {
+    return `Bills + approved subscriptions · Detected candidates: ${formatCurrency(detectedCandidatesTotal, true)} not included`;
+  }
+  return "Bills + approved subscriptions";
 }
 
 export function incomeDetectedHint(args: {

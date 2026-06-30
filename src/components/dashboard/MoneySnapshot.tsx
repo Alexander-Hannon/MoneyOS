@@ -21,8 +21,8 @@ import type {
 import type { DashboardSummary, IncomeSummary } from "@/lib/data-source";
 import {
   cashAvailableHint,
+  confirmedMonthlyObligationsHint,
   incomeDetectedHint,
-  monthlyRecurringHint,
   transactionReviewLabel,
 } from "@/lib/plaid-ui-labels";
 import {
@@ -100,7 +100,7 @@ export function MoneySnapshot({
         icon={Banknote}
         accent="text-primary"
         badge={cashBadge}
-        sectionId="accounts"
+        destinationKey="cash_available"
       />
       <ClickableStatCard
         layout="vertical"
@@ -132,14 +132,15 @@ export function MoneySnapshot({
       />
       <ClickableStatCard
         layout="vertical"
-        label="Monthly recurring"
+        label="Confirmed monthly obligations"
         value={formatCurrency(summary.monthlyRecurring)}
-        hint={monthlyRecurringHint(activePlaidEnvironment)}
+        hint={confirmedMonthlyObligationsHint(
+          summary.recurringBreakdown.detectedCandidatesExcludedTotal,
+        )}
         icon={Repeat}
         accent="text-info"
         badge={label}
-        sectionId="recurring-detected"
-        destinationKey="recurring_candidates"
+        destinationKey="recurring_obligations"
       />
       <ClickableStatusCard
         label="Current status"
