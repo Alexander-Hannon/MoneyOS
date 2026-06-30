@@ -17,8 +17,6 @@ import { useFinancialData } from "@/hooks/useFinancialData";
 import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 import {
-  approvedSubscriptionsMonthlyTotal,
-  confirmedBillsMonthlyTotal,
   computeRecurringObligationsBreakdown,
   isApprovedSubscription,
   reconciledRecurringTransactions,
@@ -114,33 +112,77 @@ export function RecurringCommandCenter() {
             description="Confirmed bills and approved subscriptions only"
           />
           <p className="text-3xl font-semibold tabular-nums">
-            {formatCurrency(breakdown.totalConfirmedMonthlyObligations)}
+            {formatCurrency(breakdown.totalConfirmedMonthlyObligations, true)}
           </p>
           <div className="grid gap-2 text-sm sm:grid-cols-2">
             <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Bills subtotal</p>
+              <p className="text-xs text-muted-foreground">Confirmed bills subtotal</p>
               <p className="font-semibold tabular-nums">
-                {formatCurrency(confirmedBillsMonthlyTotal(fd.bills))}
+                {formatCurrency(breakdown.confirmedBillsTotal, true)}
               </p>
             </div>
             <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground">Subscriptions subtotal</p>
+              <p className="text-xs text-muted-foreground">
+                Approved subscriptions subtotal
+              </p>
               <p className="font-semibold tabular-nums">
-                {formatCurrency(approvedSubscriptionsMonthlyTotal(fd.subscriptions))}
+                {formatCurrency(breakdown.approvedSubscriptionsTotal, true)}
+              </p>
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">
+                Confirmed monthly obligations total
+              </p>
+              <p className="font-semibold tabular-nums">
+                {formatCurrency(breakdown.totalConfirmedMonthlyObligations, true)}
+              </p>
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">
+                Detected candidates excluded
+              </p>
+              <p className="font-semibold tabular-nums text-warning">
+                {formatCurrency(breakdown.detectedCandidatesExcludedTotal, true)}
               </p>
             </div>
           </div>
           {process.env.NODE_ENV !== "production" ? (
-            <pre className="overflow-x-auto rounded-[var(--radius-md)] border border-border bg-muted/30 p-3 text-[10px] text-muted-foreground">
-              {JSON.stringify(breakdown, null, 2)}
-            </pre>
-          ) : null}
-          {breakdown.detectedCandidatesExcludedTotal > 0 ? (
-            <p className="text-xs text-warning">
-              Detected candidates:{" "}
-              {formatCurrency(breakdown.detectedCandidatesExcludedTotal, true)} not
-              included in this total.
-            </p>
+            <details className="rounded-[var(--radius-md)] border border-dashed border-border/60 bg-muted/10 p-3 text-xs">
+              <summary className="cursor-pointer font-medium text-muted-foreground">
+                Developer diagnostics
+              </summary>
+              <dl className="mt-2 space-y-1.5">
+                {(
+                  [
+                    ["Confirmed bills total", breakdown.confirmedBillsTotal],
+                    [
+                      "Approved subscriptions total",
+                      breakdown.approvedSubscriptionsTotal,
+                    ],
+                    ["Approved recurring total", breakdown.approvedRecurringTotal],
+                    [
+                      "Detected candidates excluded",
+                      breakdown.detectedCandidatesExcludedTotal,
+                    ],
+                    [
+                      "Legacy transaction candidates",
+                      breakdown.legacyTransactionCandidatesTotal,
+                    ],
+                    [
+                      "Total confirmed monthly obligations",
+                      breakdown.totalConfirmedMonthlyObligations,
+                    ],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="shrink-0 font-medium tabular-nums">
+                      {formatCurrency(value, true)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
           ) : null}
         </CardContent>
       </Card>
