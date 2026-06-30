@@ -1,108 +1,228 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# MoneyOS Agent Instructions
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+MoneyOS is a personal finance command center by Apalym.
 
-## Cursor Cloud specific instructions
+Its operating question is:
 
-MoneyOS is a single-service Next.js 16 (App Router) + React 19 + Tailwind v4 app — a personal finance command center by Apalym, organized around one question: "What is the next responsible financial action?"
+> What is the next responsible financial action?
 
-By design there is **no database and no production auth yet** — manual data is editable in-browser (`localStorage`). Plaid is **sandbox-only** with server-side in-memory tokens (dev). Don't add live Plaid, Prisma, or production auth unless the spec changes — but Phase 6 added security **scaffolding** in `docs/security/`.
+MoneyOS may process real personal financial data through Plaid Personal Live mode. Treat all financial data, credentials, tokens, and account-linked records as highly sensitive.
 
-Standard scripts are in `package.json` (`dev`, `build`, `lint`); there are no DB scripts. Architecture / non-obvious notes:
+## Current Architecture
 
-- Types live in `src/types/money.ts` (`Account`, `Bill`, `IncomeSource`, `Subscription`, `Alert`, plus `DashboardStatus`/`Tone`). Note: this is `src/types`, NOT `src/lib/types`.
-- Editing & persistence: `src/lib/storage/local-storage.ts` is the thin localStorage layer (SSR-safe no-ops, `newId`); `src/lib/storage/store.tsx` is the `MoneyDataProvider` + `useMoneyData()` client store with CRUD for bills/income/subscriptions/alerts and `resetAll()`. The provider + `ToastProvider` wrap the app in `layout.tsx`.
-- Hydration pattern (important): the store initializes from defaults and loads `localStorage` in a `useEffect` after mount, so SSR/first-client render == defaults (no hydration mismatch), then saved edits apply. That effect intentionally calls `setState` (the `react-hooks/set-state-in-effect` rule is disabled there) — keep it that way. The dashboard is therefore a client tree (`src/components/dashboard/Dashboard.tsx`); `page.tsx` just renders it (kept `force-dynamic`).
-- Editable sections (`BillsCommandCenter`, `IncomePipeline`, `SubscriptionWatchlist`, `MoneyAgentAlerts`) are client components that read `useMoneyData()` directly and edit via modals (`src/components/ui/dialog.tsx` + forms in `src/components/forms/`). Form primitives are in `src/components/ui/form.tsx`; success feedback via `useToast()`.
-- Mock data is split per domain in `src/lib/data/` (`mock-accounts.ts`, `mock-bills.ts`, `mock-income.ts`, `mock-subscriptions.ts`, `mock-alerts.ts`, plus `mock-financials.ts`/`mock-spending-later.ts`). Bill/income dates are generated **relative to "now"** via `nextMonthlyDate`/`daysFromNow`. These are the **defaults**; user edits in localStorage override them until "Reset" is clicked in the header.
-- All calculations are pure functions in `src/lib/money-utils.ts`: monthly recurring cost, bills due soon, expected income, total cash available, `computeDashboardStatus` (Danger > Tight > Review Needed > Watch > Stable, in that priority), alert-driven `nextResponsibleAction` (returns the top `Alert`), `cashflowTrend`, summary helpers, plus formatting and `tone*` mappers for badges.
-- Alerts (`src/lib/data/mock-alerts.ts`) carry `severity` (low/medium/high), `category`, `suggestedAction`, and `reviewRequired`. The highest-priority alert becomes the prominent "Next Responsible Action" card (currently the credit-card-from-savings decision).
-- The cashflow chart uses `recharts` and lives in `src/components/dashboard/CashflowChart.tsx` — it MUST stay a client component (`"use client"`). Its data comes from manual estimates in `src/lib/data/mock-financials.ts` (labeled mock, not live).
-- `src/app/page.tsx` is a server component that sets `export const dynamic = "force-dynamic"` so relative mock dates are recomputed per request. It composes the layout shell (`src/components/layout/Header.tsx`, `Nav.tsx`) + dashboard sections; nav is anchor-based (`#dashboard`, `#bills`, ...). Keep `page.tsx` thin — sections live in their own components.
-- UI is shadcn/ui-style primitives hand-built in `src/components/ui/` (Card/Badge/Button/Table via `class-variance-authority` + the `cn()` helper in `src/lib/utils.ts`). Reusable `StatusBadge`/`SectionHeader` live in `src/components/shared/`; sections are in `src/components/dashboard/`. Icons are `lucide-react`.
-- Dark mode is the default and only theme: `<html className="dark">` in `layout.tsx`, with theme tokens defined in `src/app/globals.css` and mapped to Tailwind utilities (`bg-card`, `text-muted-foreground`, etc.) via `@theme inline`.
-- Dev server runs at `http://localhost:3000`.
+* Next.js 16 App Router
+* React 19
+* Tailwind v4
+* Clerk authentication
+* Prisma + Neon/Postgres
+* Plaid integration with separate Sandbox and Personal Live environments
+* AES-256-GCM encrypted Plaid access-token storage
+* Local, Demo, Plaid Sandbox, and Personal Live app modes
+* Cross-device account-backed sync for signed-in users
+* Gemini or mock AI provider for review-only financial guidance
 
-### Phase 4 (transactions + Plaid prep)
+## Current Product State
 
-- Transaction/account types are in `src/types/transactions.ts`; mock transactions/accounts in `src/lib/data/mock-transactions.ts` (the linked-accounts export is `mockLinkedAccounts` to avoid colliding with `mockAccounts` in `mock-accounts.ts`). Transaction logic (categorization, totals, spending alerts, trend) is in `src/lib/transaction-utils.ts`. The Spending dashboard UI is in `src/components/spending/` (charts are `recharts`, client components). Transactions are display-only mock data (not in the editable localStorage store).
-- Nav (`src/components/layout/Nav.tsx`) is a client scroll-spy (IntersectionObserver) that highlights the active section; sections carry `id`s + `scroll-mt-20`. The "Take action" button uses `HighlightProvider`/`useHighlight()` (`src/components/providers/highlight.tsx`): it sets a highlighted alert id; `MoneyAgentAlerts` switches to that alert's tab, scrolls to it, and pulses it via the `.highlight-target` animation in `globals.css`.
-- **Plaid is sandbox-only and must stay server-side.** `src/lib/plaid/client.ts` is SERVER-ONLY (reads `PLAID_CLIENT_ID`/`PLAID_SECRET` from env) — never import it from a client component. API routes in `src/app/api/plaid/*` return safe `configured:false` JSON (HTTP 200) when env vars are missing, so they never crash. Never return/persist `access_token`, and never store Plaid tokens in localStorage. Copy `.env.example` → `.env.local` (git-ignored) to enable the sandbox; `react-plaid-link` powers the Connect-bank card in the Spending section.
+MoneyOS supports:
 
-### Phase 5 (Plaid sandbox data flow)
+* Manual bills, income sources, subscriptions, alerts, and Spending Later items
+* Weekly Money Review
+* Action Center and deterministic First 3 Actions
+* Personal Live Plaid connection for an allowlisted owner account
+* Encrypted server-side Plaid token persistence
+* Live account balances and transaction sync
+* Manual live-balance refresh with a server-enforced shared quota
+* Transaction classification and recurring-item detection
+* Cross-device data sync between Laptop and Desktop
 
-- Routes: `create-link-token`, `exchange-public-token` (stores the access token server-side), `accounts` (POST → normalized `LinkedAccount[]`), `sync-transactions` (POST → normalized `MoneyTransaction[]` via `transactions/sync`), and `status` (GET → `{configured, connected, status, source, lastSyncAt}`). All are token-free in their responses.
-- The sandbox access token is held in `src/lib/plaid/token-store.ts` — a **DEV-ONLY in-memory store on `globalThis`** (single-user, lost on restart). It MUST be replaced with an encrypted DB + real auth before any live usage. Plaid→MoneyOS mapping lives in `src/lib/plaid/normalize.ts` (note: Plaid `amount` sign is inverted to MoneyOS's "negative = outflow").
-- Client flow is orchestrated by `src/components/spending/plaid-context.tsx` (`PlaidProvider`/`usePlaid`): on mount it hits `/status`; if connected it loads `/accounts` + `/sync-transactions`. `ConnectBankCard` opens Plaid Link and posts the `public_token` to `/exchange-public-token`; `PlaidStatusCard` shows configured/status/source/last-sync + a Sync button. `SpendingDashboard` switches its data source: mock when not connected, sandbox transactions when connected, with a visible "Plaid sandbox data — not live bank data" label.
-- To run the live sandbox round-trip you need real `PLAID_CLIENT_ID`/`PLAID_SECRET` (free Plaid sandbox keys) — in cloud runs these are provided as **secrets** (injected as env vars), and locally they go in `.env.local`. Without them everything still works on mock data. NOTE: secrets are injected into the VM env, so a dev server started **before** they were available won't see them — restart `npm run dev` (or recreate the tmux server) so the process picks them up.
-- To test the connect flow, click "Connect sandbox bank" in the Spending section and use Plaid's sandbox login **`user_good` / `pass_good`** (institution e.g. "First Platypus Bank"); "Finish without saving" at the end. The token lives only in the in-memory store, so it resets when the dev server restarts.
+MoneyOS is still a private owner-use product. It is not public SaaS production.
 
-### Phase 6 (global data source + security foundation)
+## Security Rules
 
-- **Global provider:** `FinancialDataProvider` in `src/context/FinancialDataProvider.tsx` wraps the app in `layout.tsx` (inside `MoneyDataProvider`). Use `useFinancialData()` from `src/hooks/useFinancialData.ts` for data source, Plaid connection, accounts, transactions, and computed summaries. `src/lib/data-source.ts` holds pure helpers (`resolveAccounts`, `computeDashboardSummary`, etc.).
-- **Header bank control:** `BankConnectionControl` in `src/components/layout/Header.tsx` — Connect bank / Sandbox connected dropdown with sync + disconnect. Consent modal: `src/components/plaid/PlaidConsentDialog.tsx` (required before Plaid Link). Privacy/terms: `/privacy`, `/terms` + drafts in `docs/`.
-- **Plaid routes:** added `POST /api/plaid/disconnect` → `clearPlaidSession()`. Existing routes unchanged; all token-free in responses.
-- **When Plaid connected:** dashboard cash (depository balances), spending totals, cashflow chart, and review counts use sandbox data; bills/income/alerts stay manual/localStorage with "Mixed manual + sandbox" labels. When not connected: mock/manual as before.
-- **Transaction classification:** `TransactionClassification` on `MoneyTransaction`; `classifyTransaction()` / `normalizePlaidTransaction()` in `src/lib/transaction-utils.ts` + `src/lib/plaid/normalize.ts`. Monthly spending excludes transfers, credit card payments, loan payments, deposits, and income. Review = true uncategorized items only (`shouldCountAsReview`).
-- **Security docs (templates, not production claims):** `docs/security/` — policies, Plaid notes, production checklist, `SECURE_STORAGE_PLAN.md`. Production requires auth, MFA, encrypted DB, consent logging — not implemented yet.
-- **Deprecated:** `PlaidProvider` in `plaid-context.tsx` is a no-op passthrough; `usePlaid()` re-exports from financial data. Spending section still has `ConnectBankCard`/`PlaidStatusCard` but primary control is the header.
+Never expose, print, log, commit, return to the browser, or store in localStorage:
 
-### Phase 7 (productization + AI Money Agent)
+* Plaid access tokens
+* Plaid public tokens
+* Plaid client secrets
+* API keys
+* `DATABASE_URL`
+* encryption keys
+* Clerk secret keys
+* full bank account numbers
+* raw sensitive financial identifiers
 
-- **Branding:** Header tagline "Personal finance command center"; footer "MoneyOS by Apalym · Development / Sandbox mode". No personal names in UI.
-- **Demo seed data:** centralized in `src/lib/data/demo-user-data.ts` (generic labels); mock-* files re-export. Marked as demo/local development data.
-- **AI layer (server-side):** `src/lib/ai/` — types, prompts, `money-agent-service.ts`, Gemini provider in `providers/gemini.ts`. Routes: `/api/ai/money-brief`, `/api/ai/explain-alert`, `/api/ai/classify-transaction`. Env: `AI_PROVIDER=mock` (default) or `gemini` with `GEMINI_API_KEY` + optional `AI_MODEL` in `.env.local` — never client-side. Mock fallback when env vars missing or Gemini errors.
-- **UI:** `MoneyAgentBrief` (dashboard + alerts header), `ExplainAlertButton` on alerts, `SuggestCategoryButton` on review transactions (session-only approve). Disclaimer: "AI-generated guidance. Review before making financial decisions."
-- **Safety:** `docs/security/AI_MONEY_AGENT_SAFETY.md` — AI never moves/spends/invests or makes final decisions. Mock responses when no API key.
+Never commit:
 
-### Phase 8 (user data architecture + modes)
+* `.env`
+* `.env.local`
+* credentials
+* API keys
+* production secrets
+* database connection strings
 
-- **App modes:** `demo` | `local_user` | `plaid_sandbox` | `future_plaid_live` (disabled). Types in `src/types/app-mode.ts`; helpers in `src/lib/app-mode.ts`. `AppModeProvider` + `useAppMode()` wrap onboarding, consent, pending Plaid connect.
-- **Onboarding:** `OnboardingDialog` on first run (no `moneyos:onboarding-completed`). Choices: Start fresh (empty), Load demo data, Connect sandbox bank. Existing localStorage users auto-migrate.
-- **Data separation:** Demo in `demo-user-data.ts`; empty defaults in `empty-user-data.ts`. `MoneyDataProvider` starts empty until hydrated; mode-aware defaults. No demo data in fresh user mode.
-- **Settings:** `/settings` — mode, export/import JSON, reset, demo load, clear all, disconnect sandbox, consent history (localStorage dev-only), privacy/terms links.
-- **Header:** `ModeBadge` shows Demo Mode / Local User Data / Plaid Sandbox. Settings gear link. Reset removed from header (use Settings).
-- **Consent:** `recordPlaidConsent()` on Plaid consent accept → `moneyos:consent-history` localStorage. Production must move server-side.
-- **User types (future auth):** `src/types/user.ts` — UserProfile, ConsentRecord, etc. Not wired to auth yet.
-- **AI brief:** mode-aware via `modeContext` in brief input; empty state returns cautious guidance.
+Plaid token exchange, encryption, storage, decryption, balance refresh, and transaction sync must remain server-side.
 
-### Phase 9 (auth + database foundation)
+Do not weaken authentication, authorization, encryption, environment validation, or live-mode gating to simplify testing.
 
-- **Auth (optional):** Clerk via `AuthProvider` when `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` set. Routes: `/sign-in`, `/sign-up`. Header `AuthHeaderControls` (Local Mode / Sign in / UserButton). App works without Clerk.
-- **Database (optional):** Prisma + Postgres (`DATABASE_URL`). Schema in `prisma/schema.prisma`. Client: `src/lib/db/prisma.ts` (`getPrisma()` returns null when unset). Setup: `docs/development/DATABASE_SETUP.md` — use `npm run db:push` (loads `.env.local` via dotenv-cli).
-- **DB services:** `src/lib/db/users.ts`, `bills.ts`, `income.ts`, `subscriptions.ts`, `alerts.ts`, `consent.ts`, `accounts.ts`, `transactions.ts` — all scoped by authenticated user id.
-- **API routes:** `/api/user/status`, `profile`, `settings`, `bills`, `income`, `subscriptions`, `alerts`, `consent`, `migrate` — require auth when Clerk+DB configured; return 503 when not.
-- **Migration:** `LocalDataMigrationDialog` on first sign-in with local data — save to account / keep local / use account data (user confirmation required).
-- **Consent:** Plaid consent still saved locally; also POSTs to `/api/user/consent` when signed in + DB configured.
-- **Plaid sandbox:** unchanged — in-memory token store; no encrypted token persistence in Phase 9.
-- **Local mode preserved:** localStorage CRUD, demo mode, export/import, onboarding all still work without auth/DB.
+## Financial Safety Rules
 
-### Phase 9.1 (hotfix — Prisma env + honest charts + manual accounts)
+MoneyOS must never:
 
-- **Prisma env:** `docs/development/DATABASE_SETUP.md`; `npm run db:push` / `db:studio` load `.env.local` via dotenv-cli.
-- **Chart honesty:** `src/lib/chart-data.ts` — `hasHistoricalTransactionData`, mode-aware `CashflowCard`, manual projection card (no fake Jan–Jun trends in local mode).
-- **Manual accounts:** `moneyos:manual-accounts` in localStorage; `ManualAccountsSection` + `AccountForm`; cash totals from manual accounts in local_user mode.
-- **Income/status fixes:** improved `expectedIncomeWithin`, `expectedMonthlyIncome`, `Setup Needed` status when cash accounts missing; AI brief includes chart/projection context.
+* move money
+* initiate transfers
+* pay bills
+* open or close financial accounts
+* execute trades
+* make investment decisions
+* automatically approve AI suggestions
+* automatically create bills, subscriptions, recurring commitments, or transaction rules
 
-### Phase 9.2 (product utility + actionability)
+AI output is always review-only.
 
-- **Clickable summary cards:** `ClickableStatCard` + `scrollToSection()` navigate to bills, income, subscriptions, alerts, accounts, action center.
-- **Bill payment fields:** optional `paymentUrl`, instructions, etc.; Bills Command Center shows Open payment / Payment notes.
-- **Subscription trials:** trial fields + Trial badge; `trial_ending` synced alerts.
-- **Alert sync engine:** `src/lib/alert-sync.ts` — deterministic `sync:*` ids; merges with user alerts; review count from active synced alerts.
-- **Recurring detection:** `src/lib/recurring-detection.ts` + `DetectedRecurringItems` — suggestions only, user approval required.
-- **Action Center:** `src/lib/action-center.ts` + `#action-center` section + nav item.
-- **Spending Later CRUD:** `SpendingLaterForm` + store CRUD; extended `PlannedExpense` fields.
-- **Multi-institution UI:** `ConnectedInstitutionsSection` + header dropdown (institution/account counts, sync all, connect another).
-- **Simpler AI brief:** `brief-simple.ts` — status, top 3, risk, next action, visual snapshot; details behind Show details.
+Any destructive cleanup, disconnect, deletion, duplicate repair, or data replacement must require clear user confirmation and explain the consequence.
 
-### Phase 10 (persistent Plaid sandbox + encrypted tokens)
+## Data Trust Rules
 
-- **Encryption:** `src/lib/security/encryption.ts` — AES-256-GCM via `PLAID_TOKEN_ENCRYPTION_KEY` (generate: `openssl rand -base64 32`).
-- **Persistence:** `src/lib/plaid/persistent-items.ts`, `sync-service.ts` — encrypted `PlaidItem`, upsert accounts/transactions, multi-item per signed-in user.
-- **Storage modes:** `database` when signed in + DB + encryption key; `memory` fallback for local dev (in-memory token store unchanged).
-- **Routes:** `/api/plaid/*` return `storageMode`, institutions, no access tokens; `/api/plaid/institutions` for connected institutions list.
-- **TransactionRule:** Prisma model + `/api/user/transaction-rules` — user-approved categorization rules applied before AI.
-- **Live Plaid still disabled** — sandbox only; no production readiness claims.
+Always label data truthfully:
+
+* `Local User Data`
+* `Demo Data`
+* `Plaid Sandbox`
+* `Personal Live`
+* `Manual`
+* `Projected`
+
+Never show:
+
+* demo values as live data
+* sandbox data as Personal Live data
+* mock trend data as actual financial history
+* fabricated smooth historical chart values
+* a projected value without a clear projection label
+
+Treat these separately from normal spending:
+
+* transfers
+* internal account movement
+* overdraft protection
+* round-up transfers
+* credit-card payments
+* loan payments
+* deposits
+* refunds
+* income
+
+Personal Live Plaid Items, accounts, transactions, and balance data must stay separate from Sandbox data.
+
+## Cross-Device and Persistence Rules
+
+When signed in with Clerk and Postgres is configured:
+
+* Database-backed account data is the canonical source of truth.
+* LocalStorage is a fallback for unsigned-in, offline, or intentionally local-only use.
+* Empty local browser data must never overwrite non-empty database data.
+* Local-to-account migration must preserve local data until successful server confirmation.
+* Database mutations should be idempotent where practical.
+* Reconnecting an existing Plaid Item must not silently duplicate accounts or transactions.
+* Account and transaction upserts must use stable Plaid identifiers or safe deterministic hashes.
+* Changes to bills, subscriptions, transaction decisions, alerts, and weekly reviews must sync across devices.
+
+## Live Plaid Rules
+
+Personal Live mode must require:
+
+* Clerk authentication
+* database configured
+* encryption configured
+* owner allowlist validation
+* explicit consent confirmation before Link opens
+* production Plaid environment
+* server-side token handling
+
+Balance refresh rules:
+
+* Never refresh live balances automatically on page load.
+* Never refresh balances during standard transaction sync.
+* Refresh balances only through the explicit server-side refresh endpoint.
+* Enforce the shared server-side rolling quota across all devices.
+* Never expose live balance-refresh secrets or internal token state.
+
+## Transaction Review Rules
+
+Transaction decisions must persist.
+
+For every reviewed transaction, support appropriate user-controlled actions:
+
+* manual category selection
+* accept AI suggestion
+* mark as transfer/internal
+* mark as refund
+* mark as income
+* link to an existing bill
+* link to an existing subscription
+* mark not recurring
+* leave unresolved for later
+
+A successful review decision must update:
+
+* transaction review state
+* spending totals
+* category summaries
+* Action Center count
+* related recurring alerts
+* cross-device synced data
+
+Do not create a global category rule unless the user explicitly approves it.
+
+When a transaction matches an existing bill or subscription, offer a link/reconciliation flow instead of creating a duplicate bill, subscription, or recurring alert.
+
+## Engineering Standard
+
+Before editing:
+
+1. Read this file first.
+2. Identify affected APIs, components, data models, and cross-device behavior.
+3. Identify whether the change touches:
+
+   * real financial data
+   * Plaid
+   * authentication
+   * encryption
+   * database persistence
+   * transaction classification
+   * balance refresh
+   * cross-device sync
+4. Prefer the smallest safe fix. Do not refactor unrelated code.
+
+Before claiming work is complete:
+
+1. Check schema/migration impact.
+2. Add or preserve loading, empty, success, and failure states.
+3. Check retry and duplicate behavior for mutations and Plaid reconnect flows.
+4. Run `npm run lint`.
+5. Run `npm run build`.
+6. Run `npm run db:push` when Prisma schema changed.
+7. State what was tested manually.
+8. State what remains untested.
+9. Never claim public-production readiness unless explicitly asked and verified.
+
+## Debugging Rules
+
+* Diagnose before rewriting.
+* Return structured safe errors without secrets.
+* Do not reconnect a live bank account as the first debugging step.
+* Do not delete or disconnect existing live financial data as a first debugging step.
+* Preserve data during repairs whenever possible.
+* Use dry-run summaries before destructive duplicate cleanup.
+* Keep Sandbox and Personal Live flows separate at every API and UI boundary.
+
+## Current Priority
+
+Current work is focused on making transaction review real and trustworthy:
+
+* Manual transaction categorization
+* Persisted AI-suggestion acceptance
+* Bill/subscription reconciliation
+* Recurring-alert synchronization
+* Cross-device synchronization of review decisions
+* No duplicate records or stale Action Center alerts
