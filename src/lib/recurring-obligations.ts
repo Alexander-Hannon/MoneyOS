@@ -7,6 +7,10 @@ import type { RecurringSuggestion } from "@/types/actions";
 import type { Bill, Subscription } from "@/types/money";
 import type { MoneyTransaction } from "@/types/transactions";
 
+export function roundToCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 export type RecurringObligationsBreakdown = {
   confirmedBillsTotal: number;
   approvedSubscriptionsTotal: number;
@@ -68,12 +72,12 @@ export function computeRecurringObligationsBreakdown(args: {
     : 0;
 
   return {
-    confirmedBillsTotal,
-    approvedSubscriptionsTotal,
-    approvedRecurringTotal,
-    detectedCandidatesExcludedTotal,
-    legacyTransactionCandidatesTotal,
-    totalConfirmedMonthlyObligations: approvedRecurringTotal,
+    confirmedBillsTotal: roundToCents(confirmedBillsTotal),
+    approvedSubscriptionsTotal: roundToCents(approvedSubscriptionsTotal),
+    approvedRecurringTotal: roundToCents(approvedRecurringTotal),
+    detectedCandidatesExcludedTotal: roundToCents(detectedCandidatesExcludedTotal),
+    legacyTransactionCandidatesTotal: roundToCents(legacyTransactionCandidatesTotal),
+    totalConfirmedMonthlyObligations: roundToCents(approvedRecurringTotal),
   };
 }
 

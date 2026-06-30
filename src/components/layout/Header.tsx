@@ -23,7 +23,7 @@ export function Header() {
   });
 
   return (
-    <header className="border-b border-border bg-background/80 backdrop-blur">
+    <header className="relative z-40 overflow-visible border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-3.5 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

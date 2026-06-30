@@ -170,7 +170,7 @@ export function BankConnectionControl() {
       )}
 
       {menuOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-80 rounded-[var(--radius)] border border-border bg-card p-3 shadow-xl">
+        <div className="absolute right-0 z-[45] mt-2 w-80 rounded-[var(--radius)] border border-border bg-background p-3 shadow-2xl ring-1 ring-border/80">
           <div className="space-y-3 text-xs">
             <div>
               <p className="font-medium text-foreground">Bank connection</p>
