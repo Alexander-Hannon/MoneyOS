@@ -26,6 +26,7 @@ import {
 } from "@/lib/data-source";
 import { syncAlerts, countActiveReviewAlerts } from "@/lib/alert-sync";
 import { buildActionItems } from "@/lib/action-center";
+import { toYMD } from "@/lib/recurrence";
 import { detectRecurringSuggestions } from "@/lib/recurring-detection";
 import {
   applyTransactionReviewDecision,
@@ -202,6 +203,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [calendarDay, setCalendarDay] = useState(() => toYMD(new Date()));
   const [balanceRefreshQuota, setBalanceRefreshQuota] =
     useState<BalanceRefreshQuota | null>(null);
   const [reviewOverrideVersion, setReviewOverrideVersion] = useState(0);
@@ -394,6 +396,37 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshData();
   }, [refreshData]);
+
+  useEffect(() => {
+    const syncCalendarDay = () => {
+      const today = toYMD(new Date());
+      setCalendarDay((prev) => (prev === today ? prev : today));
+    };
+
+    const scheduleMidnightRefresh = (): number => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setDate(nextMidnight.getDate() + 1);
+      nextMidnight.setHours(0, 0, 0, 0);
+      const msUntilMidnight = nextMidnight.getTime() - now.getTime() + 50;
+      return window.setTimeout(() => {
+        syncCalendarDay();
+        midnightTimerId = scheduleMidnightRefresh();
+      }, msUntilMidnight);
+    };
+
+    let midnightTimerId = scheduleMidnightRefresh();
+    const intervalId = window.setInterval(syncCalendarDay, 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") syncCalendarDay();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(midnightTimerId);
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   const handleLinkSuccess = useCallback(
     async (
@@ -753,7 +786,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         manualEmpty,
         activePlaidEnvironment,
       ),
-    [income, storedMode, plaidConnected, transactionsForContext, manualEmpty, activePlaidEnvironment],
+    // calendarDay forces date-bound recalculation when the local day changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- calendarDay is an intentional day-roll trigger
+    [income, storedMode, plaidConnected, transactionsForContext, manualEmpty, activePlaidEnvironment, calendarDay],
   );
 
   const spendingSummary = useMemo(
@@ -782,6 +817,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         activePlaidEnvironment,
         recurringSuggestions,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- calendarDay is an intentional day-roll trigger
     [
       accounts,
       bills,
@@ -793,6 +829,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       transactionsForContext,
       recurringSuggestions,
       activePlaidEnvironment,
+      calendarDay,
     ],
   );
 
@@ -810,6 +847,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         cashAvailable: dashboardSummary.cashAvailable,
         existingAlerts: storedAlerts,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- calendarDay is an intentional day-roll trigger
     [
       bills,
       income,
@@ -821,6 +859,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       dashboardSummary.status,
       dashboardSummary.cashAvailable,
       storedAlerts,
+      calendarDay,
     ],
   );
 
@@ -868,6 +907,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         recurringSuggestions,
         dismissedActionIds,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- calendarDay is an intentional day-roll trigger
     [
       alerts,
       bills,
@@ -875,6 +915,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       spendingLater,
       recurringSuggestions,
       dismissedActionIds,
+      calendarDay,
     ],
   );
 

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { AppMode } from "@/types/app-mode";
+import type { Bill, IncomeSource } from "@/types/money";
 import { getPrisma } from "@/lib/db/prisma";
+import { normalizeFinancialDataBundle } from "@/lib/date-normalization";
 import {
   countBundleRecords,
   type DomainCounts,
@@ -677,22 +679,46 @@ export async function loadAccountDataWithMeta(
 
 function parseDate(value: unknown): Date | null {
   if (!value || typeof value !== "string") return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  // Store calendar dates at UTC noon so reads stay stable across timezones.
+  return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 12, 0, 0));
+}
+
+function formatDateOnly(d: Date | null | undefined): string | undefined {
+  if (!d) return undefined;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function mapBillFields(userId: string, bill: Record<string, unknown>) {
+  const dueDate = parseDate(bill.dueDate);
   return {
     userId,
     name: String(bill.name ?? "Bill"),
     amount: bill.amount == null ? null : Number(bill.amount),
     amountType: String(bill.amountType ?? "fixed"),
-    dueDate: parseDate(bill.dueDate),
+    dueDate,
+    dueDay: dueDate ? dueDate.getUTCDate() : null,
     frequency: String(bill.frequency ?? "monthly"),
     autopay: Boolean(bill.autopay),
     paidFrom: bill.paidFrom ? String(bill.paidFrom) : null,
     status: String(bill.status ?? "unpaid"),
     notes: bill.notes ? String(bill.notes) : null,
+    lastPaidAt: parseDate(bill.lastPaidAt),
+    paymentUrl: bill.paymentUrl ? String(bill.paymentUrl) : null,
+    paymentMethod: bill.paymentMethod ? String(bill.paymentMethod) : null,
+    paymentInstructions: bill.paymentInstructions
+      ? String(bill.paymentInstructions)
+      : null,
+    payeeName: bill.payeeName ? String(bill.payeeName) : null,
+    reminderDaysBeforeDue:
+      bill.reminderDaysBeforeDue == null
+        ? null
+        : Number(bill.reminderDaysBeforeDue),
   };
 }
 
@@ -707,6 +733,7 @@ function mapIncomeFields(userId: string, income: Record<string, unknown>) {
     reliability: String(income.reliability ?? "medium"),
     startDate: parseDate(income.startDate),
     nextDate: parseDate(income.nextDate),
+    lastReceivedAt: parseDate(income.lastReceivedAt),
     active: income.active !== false,
     notes: income.notes ? String(income.notes) : null,
   };
@@ -778,15 +805,15 @@ export async function loadUserDataBundle(userId: string) {
   });
   if (!user) return null;
 
-  return {
+  return normalizeFinancialDataBundle({
     appMode: user.appMode,
-    bills: user.bills.map(toDomainBill),
-    income: user.incomeSources.map(toDomainIncome),
+    bills: user.bills.map(toDomainBill) as Bill[],
+    income: user.incomeSources.map(toDomainIncome) as IncomeSource[],
     subscriptions: user.subscriptions.map(toDomainSubscription),
     alerts: user.alerts.map(toDomainAlert),
     manualAccounts: user.accounts.map(toDomainManualAccount),
     spendingLater: user.plannedExpenses.map(toDomainPlannedExpense),
-  };
+  });
 }
 
 function toDomainPlannedExpense(p: {
@@ -807,13 +834,13 @@ function toDomainPlannedExpense(p: {
     name: p.name,
     title: p.title ?? undefined,
     amount: p.amount,
-    targetDate: p.targetDate?.toISOString().slice(0, 10),
+    targetDate: formatDateOnly(p.targetDate),
     category: p.category,
     status: p.status,
     priority: p.priority ?? undefined,
     notes: p.notes ?? undefined,
     fundingSource: p.fundingSource ?? undefined,
-    reminderDate: p.reminderDate?.toISOString().slice(0, 10),
+    reminderDate: formatDateOnly(p.reminderDate),
   };
 }
 
@@ -828,18 +855,30 @@ function toDomainBill(b: {
   paidFrom: string | null;
   status: string;
   notes: string | null;
+  lastPaidAt?: Date | null;
+  paymentUrl?: string | null;
+  paymentMethod?: string | null;
+  paymentInstructions?: string | null;
+  payeeName?: string | null;
+  reminderDaysBeforeDue?: number | null;
 }) {
   return {
     id: b.id,
     name: b.name,
     amount: b.amount,
     amountType: b.amountType,
-    dueDate: b.dueDate?.toISOString().slice(0, 10) ?? "",
+    dueDate: formatDateOnly(b.dueDate) ?? "",
     frequency: b.frequency,
     autopay: b.autopay,
     paidFrom: b.paidFrom ?? "",
     status: b.status,
     notes: b.notes ?? undefined,
+    lastPaidAt: formatDateOnly(b.lastPaidAt ?? null),
+    paymentUrl: b.paymentUrl ?? undefined,
+    paymentMethod: b.paymentMethod ?? undefined,
+    paymentInstructions: b.paymentInstructions ?? undefined,
+    payeeName: b.payeeName ?? undefined,
+    reminderDaysBeforeDue: b.reminderDaysBeforeDue ?? undefined,
   };
 }
 
@@ -852,6 +891,7 @@ function toDomainIncome(i: {
   reliability: string;
   startDate: Date | null;
   nextDate: Date | null;
+  lastReceivedAt?: Date | null;
   active: boolean;
   notes: string | null;
 }) {
@@ -863,8 +903,9 @@ function toDomainIncome(i: {
     frequency: i.frequency,
     reliability: i.reliability,
     active: i.active,
-    startDate: i.startDate?.toISOString().slice(0, 10),
-    nextDate: i.nextDate?.toISOString().slice(0, 10),
+    startDate: formatDateOnly(i.startDate),
+    nextDate: formatDateOnly(i.nextDate),
+    lastReceivedAt: formatDateOnly(i.lastReceivedAt ?? null),
     notes: i.notes ?? undefined,
   };
 }
@@ -886,7 +927,7 @@ function toDomainSubscription(s: {
     frequency: s.frequency,
     category: s.category,
     status: s.status,
-    renewalDate: s.renewalDate?.toISOString().slice(0, 10),
+    renewalDate: formatDateOnly(s.renewalDate),
     notes: s.notes ?? undefined,
   };
 }

@@ -26,6 +26,7 @@ import {
   formatRelativeDays,
   toneForBillStatus,
 } from "@/lib/money-utils";
+import { getBillNextDueDate, isBillOccurrencePaid } from "@/lib/recurrence";
 import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 import type { Bill, BillStatus } from "@/types/money";
@@ -50,10 +51,14 @@ export function BillsCommandCenter({
   const sorted = [...bills]
     .filter((bill) => {
       if (!dueOnly) return true;
-      if (bill.status === "paid") return false;
-      return daysUntil(bill.dueDate) <= 14;
+      const effectiveDueDate = getBillNextDueDate(bill);
+      if (isBillOccurrencePaid(bill, effectiveDueDate)) return false;
+      return daysUntil(effectiveDueDate) <= 14;
     })
-    .sort((a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate));
+    .sort(
+      (a, b) =>
+        daysUntil(getBillNextDueDate(a)) - daysUntil(getBillNextDueDate(b)),
+    );
   const due = billsDueWithin(bills, 14);
 
   return (
@@ -99,7 +104,8 @@ export function BillsCommandCenter({
             </TableHeader>
             <TableBody>
               {sorted.map((bill) => {
-                const d = daysUntil(bill.dueDate);
+                const effectiveDueDate = getBillNextDueDate(bill);
+                const d = daysUntil(effectiveDueDate);
                 return (
                   <TableRow key={bill.id}>
                     <TableCell className="font-medium whitespace-nowrap">
@@ -114,7 +120,7 @@ export function BillsCommandCenter({
                       {amountLabel(bill)}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <div className="text-sm">{formatDate(bill.dueDate)}</div>
+                      <div className="text-sm">{formatDate(effectiveDueDate)}</div>
                       <div className="text-xs text-muted-foreground">
                         {formatRelativeDays(d)}
                       </div>

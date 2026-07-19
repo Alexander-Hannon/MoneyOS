@@ -8,6 +8,7 @@ import type {
   Subscription,
 } from "@/types/money";
 import { daysUntil } from "@/lib/money-utils";
+import { getBillNextDueDate, isBillOccurrencePaid } from "@/lib/recurrence";
 
 function priorityFromSeverity(severity: Alert["severity"]): ActionItem["priority"] {
   if (severity === "high") return "high";
@@ -28,8 +29,9 @@ export function buildActionItems(args: {
   const items: ActionItem[] = [];
 
   for (const bill of args.bills) {
-    if (bill.status === "paid") continue;
-    const days = daysUntil(bill.dueDate);
+    const effectiveDueDate = getBillNextDueDate(bill);
+    if (isBillOccurrencePaid(bill, effectiveDueDate)) continue;
+    const days = daysUntil(effectiveDueDate);
     if (days < 0 || days <= 7) {
       const id = `action:pay-bill:${bill.id}`;
       if (dismissed.has(id)) continue;
@@ -38,7 +40,7 @@ export function buildActionItems(args: {
         title: days < 0 ? `Overdue: ${bill.name}` : `Pay bill: ${bill.name}`,
         type: "pay_bill",
         priority: days < 0 || days <= 3 ? "high" : "medium",
-        dueDate: bill.dueDate,
+        dueDate: effectiveDueDate,
         source: "Bills",
         href: bill.paymentUrl,
         destinationKey: "pay_bill",

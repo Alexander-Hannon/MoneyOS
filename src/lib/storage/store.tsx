@@ -25,6 +25,8 @@ import {
   emptySpendingLater,
 } from "@/lib/data/empty-user-data";
 import { inferNextIncomeDate } from "@/lib/money-utils";
+import { getBillNextDueDate, getIncomeNextDate } from "@/lib/recurrence";
+import { normalizeFinancialDataBundle } from "@/lib/date-normalization";
 import {
   STORAGE_KEYS,
   loadAppModeFromStorage,
@@ -75,6 +77,7 @@ interface MoneyDataContextValue {
   updateIncome: (id: string, draft: DraftIncome) => void;
   deleteIncome: (id: string) => void;
   toggleIncomeActive: (id: string) => void;
+  markIncomeReceived: (id: string) => void;
 
   addSubscription: (draft: DraftSubscription) => void;
   updateSubscription: (id: string, draft: DraftSubscription) => void;
@@ -266,11 +269,15 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
   const importData = useCallback(
     (bundle: UserDataExport) => {
       const mode = bundle.appMode ?? "local_user";
+      const normalized = normalizeFinancialDataBundle({
+        bills: bundle.bills ?? [],
+        income: bundle.income ?? [],
+      });
       applyAll(
         mode,
         {
-          bills: bundle.bills ?? [],
-          income: bundle.income ?? [],
+          bills: normalized.bills ?? [],
+          income: normalized.income ?? [],
           subscriptions: bundle.subscriptions ?? [],
           alerts: bundle.alerts ?? [],
           spendingLater: bundle.spendingLater ?? [],
@@ -305,7 +312,19 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
       bumpUserEdit();
     },
     setBillStatus: (id, status) => {
-      commitBills(bills.map((b) => (b.id === id ? { ...b, status } : b)));
+      commitBills(
+        bills.map((b) => {
+          if (b.id !== id) return b;
+          if (status === "paid") {
+            const occurrenceDate = getBillNextDueDate(b);
+            return { ...b, status, lastPaidAt: occurrenceDate };
+          }
+          if (b.lastPaidAt) {
+            return { ...b, status, lastPaidAt: undefined };
+          }
+          return { ...b, status };
+        }),
+      );
       bumpUserEdit();
     },
 
@@ -326,6 +345,17 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     toggleIncomeActive: (id) => {
       commitIncome(
         income.map((i) => (i.id === id ? { ...i, active: !i.active } : i)),
+      );
+      bumpUserEdit();
+    },
+    markIncomeReceived: (id) => {
+      commitIncome(
+        income.map((i) => {
+          if (i.id !== id) return i;
+          const occurrenceDate = getIncomeNextDate(i) ?? i.nextDate;
+          if (!occurrenceDate) return i;
+          return { ...i, lastReceivedAt: occurrenceDate };
+        }),
       );
       bumpUserEdit();
     },

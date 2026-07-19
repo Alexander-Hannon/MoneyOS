@@ -84,6 +84,8 @@ export interface IncomeSource {
   startDate?: string;
   /** ISO date of the next expected payment (for active, scheduled sources). */
   nextDate?: string;
+  /** ISO date when the current recurrence occurrence was received. */
+  lastReceivedAt?: string;
   notes?: string;
 }
 

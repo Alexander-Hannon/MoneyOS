@@ -9,47 +9,41 @@ import type {
   Subscription,
   Tone,
 } from "@/types/money";
-
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
+import {
+  addDaysYMD,
+  BILL_OVERDUE_COUNT_LOOKBACK_DAYS,
+  daysBetween,
+  getBillsDueInDayWindow,
+  getBillsDueThisMonth,
+  getIncomeNextDate,
+  getUnreceivedIncomeOccurrencesInRange,
+  inferIncomeAnchorDate,
+  parseYMD,
+  resolveAsOfDate,
+  toYMD,
+} from "@/lib/recurrence";
 
 /* ------------------------------------------------------------------ */
 /* Dates                                                               */
 /* ------------------------------------------------------------------ */
 
-function toYMD(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function parseYMD(iso: string): Date {
-  // Parse as local midnight to avoid timezone drift.
-  return new Date(`${iso.slice(0, 10)}T00:00:00`);
-}
-
 /** Next calendar occurrence of a given day-of-month (this month or next). */
-export function nextMonthlyDate(day: number): string {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export function nextMonthlyDate(day: number, asOf?: Date | string): string {
+  const today = resolveAsOfDate(asOf);
   const candidate = new Date(today.getFullYear(), today.getMonth(), day);
   if (candidate < today) candidate.setMonth(candidate.getMonth() + 1);
   return toYMD(candidate);
 }
 
-export function daysFromNow(days: number): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
+export function daysFromNow(days: number, asOf?: Date | string): string {
+  const d = resolveAsOfDate(asOf);
   d.setDate(d.getDate() + days);
   return toYMD(d);
 }
 
-export function daysUntil(iso: string): number {
-  const target = parseYMD(iso);
-  target.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / MS_PER_DAY);
+export function daysUntil(iso: string, asOf?: Date | string): number {
+  const today = toYMD(resolveAsOfDate(asOf));
+  return daysBetween(today, iso.slice(0, 10));
 }
 
 /* ------------------------------------------------------------------ */
@@ -128,23 +122,20 @@ export function parseIncomeBaseAmount(
 }
 
 /** Infer next pay date from frequency when not explicitly set. */
-export function inferNextIncomeDate(source: IncomeSource): string | undefined {
-  if (source.nextDate) return source.nextDate;
+export function inferNextIncomeDate(
+  source: IncomeSource,
+  asOf?: Date | string,
+): string | undefined {
+  if (source.nextDate) {
+    const next = getIncomeNextDate(source, asOf);
+    return next ?? source.nextDate.slice(0, 10);
+  }
   if (!source.active) return source.startDate;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const anchor = inferIncomeAnchorDate(source);
+  if (!anchor) return undefined;
 
-  switch (source.frequency) {
-    case "biweekly":
-      return daysFromNow(7);
-    case "weekly":
-      return daysFromNow(7);
-    case "monthly":
-      return nextMonthlyDate(1);
-    default:
-      return undefined;
-  }
+  return getIncomeNextDate(source, asOf);
 }
 
 /** Monthly-equivalent income from active sources (base/guaranteed only). */
@@ -182,80 +173,84 @@ export type DueWindow = {
   count: number;
   variableCount: number;
   items: Bill[];
+  /** Effective due date per bill (next unpaid occurrence in window). */
+  effectiveDueDates: Map<string, string>;
 };
 
-export function billsDueWithin(bills: Bill[], days: number): DueWindow {
-  const items = bills
-    .filter((b) => b.status !== "paid")
-    .filter((b) => {
-      const d = daysUntil(b.dueDate);
-      return d >= -7 && d <= days;
-    })
-    .sort((a, b) => daysUntil(a.dueDate) - daysUntil(b.dueDate));
+export function billsDueWithin(
+  bills: Bill[],
+  days: number,
+  asOf?: Date | string,
+): DueWindow {
+  const occurrences = getBillsDueInDayWindow(bills, -7, days, asOf);
+  const effectiveDueDates = new Map<string, string>();
+
+  for (const { bill, occurrenceDate } of occurrences) {
+    effectiveDueDates.set(bill.id, occurrenceDate);
+  }
+
+  const items = occurrences.map((o) => o.bill);
 
   return {
-    total: items.reduce((sum, b) => sum + (b.amount ?? 0), 0),
+    total: occurrences.reduce((sum, o) => sum + (o.bill.amount ?? 0), 0),
     count: items.length,
     variableCount: items.filter((b) => b.amount === null).length,
     items,
+    effectiveDueDates,
   };
 }
 
-export type IncomeWindow = { total: number; count: number; items: IncomeSource[] };
+export type IncomeWindow = {
+  total: number;
+  /** Active income sources with at least one expected occurrence in range. */
+  count: number;
+  /** Total paycheck/deposit occurrences in range (may exceed count for biweekly). */
+  occurrenceCount: number;
+  items: IncomeSource[];
+};
 
 export function expectedIncomeWithin(
   income: IncomeSource[],
   days: number,
+  asOf?: Date | string,
 ): IncomeWindow {
-  const items = income.filter((i) => {
-    if (!i.active) return false;
+  const today = toYMD(resolveAsOfDate(asOf));
+  const rangeEnd = addDaysYMD(today, days);
+
+  const items: IncomeSource[] = [];
+  let total = 0;
+  let occurrenceCount = 0;
+
+  for (const i of income) {
+    if (!i.active) continue;
 
     const base = parseIncomeBaseAmount(i.expectedAmount, i.amountType, i.notes);
-    if (base == null) return false;
+    if (base == null) continue;
 
-    // Commission/variable upside is excluded unless explicitly expected in 14d window
     if (
       (i.amountType === "variable" || i.reliability === "variable") &&
       !i.nextDate
     ) {
-      return false;
+      continue;
     }
 
-    const nextDate = inferNextIncomeDate(i);
+    const occurrences = getUnreceivedIncomeOccurrencesInRange(
+      i,
+      today,
+      rangeEnd,
+      asOf,
+    );
+    if (occurrences.length === 0) continue;
 
-    if (i.frequency === "biweekly") {
-      // One pay period in the next 14 days when active
-      if (nextDate) {
-        const d = daysUntil(nextDate);
-        return d >= 0 && d <= days;
-      }
-      return true;
-    }
-
-    if (i.frequency === "monthly") {
-      if (!nextDate) return false;
-      const d = daysUntil(nextDate);
-      return d >= 0 && d <= days;
-    }
-
-    if (nextDate) {
-      const d = daysUntil(nextDate);
-      return d >= 0 && d <= days;
-    }
-
-    return false;
-  });
+    items.push(i);
+    occurrenceCount += occurrences.length;
+    total += base * occurrences.length;
+  }
 
   return {
-    total: items.reduce((sum, i) => {
-      const base = parseIncomeBaseAmount(
-        i.expectedAmount,
-        i.amountType,
-        i.notes,
-      );
-      return sum + (base ?? 0);
-    }, 0),
+    total,
     count: items.length,
+    occurrenceCount,
     items,
   };
 }
@@ -274,10 +269,16 @@ export function reviewCount(
   );
 }
 
-export function overdueUnpaidCount(bills: Bill[]): number {
-  return bills.filter(
-    (b) => b.status !== "paid" && !b.autopay && daysUntil(b.dueDate) < 0,
-  ).length;
+export function overdueUnpaidCount(
+  bills: Bill[],
+  asOf?: Date | string,
+): number {
+  return getBillsDueInDayWindow(
+    bills,
+    -BILL_OVERDUE_COUNT_LOOKBACK_DAYS,
+    -1,
+    asOf,
+  ).filter((o) => !o.bill.autopay).length;
 }
 
 /**
@@ -372,23 +373,29 @@ export function hasHighSeverityReview(alerts: Alert[]): boolean {
 /* Summary helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-export function billsDueThisMonth(bills: Bill[]): { total: number; count: number } {
-  const now = new Date();
-  const month = now.getMonth();
-  const year = now.getFullYear();
-  const items = bills.filter((b) => {
-    if (b.status === "paid") return false;
-    const d = new Date(`${b.dueDate.slice(0, 10)}T00:00:00`);
-    return d.getMonth() === month && d.getFullYear() === year;
-  });
+export function billsDueThisMonth(
+  bills: Bill[],
+  asOf?: Date | string,
+): { total: number; count: number } {
+  const occurrences = getBillsDueThisMonth(bills, asOf);
   return {
-    total: items.reduce((sum, b) => sum + (b.amount ?? 0), 0),
-    count: items.length,
+    total: occurrences.reduce((sum, o) => sum + (o.bill.amount ?? 0), 0),
+    count: occurrences.length,
   };
 }
 
-export function upcomingIncomeSources(income: IncomeSource[]): IncomeSource[] {
-  return income.filter((i) => i.active || i.startDate);
+/** Effective due date for display and sorting (next unpaid occurrence). */
+export { getBillNextDueDate } from "@/lib/recurrence";
+
+/** Active income sources with an expected payment on or after today. */
+export function upcomingIncomeSources(
+  income: IncomeSource[],
+  asOf?: Date | string,
+): IncomeSource[] {
+  return income.filter((i) => {
+    if (!i.active && !i.startDate) return false;
+    return Boolean(getIncomeNextDate(i, asOf));
+  });
 }
 
 export function monthlySubscriptionTotal(subscriptions: Subscription[]): number {

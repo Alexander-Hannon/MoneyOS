@@ -52,17 +52,22 @@ export function confirmedMonthlyObligationsHint(
 export function incomeDetectedHint(args: {
   environment: PlaidEnvironment | null | undefined;
   manualSourceCount: number;
+  occurrenceCount?: number;
   plaidIncomeDetected: boolean;
 }): string {
-  const { environment, manualSourceCount, plaidIncomeDetected } = args;
+  const { environment, manualSourceCount, occurrenceCount, plaidIncomeDetected } = args;
   const plural = manualSourceCount === 1 ? "" : "s";
+  const occurrenceSuffix =
+    occurrenceCount != null && occurrenceCount > manualSourceCount
+      ? ` · ${occurrenceCount} deposit${occurrenceCount === 1 ? "" : "s"} expected`
+      : "";
   if (plaidIncomeDetected && isLivePlaidEnvironment(environment)) {
     return `${manualSourceCount} manual source${plural} · live inflows detected`;
   }
   if (plaidIncomeDetected) {
     return `${manualSourceCount} manual source${plural} · sandbox income detected`;
   }
-  return `${manualSourceCount} source${plural} expected`;
+  return `${manualSourceCount} source${plural} expected${occurrenceSuffix}`;
 }
 
 export function spendingTransactionsHint(
