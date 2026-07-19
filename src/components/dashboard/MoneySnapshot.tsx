@@ -123,6 +123,7 @@ export function MoneySnapshot({
         hint={incomeDetectedHint({
           environment: activePlaidEnvironment,
           manualSourceCount: summary.income14.count,
+          occurrenceCount: summary.income14.occurrenceCount,
           plaidIncomeDetected: incomeSummary.sandboxDetected,
         })}
         icon={TrendingUp}

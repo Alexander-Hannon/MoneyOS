@@ -1,6 +1,10 @@
 import type { Bill, BillFrequency, IncomeFrequency, IncomeSource } from "@/types/money";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
+/** How far back to look for overdue bill occurrences in dashboard display. */
+export const BILL_OVERDUE_LOOKBACK_DAYS = 90;
+/** How far back to count overdue bills for dashboard status. */
+export const BILL_OVERDUE_COUNT_LOOKBACK_DAYS = 90;
 
 /* ------------------------------------------------------------------ */
 /* Date primitives (local calendar dates as YYYY-MM-DD)               */
@@ -281,10 +285,21 @@ export function getBillEffectiveDueDate(
   asOf?: Date | string,
 ): string | undefined {
   const today = toYMD(resolveAsOfDate(asOf));
-  const lookback = addDaysYMD(today, -366);
+  const overdueStart = addDaysYMD(today, -BILL_OVERDUE_LOOKBACK_DAYS);
+  const yesterday = addDaysYMD(today, -1);
+  const overdue = getUnpaidBillOccurrencesInRange(
+    bill,
+    overdueStart,
+    yesterday,
+    asOf,
+  );
+  if (overdue.length > 0) {
+    return overdue[overdue.length - 1];
+  }
+
   const horizon = addDaysYMD(today, 366);
-  const unpaid = getUnpaidBillOccurrencesInRange(bill, lookback, horizon, asOf);
-  return unpaid[0];
+  const upcoming = getUnpaidBillOccurrencesInRange(bill, today, horizon, asOf);
+  return upcoming[0];
 }
 
 export function getBillOccurrencesInRange(
@@ -439,9 +454,48 @@ export function getIncomeNextDate(
   const anchor = inferIncomeAnchorDate(source);
   if (!anchor || !source.active) return undefined;
 
-  return getNextOccurrenceOnOrAfter({
-    frequency: source.frequency,
-    anchorDate: anchor,
-    onOrAfterYMD: today,
-  });
+  const unreceived = getUnreceivedIncomeOccurrencesInRange(
+    source,
+    today,
+    addDaysYMD(today, 366),
+    asOf,
+  );
+  return unreceived[0];
+}
+
+/** Whether a specific income occurrence has been received. */
+export function isIncomeOccurrenceReceived(
+  source: IncomeSource,
+  occurrenceYMD: string,
+): boolean {
+  const occurrence = occurrenceYMD.slice(0, 10);
+  if (source.lastReceivedAt && source.lastReceivedAt.slice(0, 10) === occurrence) {
+    return true;
+  }
+  return false;
+}
+
+export function getUnreceivedIncomeOccurrencesInRange(
+  source: IncomeSource,
+  rangeStart: string,
+  rangeEnd: string,
+  asOf?: Date | string,
+): string[] {
+  return getIncomeOccurrencesInRange(source, rangeStart, rangeEnd, asOf).filter(
+    (occurrence) => !isIncomeOccurrenceReceived(source, occurrence),
+  );
+}
+
+export function countExpectedIncomeOccurrences(
+  source: IncomeSource,
+  rangeStart: string,
+  rangeEnd: string,
+  asOf?: Date | string,
+): number {
+  return getUnreceivedIncomeOccurrencesInRange(
+    source,
+    rangeStart,
+    rangeEnd,
+    asOf,
+  ).length;
 }

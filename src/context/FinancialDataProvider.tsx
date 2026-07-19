@@ -402,12 +402,27 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       const today = toYMD(new Date());
       setCalendarDay((prev) => (prev === today ? prev : today));
     };
+
+    const scheduleMidnightRefresh = (): number => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setDate(nextMidnight.getDate() + 1);
+      nextMidnight.setHours(0, 0, 0, 0);
+      const msUntilMidnight = nextMidnight.getTime() - now.getTime() + 50;
+      return window.setTimeout(() => {
+        syncCalendarDay();
+        midnightTimerId = scheduleMidnightRefresh();
+      }, msUntilMidnight);
+    };
+
+    let midnightTimerId = scheduleMidnightRefresh();
     const intervalId = window.setInterval(syncCalendarDay, 60_000);
     const onVisibility = () => {
       if (document.visibilityState === "visible") syncCalendarDay();
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      window.clearTimeout(midnightTimerId);
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibility);
     };

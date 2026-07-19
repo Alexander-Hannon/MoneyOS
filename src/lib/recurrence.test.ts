@@ -312,19 +312,55 @@ describe("expectedIncomeWithin", () => {
     expect(expectedIncomeWithin([], 14, AS_OF)).toEqual({
       total: 0,
       count: 0,
+      occurrenceCount: 0,
       items: [],
     });
+  });
+
+  it("counts two biweekly paychecks within 14 days", () => {
+    const sources = [
+      income({
+        id: "i1",
+        source: "Payroll",
+        frequency: "biweekly",
+        nextDate: "2026-07-19",
+        expectedAmount: 1500,
+      }),
+    ];
+    const result = expectedIncomeWithin(sources, 14, AS_OF);
+    expect(result.occurrenceCount).toBe(2);
+    expect(result.total).toBe(3000);
+    expect(result.count).toBe(1);
+  });
+
+  it("excludes received occurrence but includes next recurring one", () => {
+    const sources = [
+      income({
+        id: "i1",
+        source: "Salary",
+        frequency: "monthly",
+        nextDate: "2026-07-15",
+        lastReceivedAt: "2026-07-15",
+        expectedAmount: 2000,
+      }),
+    ];
+    const july = expectedIncomeWithin(sources, 14, AS_OF);
+    expect(july.count).toBe(0);
+
+    const august = expectedIncomeWithin(sources, 14, "2026-08-01");
+    expect(august.count).toBe(1);
+    expect(august.total).toBe(2000);
   });
 });
 
 describe("getBillEffectiveDueDate", () => {
-  it("returns earliest unpaid occurrence including overdue", () => {
+  it("returns most recent overdue within lookback, else next upcoming", () => {
     const b = bill({
       id: "b1",
       name: "Insurance",
       dueDate: "2026-02-01",
     });
-    expect(getBillEffectiveDueDate(b, AS_OF)).toBe("2026-02-01");
+    expect(getBillEffectiveDueDate(b, AS_OF)).toBe("2026-07-01");
   });
 });
 

@@ -11,11 +11,12 @@ import type {
 } from "@/types/money";
 import {
   addDaysYMD,
+  BILL_OVERDUE_COUNT_LOOKBACK_DAYS,
   daysBetween,
   getBillsDueInDayWindow,
   getBillsDueThisMonth,
   getIncomeNextDate,
-  getIncomeOccurrencesInRange,
+  getUnreceivedIncomeOccurrencesInRange,
   inferIncomeAnchorDate,
   parseYMD,
   resolveAsOfDate,
@@ -199,7 +200,14 @@ export function billsDueWithin(
   };
 }
 
-export type IncomeWindow = { total: number; count: number; items: IncomeSource[] };
+export type IncomeWindow = {
+  total: number;
+  /** Active income sources with at least one expected occurrence in range. */
+  count: number;
+  /** Total paycheck/deposit occurrences in range (may exceed count for biweekly). */
+  occurrenceCount: number;
+  items: IncomeSource[];
+};
 
 export function expectedIncomeWithin(
   income: IncomeSource[],
@@ -209,34 +217,40 @@ export function expectedIncomeWithin(
   const today = toYMD(resolveAsOfDate(asOf));
   const rangeEnd = addDaysYMD(today, days);
 
-  const items = income.filter((i) => {
-    if (!i.active) return false;
+  const items: IncomeSource[] = [];
+  let total = 0;
+  let occurrenceCount = 0;
+
+  for (const i of income) {
+    if (!i.active) continue;
 
     const base = parseIncomeBaseAmount(i.expectedAmount, i.amountType, i.notes);
-    if (base == null) return false;
+    if (base == null) continue;
 
-    // Commission/variable upside is excluded unless explicitly expected in window
     if (
       (i.amountType === "variable" || i.reliability === "variable") &&
       !i.nextDate
     ) {
-      return false;
+      continue;
     }
 
-    const occurrences = getIncomeOccurrencesInRange(i, today, rangeEnd, asOf);
-    return occurrences.length > 0;
-  });
+    const occurrences = getUnreceivedIncomeOccurrencesInRange(
+      i,
+      today,
+      rangeEnd,
+      asOf,
+    );
+    if (occurrences.length === 0) continue;
+
+    items.push(i);
+    occurrenceCount += occurrences.length;
+    total += base * occurrences.length;
+  }
 
   return {
-    total: items.reduce((sum, i) => {
-      const base = parseIncomeBaseAmount(
-        i.expectedAmount,
-        i.amountType,
-        i.notes,
-      );
-      return sum + (base ?? 0);
-    }, 0),
+    total,
     count: items.length,
+    occurrenceCount,
     items,
   };
 }
@@ -259,9 +273,12 @@ export function overdueUnpaidCount(
   bills: Bill[],
   asOf?: Date | string,
 ): number {
-  return getBillsDueInDayWindow(bills, -366, -1, asOf).filter(
-    (o) => !o.bill.autopay,
-  ).length;
+  return getBillsDueInDayWindow(
+    bills,
+    -BILL_OVERDUE_COUNT_LOOKBACK_DAYS,
+    -1,
+    asOf,
+  ).filter((o) => !o.bill.autopay).length;
 }
 
 /**
@@ -370,8 +387,15 @@ export function billsDueThisMonth(
 /** Effective due date for display and sorting (next unpaid occurrence). */
 export { getBillNextDueDate } from "@/lib/recurrence";
 
-export function upcomingIncomeSources(income: IncomeSource[]): IncomeSource[] {
-  return income.filter((i) => i.active || i.startDate);
+/** Active income sources with an expected payment on or after today. */
+export function upcomingIncomeSources(
+  income: IncomeSource[],
+  asOf?: Date | string,
+): IncomeSource[] {
+  return income.filter((i) => {
+    if (!i.active && !i.startDate) return false;
+    return Boolean(getIncomeNextDate(i, asOf));
+  });
 }
 
 export function monthlySubscriptionTotal(subscriptions: Subscription[]): number {

@@ -21,9 +21,12 @@ import {
 import {
   formatCurrency,
   formatDate,
+  formatRelativeDays,
   frequencyLabel,
   toneForReliability,
 } from "@/lib/money-utils";
+import { daysUntil } from "@/lib/money-utils";
+import { getIncomeNextDate } from "@/lib/recurrence";
 import { useMoneyData } from "@/lib/storage/store";
 import { useToast } from "@/components/ui/toast";
 import type { IncomeSource } from "@/types/money";
@@ -39,7 +42,7 @@ export function IncomePipeline({
 }: {
   reviewOnly?: boolean;
 }) {
-  const { income, addIncome, updateIncome, deleteIncome, toggleIncomeActive } =
+  const { income, addIncome, updateIncome, deleteIncome, toggleIncomeActive, markIncomeReceived } =
     useMoneyData();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -89,13 +92,17 @@ export function IncomePipeline({
                 <TableHead>Source</TableHead>
                 <TableHead>Expected</TableHead>
                 <TableHead>Frequency</TableHead>
+                <TableHead>Next pay</TableHead>
                 <TableHead>Reliability</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibleIncome.map((src) => (
+              {visibleIncome.map((src) => {
+                const nextPay = src.active ? getIncomeNextDate(src) : undefined;
+                const days = nextPay ? daysUntil(nextPay) : null;
+                return (
                 <TableRow key={src.id}>
                   <TableCell className="font-medium whitespace-nowrap">
                     {src.source}
@@ -110,6 +117,18 @@ export function IncomePipeline({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {frequencyLabel(src.frequency)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {nextPay ? (
+                      <>
+                        <div className="text-sm">{formatDate(nextPay)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {days != null ? formatRelativeDays(days) : ""}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge
@@ -130,7 +149,20 @@ export function IncomePipeline({
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-end gap-2">
+                      {src.active && nextPay && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            markIncomeReceived(src.id);
+                            toast("Marked as received");
+                          }}
+                        >
+                          Received
+                        </Button>
+                      )}
                       <RowActions
                         label={src.source}
                         onEdit={() => {
@@ -145,7 +177,8 @@ export function IncomePipeline({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         )}
