@@ -25,6 +25,7 @@ import {
   emptySpendingLater,
 } from "@/lib/data/empty-user-data";
 import { inferNextIncomeDate } from "@/lib/money-utils";
+import { getBillNextDueDate } from "@/lib/recurrence";
 import {
   STORAGE_KEYS,
   loadAppModeFromStorage,
@@ -305,7 +306,19 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
       bumpUserEdit();
     },
     setBillStatus: (id, status) => {
-      commitBills(bills.map((b) => (b.id === id ? { ...b, status } : b)));
+      commitBills(
+        bills.map((b) => {
+          if (b.id !== id) return b;
+          if (status === "paid") {
+            const occurrenceDate = getBillNextDueDate(b);
+            return { ...b, status, lastPaidAt: occurrenceDate };
+          }
+          if (b.lastPaidAt) {
+            return { ...b, status, lastPaidAt: undefined };
+          }
+          return { ...b, status };
+        }),
+      );
       bumpUserEdit();
     },
 

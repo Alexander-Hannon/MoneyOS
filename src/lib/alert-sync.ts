@@ -14,7 +14,9 @@ import {
   billsDueWithin,
   daysUntil,
   expectedIncomeWithin,
+  getBillNextDueDate,
 } from "@/lib/money-utils";
+import { isBillOccurrencePaid } from "@/lib/recurrence";
 import { transactionsNeedingReview } from "@/lib/transaction-utils";
 
 export function syncedAlertId(type: SyncedAlertType, sourceId: string): string {
@@ -71,8 +73,9 @@ export function syncAlerts(args: {
   const generated: Alert[] = [];
 
   for (const bill of args.bills) {
-    if (bill.status === "paid") continue;
-    const days = daysUntil(bill.dueDate);
+    const effectiveDueDate = getBillNextDueDate(bill);
+    if (isBillOccurrencePaid(bill, effectiveDueDate)) continue;
+    const days = daysUntil(effectiveDueDate);
 
     if (days < 0) {
       generated.push(

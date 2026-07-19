@@ -677,8 +677,19 @@ export async function loadAccountDataWithMeta(
 
 function parseDate(value: unknown): Date | null {
   if (!value || typeof value !== "string") return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const match = value.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  // Store calendar dates at UTC noon so reads stay stable across timezones.
+  return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 12, 0, 0));
+}
+
+function formatDateOnly(d: Date | null | undefined): string | undefined {
+  if (!d) return undefined;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function mapBillFields(userId: string, bill: Record<string, unknown>) {
@@ -807,13 +818,13 @@ function toDomainPlannedExpense(p: {
     name: p.name,
     title: p.title ?? undefined,
     amount: p.amount,
-    targetDate: p.targetDate?.toISOString().slice(0, 10),
+    targetDate: formatDateOnly(p.targetDate),
     category: p.category,
     status: p.status,
     priority: p.priority ?? undefined,
     notes: p.notes ?? undefined,
     fundingSource: p.fundingSource ?? undefined,
-    reminderDate: p.reminderDate?.toISOString().slice(0, 10),
+    reminderDate: formatDateOnly(p.reminderDate),
   };
 }
 
@@ -834,7 +845,7 @@ function toDomainBill(b: {
     name: b.name,
     amount: b.amount,
     amountType: b.amountType,
-    dueDate: b.dueDate?.toISOString().slice(0, 10) ?? "",
+    dueDate: formatDateOnly(b.dueDate) ?? "",
     frequency: b.frequency,
     autopay: b.autopay,
     paidFrom: b.paidFrom ?? "",
@@ -863,8 +874,8 @@ function toDomainIncome(i: {
     frequency: i.frequency,
     reliability: i.reliability,
     active: i.active,
-    startDate: i.startDate?.toISOString().slice(0, 10),
-    nextDate: i.nextDate?.toISOString().slice(0, 10),
+    startDate: formatDateOnly(i.startDate),
+    nextDate: formatDateOnly(i.nextDate),
     notes: i.notes ?? undefined,
   };
 }
@@ -886,7 +897,7 @@ function toDomainSubscription(s: {
     frequency: s.frequency,
     category: s.category,
     status: s.status,
-    renewalDate: s.renewalDate?.toISOString().slice(0, 10),
+    renewalDate: formatDateOnly(s.renewalDate),
     notes: s.notes ?? undefined,
   };
 }
