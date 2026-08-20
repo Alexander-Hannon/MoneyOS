@@ -14,11 +14,11 @@ import type {
 } from "@/types/money";
 import type { DataSourceLabel } from "@/lib/data-source";
 import { reviewItemsBadgeLabel } from "@/lib/plaid-ui-labels";
+import { approvedSubscriptionsMonthlyTotal } from "@/lib/recurring-obligations";
 import {
   activeIncomeCount,
   billsDueThisMonth,
   formatCurrency,
-  monthlySubscriptionTotal,
 } from "@/lib/money-utils";
 
 export function SummaryCards({
@@ -40,7 +40,7 @@ export function SummaryCards({
   storedMode?: AppMode;
   activePlaidEnvironment?: PlaidEnvironment | null;
 }) {
-  const subsTotal = monthlySubscriptionTotal(subscriptions);
+  const subsTotal = approvedSubscriptionsMonthlyTotal(subscriptions);
   const thisMonth = billsDueThisMonth(bills);
   const activeCount = activeIncomeCount(income);
 
