@@ -16,7 +16,12 @@ import {
   expectedIncomeWithin,
   getBillNextDueDate,
 } from "@/lib/money-utils";
-import { isBillOccurrencePaid } from "@/lib/recurrence";
+import { deriveBillPhase } from "@/lib/obligations-lifecycle";
+import {
+  getSubscriptionNextRenewalDate,
+  isBillOccurrencePaid,
+  isSubscriptionOccurrenceRenewed,
+} from "@/lib/recurrence";
 import { transactionsNeedingReview } from "@/lib/transaction-utils";
 
 export function syncedAlertId(type: SyncedAlertType, sourceId: string): string {
@@ -105,6 +110,21 @@ export function syncAlerts(args: {
       );
     }
 
+    const phase = deriveBillPhase(bill, effectiveDueDate);
+    if (phase === "needs_confirmation") {
+      generated.push(
+        buildSyncedAlert({
+          type: "bill_due_soon",
+          sourceId: `${bill.id}:verify`,
+          title: `Verify payment: ${bill.name}`,
+          description: `${bill.name} was scheduled but the due date has passed. Confirm whether payment completed.`,
+          severity: "medium",
+          category: "bill",
+          suggestedAction: "Mark paid if completed, or reschedule if not.",
+        }),
+      );
+    }
+
     if (bill.amount === null || bill.amountType === "variable") {
       generated.push(
         buildSyncedAlert({
@@ -154,6 +174,40 @@ export function syncAlerts(args: {
               : "Decide whether to continue before the trial ends.",
           }),
         );
+      }
+    }
+
+    if (sub.status === "keep") {
+      const renewalDate = getSubscriptionNextRenewalDate(sub);
+      if (renewalDate && !isSubscriptionOccurrenceRenewed(sub, renewalDate)) {
+        const days = daysUntil(renewalDate);
+        if (days >= 0 && days <= 7) {
+          generated.push(
+            buildSyncedAlert({
+              type: "subscription_renewal_due",
+              sourceId: sub.id,
+              title: `Subscription renewing soon: ${sub.name}`,
+              description: `${sub.name} renews in ${days} day(s) on ${renewalDate}.`,
+              severity: days <= 3 ? "high" : "medium",
+              category: "subscription",
+              suggestedAction: sub.cancellationUrl
+                ? "Review before renewal and open cancel/manage if needed."
+                : "Confirm renewal amount and funding source.",
+            }),
+          );
+        } else if (days < 0) {
+          generated.push(
+            buildSyncedAlert({
+              type: "subscription_renewal_due",
+              sourceId: `${sub.id}:overdue`,
+              title: `Subscription renewal overdue: ${sub.name}`,
+              description: `${sub.name} renewal date passed ${Math.abs(days)} day(s) ago.`,
+              severity: "high",
+              category: "subscription",
+              suggestedAction: "Mark renewed if charged, or review the subscription.",
+            }),
+          );
+        }
       }
     }
   }

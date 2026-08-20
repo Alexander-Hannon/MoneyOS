@@ -8,7 +8,13 @@ import type {
   Subscription,
 } from "@/types/money";
 import { daysUntil } from "@/lib/money-utils";
-import { getBillNextDueDate, isBillOccurrencePaid } from "@/lib/recurrence";
+import { deriveBillPhase } from "@/lib/obligations-lifecycle";
+import {
+  getBillNextDueDate,
+  getSubscriptionNextRenewalDate,
+  isBillOccurrencePaid,
+  isSubscriptionOccurrenceRenewed,
+} from "@/lib/recurrence";
 
 function priorityFromSeverity(severity: Alert["severity"]): ActionItem["priority"] {
   if (severity === "high") return "high";
@@ -32,14 +38,20 @@ export function buildActionItems(args: {
     const effectiveDueDate = getBillNextDueDate(bill);
     if (isBillOccurrencePaid(bill, effectiveDueDate)) continue;
     const days = daysUntil(effectiveDueDate);
-    if (days < 0 || days <= 7) {
+    const phase = deriveBillPhase(bill, effectiveDueDate);
+    if (days < 0 || days <= 7 || phase === "needs_confirmation") {
       const id = `action:pay-bill:${bill.id}`;
       if (dismissed.has(id)) continue;
       items.push({
         id,
-        title: days < 0 ? `Overdue: ${bill.name}` : `Pay bill: ${bill.name}`,
+        title:
+          phase === "needs_confirmation"
+            ? `Verify payment: ${bill.name}`
+            : days < 0
+              ? `Overdue: ${bill.name}`
+              : `Pay bill: ${bill.name}`,
         type: "pay_bill",
-        priority: days < 0 || days <= 3 ? "high" : "medium",
+        priority: days < 0 || days <= 3 || phase === "needs_confirmation" ? "high" : "medium",
         dueDate: effectiveDueDate,
         source: "Bills",
         href: bill.paymentUrl,
@@ -51,6 +63,32 @@ export function buildActionItems(args: {
   }
 
   for (const sub of args.subscriptions) {
+    if (sub.status === "keep") {
+      const renewalDate = getSubscriptionNextRenewalDate(sub);
+      if (renewalDate && !isSubscriptionOccurrenceRenewed(sub, renewalDate)) {
+        const days = daysUntil(renewalDate);
+        if (days < 0 || days <= 7) {
+          const id = `action:sub-renewal:${sub.id}`;
+          if (!dismissed.has(id)) {
+            items.push({
+              id,
+              title:
+                days < 0
+                  ? `Renewal overdue: ${sub.name}`
+                  : `Subscription renewing: ${sub.name}`,
+              type: "subscription_review",
+              priority: days < 0 || days <= 3 ? "high" : "medium",
+              dueDate: renewalDate,
+              source: "Subscriptions",
+              href: sub.cancellationUrl,
+              destinationKey: "subscriptions_review",
+              actionLabel: sub.cancellationUrl ? "Cancel/manage" : "Review renewal",
+              dismissible: true,
+            });
+          }
+        }
+      }
+    }
     if (sub.isTrial && sub.trialEndDate) {
       const days = daysUntil(sub.trialEndDate);
       const reminderDays = sub.reminderDaysBeforeTrialEnds ?? 7;
