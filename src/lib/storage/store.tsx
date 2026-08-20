@@ -25,7 +25,7 @@ import {
   emptySpendingLater,
 } from "@/lib/data/empty-user-data";
 import { inferNextIncomeDate } from "@/lib/money-utils";
-import { getBillNextDueDate, getIncomeNextDate } from "@/lib/recurrence";
+import { getBillNextDueDate, getIncomeNextDate, getSubscriptionNextRenewalDate } from "@/lib/recurrence";
 import { normalizeFinancialDataBundle } from "@/lib/date-normalization";
 import {
   STORAGE_KEYS,
@@ -72,6 +72,8 @@ interface MoneyDataContextValue {
   updateBill: (id: string, draft: DraftBill) => void;
   deleteBill: (id: string) => void;
   setBillStatus: (id: string, status: BillStatus) => void;
+  markBillPaid: (id: string) => void;
+  markBillScheduled: (id: string) => void;
 
   addIncome: (draft: DraftIncome) => void;
   updateIncome: (id: string, draft: DraftIncome) => void;
@@ -83,6 +85,7 @@ interface MoneyDataContextValue {
   updateSubscription: (id: string, draft: DraftSubscription) => void;
   deleteSubscription: (id: string) => void;
   setSubscriptionStatus: (id: string, status: SubscriptionStatus) => void;
+  markSubscriptionRenewed: (id: string) => void;
 
   addAlert: (draft: DraftAlert) => void;
   updateAlert: (id: string, draft: DraftAlert) => void;
@@ -121,6 +124,23 @@ function persistMode(mode: AppMode, data: ReturnType<typeof getDefaultsForMode>)
   saveCollection(STORAGE_KEYS.subscriptions, data.subscriptions);
   saveCollection(STORAGE_KEYS.alerts, data.alerts);
   saveCollection(STORAGE_KEYS.spendingLater, data.spendingLater);
+}
+
+function normalizeBillDraft(draft: DraftBill): DraftBill {
+  if (draft.status === "paid") {
+    const occurrenceDate = getBillNextDueDate({ ...draft, id: "temp" });
+    return {
+      ...draft,
+      lastPaidAt: occurrenceDate,
+      scheduledForDate: undefined,
+      status: "unpaid",
+    };
+  }
+  if (draft.status === "scheduled") {
+    const occurrenceDate = getBillNextDueDate({ ...draft, id: "temp" });
+    return { ...draft, scheduledForDate: occurrenceDate };
+  }
+  return draft;
 }
 
 function normalizeIncomeDraft(draft: DraftIncome): DraftIncome {
@@ -272,13 +292,14 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
       const normalized = normalizeFinancialDataBundle({
         bills: bundle.bills ?? [],
         income: bundle.income ?? [],
+        subscriptions: bundle.subscriptions ?? [],
       });
       applyAll(
         mode,
         {
           bills: normalized.bills ?? [],
           income: normalized.income ?? [],
-          subscriptions: bundle.subscriptions ?? [],
+          subscriptions: normalized.subscriptions ?? [],
           alerts: bundle.alerts ?? [],
           spendingLater: bundle.spendingLater ?? [],
         },
@@ -300,11 +321,15 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     manualAccounts,
 
     addBill: (draft) => {
-      commitBills([...bills, { ...draft, id: newId("bill") }]);
+      commitBills([...bills, { ...normalizeBillDraft(draft), id: newId("bill") }]);
       bumpUserEdit();
     },
     updateBill: (id, draft) => {
-      commitBills(bills.map((b) => (b.id === id ? { ...draft, id } : b)));
+      commitBills(
+        bills.map((b) =>
+          b.id === id ? { ...normalizeBillDraft(draft), id } : b,
+        ),
+      );
       bumpUserEdit();
     },
     deleteBill: (id) => {
@@ -317,12 +342,43 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
           if (b.id !== id) return b;
           if (status === "paid") {
             const occurrenceDate = getBillNextDueDate(b);
-            return { ...b, status, lastPaidAt: occurrenceDate };
+            return {
+              ...b,
+              status: "unpaid",
+              lastPaidAt: occurrenceDate,
+              scheduledForDate: undefined,
+            };
           }
-          if (b.lastPaidAt) {
-            return { ...b, status, lastPaidAt: undefined };
+          if (status === "scheduled") {
+            const occurrenceDate = getBillNextDueDate(b);
+            return { ...b, status, scheduledForDate: occurrenceDate };
           }
-          return { ...b, status };
+          return { ...b, status, scheduledForDate: undefined };
+        }),
+      );
+      bumpUserEdit();
+    },
+    markBillPaid: (id) => {
+      commitBills(
+        bills.map((b) => {
+          if (b.id !== id) return b;
+          const occurrenceDate = getBillNextDueDate(b);
+          return {
+            ...b,
+            status: "unpaid",
+            lastPaidAt: occurrenceDate,
+            scheduledForDate: undefined,
+          };
+        }),
+      );
+      bumpUserEdit();
+    },
+    markBillScheduled: (id) => {
+      commitBills(
+        bills.map((b) => {
+          if (b.id !== id) return b;
+          const occurrenceDate = getBillNextDueDate(b);
+          return { ...b, status: "scheduled", scheduledForDate: occurrenceDate };
         }),
       );
       bumpUserEdit();
@@ -377,6 +433,18 @@ export function MoneyDataProvider({ children }: { children: ReactNode }) {
     setSubscriptionStatus: (id, status) => {
       commitSubscriptions(
         subscriptions.map((s) => (s.id === id ? { ...s, status } : s)),
+      );
+      bumpUserEdit();
+    },
+    markSubscriptionRenewed: (id) => {
+      commitSubscriptions(
+        subscriptions.map((s) => {
+          if (s.id !== id) return s;
+          const occurrenceDate =
+            getSubscriptionNextRenewalDate(s) ?? s.renewalDate;
+          if (!occurrenceDate) return s;
+          return { ...s, lastRenewedAt: occurrenceDate };
+        }),
       );
       bumpUserEdit();
     },
