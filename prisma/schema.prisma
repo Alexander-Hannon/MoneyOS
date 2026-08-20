@@ -67,6 +67,7 @@ model Bill {
   status                String
   notes                 String?
   lastPaidAt            DateTime?
+  scheduledForDate      DateTime?
   paymentUrl            String?
   paymentMethod         String?
   paymentInstructions   String?
@@ -108,6 +109,7 @@ model Subscription {
   category     String
   status       String
   renewalDate  DateTime?
+  lastRenewedAt DateTime?
   notes        String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

@@ -58,6 +58,8 @@ export interface Bill {
   payeeName?: string;
   reminderDaysBeforeDue?: number;
   lastPaidAt?: string;
+  /** Occurrence date the user marked as scheduled for payment. */
+  scheduledForDate?: string;
 }
 
 export type IncomeAmountType = "fixed" | "variable" | "commission" | "unknown";
@@ -101,6 +103,8 @@ export interface Subscription {
   status: SubscriptionStatus;
   /** ISO date of the next renewal. */
   renewalDate?: string;
+  /** ISO date when the current renewal cycle was paid/renewed. */
+  lastRenewedAt?: string;
   notes?: string;
   isTrial?: boolean;
   trialStartDate?: string;
@@ -127,6 +131,7 @@ export type SyncedAlertType =
   | "bill_overdue"
   | "variable_bill_review"
   | "subscription_review"
+  | "subscription_renewal_due"
   | "trial_ending"
   | "recurring_candidate_detected"
   | "transaction_needs_classification"
