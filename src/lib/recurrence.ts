@@ -1,4 +1,4 @@
-import type { Bill, BillFrequency, IncomeFrequency, IncomeSource } from "@/types/money";
+import type { Bill, BillFrequency, IncomeFrequency, IncomeSource, Subscription } from "@/types/money";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 /** How far back to look for overdue bill occurrences in dashboard display. */
@@ -184,18 +184,17 @@ export function getOccurrencesInRange(args: {
     const rangeStartDate = parseYMD(start);
     const rangeEndDate = parseYMD(end);
 
-    let year = rangeStartDate.getFullYear();
-    let month = rangeStartDate.getMonth();
     const endYear = rangeEndDate.getFullYear();
     const endMonth = rangeEndDate.getMonth();
 
-    // Start from the month containing rangeStart, but not before anchor month.
     const anchorMonthIndex = anchorYear * 12 + anchorMonth;
-    let cursorMonthIndex = year * 12 + month;
-    if (cursorMonthIndex < anchorMonthIndex) {
-      cursorMonthIndex = anchorMonthIndex;
-      year = anchorYear;
-      month = anchorMonth;
+    const rangeStartMonthIndex =
+      rangeStartDate.getFullYear() * 12 + rangeStartDate.getMonth();
+    let cursorMonthIndex = Math.max(anchorMonthIndex, rangeStartMonthIndex);
+
+    const monthsSinceAnchor = cursorMonthIndex - anchorMonthIndex;
+    if (monthsSinceAnchor % monthStep !== 0) {
+      cursorMonthIndex += monthStep - (monthsSinceAnchor % monthStep);
     }
 
     const endMonthIndex = endYear * 12 + endMonth;
@@ -258,7 +257,10 @@ export function isBillOccurrencePaid(bill: Bill, occurrenceYMD: string): boolean
   const occurrence = occurrenceYMD.slice(0, 10);
 
   if (!isRecurringBill(bill)) {
-    return bill.status === "paid";
+    return (
+      bill.status === "paid" ||
+      (bill.lastPaidAt?.slice(0, 10) === occurrence)
+    );
   }
 
   if (bill.lastPaidAt && bill.lastPaidAt.slice(0, 10) === occurrence) {
@@ -287,12 +289,13 @@ export function getBillEffectiveDueDate(
   const today = toYMD(resolveAsOfDate(asOf));
   const overdueStart = addDaysYMD(today, -BILL_OVERDUE_LOOKBACK_DAYS);
   const yesterday = addDaysYMD(today, -1);
+  const lastPaid = bill.lastPaidAt?.slice(0, 10);
   const overdue = getUnpaidBillOccurrencesInRange(
     bill,
     overdueStart,
     yesterday,
     asOf,
-  );
+  ).filter((occurrence) => !lastPaid || occurrence > lastPaid);
   if (overdue.length > 0) {
     return overdue[overdue.length - 1];
   }
@@ -498,4 +501,148 @@ export function countExpectedIncomeOccurrences(
     rangeEnd,
     asOf,
   ).length;
+}
+
+/* ------------------------------------------------------------------ */
+/* Subscription helpers (shared recurrence engine)                     */
+/* ------------------------------------------------------------------ */
+
+export function getSubscriptionAnchorDate(
+  subscription: Subscription,
+): string | undefined {
+  if (subscription.renewalDate) return subscription.renewalDate.slice(0, 10);
+  return undefined;
+}
+
+export function inferSubscriptionAnchorDate(
+  subscription: Subscription,
+  asOf?: Date | string,
+): string | undefined {
+  const explicit = getSubscriptionAnchorDate(subscription);
+  if (explicit) return explicit;
+  if (subscription.status !== "keep") return undefined;
+
+  const ref = resolveAsOfDate(asOf);
+  switch (subscription.frequency) {
+    case "weekly":
+    case "monthly":
+      return toYMD(ref);
+    case "annual":
+      return monthlyOccurrenceYMD("2000-01-01", ref.getFullYear(), ref.getMonth());
+    default:
+      return undefined;
+  }
+}
+
+export function isSubscriptionOccurrenceRenewed(
+  subscription: Subscription,
+  occurrenceYMD: string,
+): boolean {
+  const occurrence = occurrenceYMD.slice(0, 10);
+  if (
+    subscription.lastRenewedAt &&
+    subscription.lastRenewedAt.slice(0, 10) === occurrence
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function getSubscriptionRenewalsInRange(
+  subscription: Subscription,
+  rangeStart: string,
+  rangeEnd: string,
+  asOf?: Date | string,
+): string[] {
+  if (subscription.status !== "keep") return [];
+
+  const anchor = inferSubscriptionAnchorDate(subscription, asOf);
+  if (!anchor) return [];
+
+  if (subscription.frequency === "variable") {
+    if (!subscription.renewalDate) return [];
+    return getOccurrencesInRange({
+      frequency: "one-time",
+      anchorDate: subscription.renewalDate,
+      rangeStart,
+      rangeEnd,
+    });
+  }
+
+  return getOccurrencesInRange({
+    frequency: subscription.frequency,
+    anchorDate: anchor,
+    rangeStart,
+    rangeEnd,
+  });
+}
+
+export function getUnrenewedSubscriptionOccurrencesInRange(
+  subscription: Subscription,
+  rangeStart: string,
+  rangeEnd: string,
+  asOf?: Date | string,
+): string[] {
+  return getSubscriptionRenewalsInRange(
+    subscription,
+    rangeStart,
+    rangeEnd,
+    asOf,
+  ).filter((occurrence) => !isSubscriptionOccurrenceRenewed(subscription, occurrence));
+}
+
+export function getSubscriptionNextRenewalDate(
+  subscription: Subscription,
+  asOf?: Date | string,
+): string | undefined {
+  if (subscription.status !== "keep") return undefined;
+
+  const today = toYMD(resolveAsOfDate(asOf));
+  const lastRenewed = subscription.lastRenewedAt?.slice(0, 10);
+  const overdueStart = addDaysYMD(today, -BILL_OVERDUE_LOOKBACK_DAYS);
+  const yesterday = addDaysYMD(today, -1);
+  const overdue = getUnrenewedSubscriptionOccurrencesInRange(
+    subscription,
+    overdueStart,
+    yesterday,
+    asOf,
+  ).filter((occurrence) => !lastRenewed || occurrence > lastRenewed);
+  if (overdue.length > 0) {
+    return overdue[overdue.length - 1];
+  }
+
+  const horizon = addDaysYMD(today, 366);
+  const upcoming = getUnrenewedSubscriptionOccurrencesInRange(
+    subscription,
+    today,
+    horizon,
+    asOf,
+  );
+  return upcoming[0];
+}
+
+export function getSubscriptionsRenewingInDayWindow(
+  subscriptions: Subscription[],
+  minDays: number,
+  maxDays: number,
+  asOf?: Date | string,
+): Array<{ subscription: Subscription; occurrenceDate: string }> {
+  const today = toYMD(resolveAsOfDate(asOf));
+  const rangeStart = addDaysYMD(today, minDays);
+  const rangeEnd = addDaysYMD(today, maxDays);
+  const results: Array<{ subscription: Subscription; occurrenceDate: string }> = [];
+
+  for (const subscription of subscriptions) {
+    if (subscription.status !== "keep") continue;
+    const unrenewed = getUnrenewedSubscriptionOccurrencesInRange(
+      subscription,
+      rangeStart,
+      rangeEnd,
+      asOf,
+    );
+    if (unrenewed.length === 0) continue;
+    results.push({ subscription, occurrenceDate: unrenewed[0] });
+  }
+
+  return results.sort((a, b) => compareYMD(a.occurrenceDate, b.occurrenceDate));
 }
