@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AppMode } from "@/types/app-mode";
-import type { Bill, IncomeSource } from "@/types/money";
+import type { Bill, IncomeSource, Subscription } from "@/types/money";
 import { getPrisma } from "@/lib/db/prisma";
 import { normalizeFinancialDataBundle } from "@/lib/date-normalization";
 import {
@@ -709,6 +709,7 @@ function mapBillFields(userId: string, bill: Record<string, unknown>) {
     status: String(bill.status ?? "unpaid"),
     notes: bill.notes ? String(bill.notes) : null,
     lastPaidAt: parseDate(bill.lastPaidAt),
+    scheduledForDate: parseDate(bill.scheduledForDate),
     paymentUrl: bill.paymentUrl ? String(bill.paymentUrl) : null,
     paymentMethod: bill.paymentMethod ? String(bill.paymentMethod) : null,
     paymentInstructions: bill.paymentInstructions
@@ -748,6 +749,7 @@ function mapSubscriptionFields(userId: string, sub: Record<string, unknown>) {
     category: String(sub.category ?? "General"),
     status: String(sub.status ?? "keep"),
     renewalDate: parseDate(sub.renewalDate),
+    lastRenewedAt: parseDate(sub.lastRenewedAt),
     notes: sub.notes ? String(sub.notes) : null,
   };
 }
@@ -809,7 +811,7 @@ export async function loadUserDataBundle(userId: string) {
     appMode: user.appMode,
     bills: user.bills.map(toDomainBill) as Bill[],
     income: user.incomeSources.map(toDomainIncome) as IncomeSource[],
-    subscriptions: user.subscriptions.map(toDomainSubscription),
+    subscriptions: user.subscriptions.map(toDomainSubscription) as Subscription[],
     alerts: user.alerts.map(toDomainAlert),
     manualAccounts: user.accounts.map(toDomainManualAccount),
     spendingLater: user.plannedExpenses.map(toDomainPlannedExpense),
@@ -856,6 +858,7 @@ function toDomainBill(b: {
   status: string;
   notes: string | null;
   lastPaidAt?: Date | null;
+  scheduledForDate?: Date | null;
   paymentUrl?: string | null;
   paymentMethod?: string | null;
   paymentInstructions?: string | null;
@@ -874,6 +877,7 @@ function toDomainBill(b: {
     status: b.status,
     notes: b.notes ?? undefined,
     lastPaidAt: formatDateOnly(b.lastPaidAt ?? null),
+    scheduledForDate: formatDateOnly(b.scheduledForDate ?? null),
     paymentUrl: b.paymentUrl ?? undefined,
     paymentMethod: b.paymentMethod ?? undefined,
     paymentInstructions: b.paymentInstructions ?? undefined,
@@ -918,6 +922,7 @@ function toDomainSubscription(s: {
   category: string;
   status: string;
   renewalDate: Date | null;
+  lastRenewedAt?: Date | null;
   notes: string | null;
 }) {
   return {
@@ -928,6 +933,7 @@ function toDomainSubscription(s: {
     category: s.category,
     status: s.status,
     renewalDate: formatDateOnly(s.renewalDate),
+    lastRenewedAt: formatDateOnly(s.lastRenewedAt ?? null),
     notes: s.notes ?? undefined,
   };
 }

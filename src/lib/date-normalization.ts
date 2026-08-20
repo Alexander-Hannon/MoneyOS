@@ -1,4 +1,4 @@
-import type { Bill, IncomeSource } from "@/types/money";
+import type { Bill, IncomeSource, Subscription } from "@/types/money";
 
 /** Normalize any date-like value to a stable YYYY-MM-DD calendar string. */
 export function normalizeCalendarDate(
@@ -20,6 +20,7 @@ export function normalizeBillDates(bill: Bill): Bill {
     ...bill,
     dueDate: normalizeCalendarDate(bill.dueDate) ?? bill.dueDate,
     lastPaidAt: normalizeCalendarDate(bill.lastPaidAt),
+    scheduledForDate: normalizeCalendarDate(bill.scheduledForDate),
     nextDueDate: normalizeCalendarDate(bill.nextDueDate),
   };
 }
@@ -33,13 +34,25 @@ export function normalizeIncomeDates(income: IncomeSource): IncomeSource {
   };
 }
 
+export function normalizeSubscriptionDates(subscription: Subscription): Subscription {
+  return {
+    ...subscription,
+    renewalDate: normalizeCalendarDate(subscription.renewalDate),
+    lastRenewedAt: normalizeCalendarDate(subscription.lastRenewedAt),
+    trialStartDate: normalizeCalendarDate(subscription.trialStartDate),
+    trialEndDate: normalizeCalendarDate(subscription.trialEndDate),
+  };
+}
+
 export function normalizeFinancialDataBundle<T extends {
   bills?: Bill[];
   income?: IncomeSource[];
+  subscriptions?: Subscription[];
 }>(bundle: T): T {
   return {
     ...bundle,
     bills: bundle.bills?.map(normalizeBillDates),
     income: bundle.income?.map(normalizeIncomeDates),
+    subscriptions: bundle.subscriptions?.map(normalizeSubscriptionDates),
   };
 }

@@ -70,6 +70,24 @@ describe("getOccurrencesInRange", () => {
     });
     expect(dates).toEqual(["2026-01-20"]);
   });
+
+  it("aligns annual occurrences to anchor month only", () => {
+    const overdueWindow = getOccurrencesInRange({
+      frequency: "annual",
+      anchorDate: "2025-08-20",
+      rangeStart: "2026-05-12",
+      rangeEnd: "2026-08-09",
+    });
+    expect(overdueWindow).toEqual([]);
+
+    const upcoming = getOccurrencesInRange({
+      frequency: "annual",
+      anchorDate: "2025-08-20",
+      rangeStart: "2026-08-10",
+      rangeEnd: "2027-08-10",
+    });
+    expect(upcoming).toEqual(["2026-08-20"]);
+  });
 });
 
 describe("billsDueThisMonth", () => {
@@ -354,13 +372,13 @@ describe("expectedIncomeWithin", () => {
 });
 
 describe("getBillEffectiveDueDate", () => {
-  it("returns most recent overdue within lookback, else next upcoming", () => {
+  it("returns most recent overdue within lookback when nothing upcoming", () => {
     const b = bill({
       id: "b1",
       name: "Insurance",
       dueDate: "2026-02-01",
     });
-    expect(getBillEffectiveDueDate(b, AS_OF)).toBe("2026-07-01");
+    expect(getBillEffectiveDueDate(b, "2026-07-19")).toBe("2026-07-01");
   });
 });
 
