@@ -95,16 +95,6 @@ export function NetWorthPageClient() {
         Balance history is saved server-side. Configure the database to start recording.
       </Notice>
     );
-  } else if (bh.state === "no_bank") {
-    body = (
-      <Notice title="Connect a bank to start recording">
-        MoneyOS records a balance for each linked account whenever balances are
-        refreshed. Manual accounts aren’t tracked yet.{" "}
-        <Link href="/settings#live-bank-accounts" className="text-primary hover:underline">
-          Connect a bank
-        </Link>
-      </Notice>
-    );
   } else if (bh.state === "error") {
     body = (
       <Notice title="History didn’t load">
@@ -119,8 +109,17 @@ export function NetWorthPageClient() {
   } else if (!latest) {
     body = (
       <Notice title="No balances recorded yet">
-        Recording starts the next time your {bh.sourceLabel} balances are
-        refreshed. History begins from that day; nothing earlier is estimated.
+        <p>
+          MoneyOS records a reading each time linked bank balances are refreshed,
+          and each time you change a manual account’s balance. History begins
+          from the first reading; nothing earlier is estimated.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href="/cash" className="text-primary hover:underline">Update a manual balance</Link>
+          {bh.bankEnvironment == null ? (
+            <Link href="/settings#live-bank-accounts" className="text-primary hover:underline">Connect a bank</Link>
+          ) : null}
+        </div>
       </Notice>
     );
   } else {
@@ -130,7 +129,7 @@ export function NetWorthPageClient() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3">
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-medium">{metric === "cash" ? "Cash" : "Net worth"}</h2>
-              <span className="rounded-[3px] border border-warning/30 px-1.5 py-0.5 text-[11px] text-warning">
+              <span className="rounded-[3px] border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {bh.sourceLabel}
               </span>
             </div>
@@ -145,6 +144,24 @@ export function NetWorthPageClient() {
                 ]}
               />
               <Segmented label="Range" value={range} onChange={setRange} options={RANGES} />
+              {bh.bankEnvironment != null ? (
+                <label
+                  className={cn(
+                    "flex items-center gap-1.5 text-[11px] text-muted-foreground",
+                    !bh.manualAllowed && "opacity-50",
+                  )}
+                  title={bh.manualAllowed ? undefined : "Manual balances are real data and aren’t combined with Sandbox."}
+                >
+                  <input
+                    type="checkbox"
+                    checked={bh.includeManual}
+                    disabled={!bh.manualAllowed}
+                    onChange={(e) => bh.setIncludeManual(e.target.checked)}
+                    className="accent-[var(--primary)]"
+                  />
+                  Include manual
+                </label>
+              ) : null}
             </div>
           </div>
 
@@ -198,8 +215,8 @@ export function NetWorthPageClient() {
 
           <p className="border-t border-border px-5 py-2.5 text-xs text-muted-foreground">
             Recorded since {formatDate(bh.history.firstDate!)}. Each dot is a real
-            reading taken when balances were refreshed; the line holds a balance
-            until the next one. Nothing before the first reading is estimated.
+            reading: a bank balance refresh or a manual balance you entered. The line
+            holds a balance until the next reading. Nothing before the first one is estimated.
           </p>
         </Card>
 
@@ -213,6 +230,7 @@ export function NetWorthPageClient() {
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th scope="col" className="px-5 py-2 font-normal">Account</th>
                 <th scope="col" className="hidden px-2 py-2 font-normal sm:table-cell">Type</th>
+                <th scope="col" className="hidden px-2 py-2 font-normal md:table-cell">Source</th>
                 <th scope="col" className="px-2 py-2 text-right font-normal">Balance</th>
                 <th scope="col" className="px-5 py-2 text-right font-normal">Read</th>
               </tr>
@@ -232,6 +250,9 @@ export function NetWorthPageClient() {
                     </td>
                     <td className="hidden px-2 py-2.5 capitalize text-muted-foreground sm:table-cell">
                       {row.accountType}
+                    </td>
+                    <td className="hidden px-2 py-2.5 text-xs text-muted-foreground md:table-cell">
+                      {a?.source === "manual" ? "Manual, as entered" : a?.source === "plaid_sandbox" ? "Plaid Sandbox" : "Personal Live"}
                     </td>
                     <td className={cn("num px-2 py-2.5 text-right", debt && "text-destructive")}>
                       {debt ? "−" : ""}

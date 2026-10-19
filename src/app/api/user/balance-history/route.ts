@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAuthUser } from "@/lib/auth/session";
 import { validateLivePlaidAccess } from "@/lib/plaid/live-mode";
-import { listBalanceSnapshotsForUser } from "@/lib/db/balance-snapshots";
+import { listBalanceSnapshotsForUser, type SnapshotSource } from "@/lib/db/balance-snapshots";
 
 const MAX_DAYS = 730;
 
-// GET /api/user/balance-history?environment=production|sandbox&days=365
+// GET /api/user/balance-history?environment=production|sandbox|none&includeManual=true&days=365
 // Returns recorded snapshots only, with display-safe account fields.
+// Sandbox history is never combined with Personal Live or manual history.
 export async function GET(request: Request) {
   const auth = await requireAuthUser();
   if (!auth.ok) {
@@ -15,9 +16,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const environment = url.searchParams.get("environment");
-  if (environment !== "production" && environment !== "sandbox") {
+  const includeManual = url.searchParams.get("includeManual") === "true";
+  if (environment !== "production" && environment !== "sandbox" && environment !== "none") {
     return NextResponse.json(
-      { ok: false, errorCode: "invalid_environment", message: "environment must be production or sandbox." },
+      { ok: false, errorCode: "invalid_environment", message: "environment must be production, sandbox, or none." },
       { status: 400 },
     );
   }
@@ -37,17 +39,27 @@ export async function GET(request: Request) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
   try {
+    const sources: SnapshotSource[] =
+      environment === "sandbox"
+        ? ["plaid_sandbox"]
+        : environment === "production"
+          ? includeManual
+            ? ["plaid_live", "manual"]
+            : ["plaid_live"]
+          : ["manual"];
     const { accounts, snapshots } = await listBalanceSnapshotsForUser({
       userId: auth.user.userId,
-      source: environment === "production" ? "plaid_live" : "plaid_sandbox",
+      sources,
       sinceDate: since,
     });
     return NextResponse.json({
       ok: true,
       environment,
       accounts,
+      sources,
       snapshots: snapshots.map((s) => ({
         accountId: s.accountId,
+        source: s.source,
         accountType: s.accountType,
         snapshotDate: s.snapshotDate,
         currentBalance: s.currentBalance,

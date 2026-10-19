@@ -12,60 +12,82 @@ import {
 export type BalanceHistoryState =
   | "signed_out"
   | "no_database"
-  | "no_bank"
   | "loading"
   | "error"
   | "ready";
 
+const SOURCE_NAMES: Record<string, string> = {
+  plaid_live: "Personal Live",
+  plaid_sandbox: "Plaid Sandbox",
+  manual: "Manual",
+};
+
 export function useBalanceHistory() {
   const fd = useFinancialData();
   const { status } = useUserStatus();
-  const environment = fd.plaidConnected ? fd.activePlaidEnvironment : null;
+  const bankEnvironment = fd.plaidConnected ? fd.activePlaidEnvironment : null;
+  // Manual balances are real data; they never mix with Sandbox.
+  const manualAllowed = bankEnvironment !== "sandbox";
+  const [includeManual, setIncludeManual] = useState(true);
+  const environment = bankEnvironment ?? "none";
+  const requestKey = `${environment}:${manualAllowed && includeManual}`;
 
   const [raw, setRaw] = useState<{
-    environment: string;
+    key: string;
     accounts: HistoryAccount[];
     snapshots: HistorySnapshot[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const canFetch = status.signedIn && status.databaseConfigured && environment != null;
+  const canFetch = status.signedIn && status.databaseConfigured;
 
   const load = useCallback(async () => {
-    if (!canFetch || !environment) return;
+    if (!canFetch) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/user/balance-history?environment=${environment}&days=730`);
+      const params = new URLSearchParams({
+        environment,
+        includeManual: String(manualAllowed && includeManual),
+        days: "730",
+      });
+      const res = await fetch(`/api/user/balance-history?${params}`);
       const body = await res.json();
       if (!res.ok || body.ok === false) {
         throw new Error(body.message ?? "Balance history could not be loaded.");
       }
-      setRaw({ environment, accounts: body.accounts, snapshots: body.snapshots });
+      setRaw({ key: requestKey, accounts: body.accounts, snapshots: body.snapshots });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Balance history could not be loaded.");
     } finally {
       setLoading(false);
     }
-  }, [canFetch, environment]);
+  }, [canFetch, environment, manualAllowed, includeManual, requestKey]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch history when the active environment changes
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch history when the requested sources change
     void load();
   }, [load]);
 
-  // Ignore a response for a different environment than the one now active.
-  const current = raw && raw.environment === environment ? raw : null;
+  // Ignore a response for sources other than the ones now requested.
+  const current = raw && raw.key === requestKey ? raw : null;
   const history = useMemo(
     () => buildBalanceHistory(current?.accounts ?? [], current?.snapshots ?? []),
     [current],
   );
 
+  // Label from the sources actually present, so it never over-claims.
+  const presentSources = [...new Set((current?.accounts ?? []).map((a) => a.source ?? ""))]
+    .filter(Boolean)
+    .sort((a, b) => (a === "manual" ? 1 : b === "manual" ? -1 : 0));
+  const sourceLabel =
+    presentSources.map((s) => SOURCE_NAMES[s] ?? s).join(" + ") ||
+    (bankEnvironment === "production" ? "Personal Live" : bankEnvironment === "sandbox" ? "Plaid Sandbox" : "Manual");
+
   let state: BalanceHistoryState;
   if (!status.signedIn) state = "signed_out";
   else if (!status.databaseConfigured) state = "no_database";
-  else if (!environment) state = "no_bank";
   else if (error) state = "error";
   else if (loading || !current) state = "loading";
   else state = "ready";
@@ -74,8 +96,11 @@ export function useBalanceHistory() {
     state,
     error,
     history,
-    environment,
-    sourceLabel: environment === "production" ? "Personal Live" : "Plaid Sandbox",
+    bankEnvironment,
+    sourceLabel,
+    manualAllowed,
+    includeManual: manualAllowed && includeManual,
+    setIncludeManual,
     reload: load,
   };
 }

@@ -16,6 +16,8 @@ export type HistoryAccount = {
   institution: string;
   type: string;
   mask: string | null;
+  /** plaid_live | plaid_sandbox | manual */
+  source?: string;
 };
 
 export type HistorySnapshot = {

@@ -2,6 +2,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import type { DataSource } from "@/types/transactions";
 
 export type PlaidSnapshotSource = Extract<DataSource, "plaid_live" | "plaid_sandbox">;
+export type SnapshotSource = PlaidSnapshotSource | "manual";
 
 /** UTC calendar day used as the one-per-day snapshot key. */
 export function snapshotDateFor(date: Date): string {
@@ -15,7 +16,7 @@ export function snapshotDateFor(date: Date): string {
  */
 export async function recordBalanceSnapshots(args: {
   userId: string;
-  source: PlaidSnapshotSource;
+  source: SnapshotSource;
   accounts: Array<{
     accountId: string;
     accountType: string;
@@ -57,10 +58,25 @@ export async function recordBalanceSnapshots(args: {
   return written;
 }
 
-/** Snapshots for one source (never mixes Personal Live with Sandbox). */
+/** Account ids that already have at least one snapshot for a source. */
+export async function accountIdsWithSnapshots(userId: string, source: SnapshotSource) {
+  const prisma = getPrisma();
+  if (!prisma) return new Set<string>();
+  const rows = await prisma.balanceSnapshot.findMany({
+    where: { userId, source },
+    distinct: ["accountId"],
+    select: { accountId: true },
+  });
+  return new Set(rows.map((r) => r.accountId));
+}
+
+/**
+ * Snapshots for the requested sources. Callers must never combine
+ * plaid_sandbox with plaid_live or manual (Sandbox data is not real).
+ */
 export async function listBalanceSnapshotsForUser(args: {
   userId: string;
-  source: PlaidSnapshotSource;
+  sources: SnapshotSource[];
   sinceDate?: string;
 }) {
   const prisma = getPrisma();
@@ -69,12 +85,13 @@ export async function listBalanceSnapshotsForUser(args: {
   const snapshots = await prisma.balanceSnapshot.findMany({
     where: {
       userId: args.userId,
-      source: args.source,
+      source: { in: args.sources },
       ...(args.sinceDate ? { snapshotDate: { gte: args.sinceDate } } : {}),
     },
     orderBy: { snapshotDate: "asc" },
     select: {
       accountId: true,
+      source: true,
       accountType: true,
       snapshotDate: true,
       currentBalance: true,
@@ -88,7 +105,7 @@ export async function listBalanceSnapshotsForUser(args: {
     ? await prisma.account.findMany({
         where: { userId: args.userId, id: { in: accountIds } },
         // Display-safe fields only — never Plaid identifiers.
-        select: { id: true, name: true, institution: true, type: true, mask: true },
+        select: { id: true, name: true, institution: true, type: true, mask: true, source: true },
       })
     : [];
 

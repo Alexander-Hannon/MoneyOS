@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { accountIdsWithSnapshots, recordBalanceSnapshots } from "@/lib/db/balance-snapshots";
 import type { AppMode } from "@/types/app-mode";
 import type { Bill, IncomeSource, Subscription } from "@/types/money";
 import { getPrisma } from "@/lib/db/prisma";
@@ -245,6 +246,9 @@ export async function importUserDataBundle(
   }
 
   let manualAccountCount = 0;
+  const manualSnapshotRows: Parameters<typeof recordBalanceSnapshots>[0]["accounts"] = [];
+  const manualWithHistory =
+    manualAccounts.length > 0 ? await accountIdsWithSnapshots(userId, "manual") : new Set<string>();
   for (const row of manualAccounts) {
     const id = row.id ? String(row.id) : randomUUID();
     const fp = manualAccountFingerprintFromInput(row);
@@ -261,6 +265,27 @@ export async function importUserDataBundle(
     });
     accountFingerprints.add(fp);
     manualAccountCount += 1;
+    // Sync re-sends unchanged balances, so only record a reading when the
+    // user actually changed it (or the account has no history yet).
+    const balanceChanged = existingById?.currentBalance !== data.currentBalance;
+    if (data.currentBalance != null && (balanceChanged || !manualWithHistory.has(id))) {
+      manualSnapshotRows.push({
+        accountId: id,
+        accountType: data.type,
+        currentBalance: data.currentBalance,
+        availableBalance: data.availableBalance,
+      });
+    }
+  }
+  if (manualSnapshotRows.length > 0) {
+    try {
+      await recordBalanceSnapshots({ userId, source: "manual", accounts: manualSnapshotRows });
+    } catch (error) {
+      console.warn(
+        "[balance-history] manual snapshot write skipped:",
+        error instanceof Error ? error.name : "unknown error",
+      );
+    }
   }
 
   let spendingLaterCount = 0;
