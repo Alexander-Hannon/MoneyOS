@@ -49,6 +49,8 @@ model UserSettings {
   theme                String   @default("dark")
   defaultMode          String   @default("local_user")
   aiProviderPreference String?
+  /// Flex Spending Plan settings: { savingsTarget, categoryCaps }.
+  spendingPlan         Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

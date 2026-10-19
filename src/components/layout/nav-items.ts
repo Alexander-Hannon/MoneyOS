@@ -2,6 +2,7 @@ import {
   Activity,
   CalendarClock,
   CalendarRange,
+  Gauge,
   Landmark,
   LayoutDashboard,
   LineChart,
@@ -32,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Command", href: "/", icon: LayoutDashboard, keywords: "home dashboard overview" },
       { label: "Runway", href: "/runway", icon: Activity, keywords: "forecast projection cashflow safe to spend" },
+      { label: "Spending plan", href: "/plan", icon: Gauge, keywords: "budget flex pace savings caps" },
       { label: "Weekly review", href: "/weekly-review", icon: CalendarRange, keywords: "review week" },
     ],
   },
