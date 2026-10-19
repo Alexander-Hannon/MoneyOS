@@ -60,7 +60,7 @@ export function cashDataSourceLabel(
     case "manual":
       return "Manual";
     case "demo":
-      return "Demo";
+      return "Demo Data";
     case "plaid_sandbox":
       return "Plaid Sandbox";
     default:

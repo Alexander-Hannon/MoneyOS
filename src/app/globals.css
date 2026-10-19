@@ -8,39 +8,43 @@
  * so `bg-card`, `text-muted-foreground`, `border-border`, etc. all work.
  */
 :root {
-  --radius: 0.85rem;
+  /* MoneyOS V2 — "mission control". One interactive accent (signal cyan);
+     green / red / amber carry meaning only (in, out, caution). */
+  --radius: 0.5rem;
 
-  --background: hsl(225 28% 6%);
-  --foreground: hsl(210 22% 96%);
+  --background: #070a0f;
+  --foreground: #e6edf5;
 
-  --card: hsl(224 26% 9%);
-  --card-foreground: hsl(210 22% 96%);
+  --card: #0c1118;
+  --card-foreground: #e6edf5;
 
-  --popover: hsl(224 26% 9%);
-  --popover-foreground: hsl(210 22% 96%);
+  --popover: #0f151e;
+  --popover-foreground: #e6edf5;
 
-  --primary: hsl(152 62% 47%);
-  --primary-foreground: hsl(150 45% 7%);
+  --primary: #38cfff;
+  --primary-foreground: #021018;
 
-  --secondary: hsl(222 18% 15%);
-  --secondary-foreground: hsl(210 22% 96%);
+  --secondary: #141b26;
+  --secondary-foreground: #e6edf5;
 
-  --muted: hsl(222 16% 13%);
-  --muted-foreground: hsl(215 16% 62%);
+  --muted: #111823;
+  --muted-foreground: #7d8a9c;
 
-  --accent: hsl(222 18% 16%);
-  --accent-foreground: hsl(210 22% 96%);
+  --accent: #151d29;
+  --accent-foreground: #e6edf5;
 
-  --destructive: hsl(0 72% 56%);
-  --destructive-foreground: hsl(0 0% 100%);
+  --destructive: #ff5d6c;
+  --destructive-foreground: #ffffff;
 
-  --border: hsl(220 16% 17%);
-  --input: hsl(220 16% 20%);
-  --ring: hsl(152 62% 47%);
+  --border: #1a2332;
+  --input: #222d3f;
+  --ring: #38cfff;
 
-  --success: hsl(152 62% 47%);
-  --warning: hsl(38 92% 56%);
-  --info: hsl(205 90% 60%);
+  --success: #3ddc97;
+  --warning: #ffb547;
+  --info: #9b8cff;
+
+  --grid-line: rgb(56 207 255 / 0.035);
 }
 
 @theme inline {
@@ -71,8 +75,8 @@
   --radius-md: calc(var(--radius) - 0.2rem);
   --radius-sm: calc(var(--radius) - 0.4rem);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-figures);
 }
 
 * {
@@ -80,13 +84,43 @@
 }
 
 body {
-  background:
-    radial-gradient(900px 500px at 12% -8%, hsl(152 62% 47% / 0.08) 0%, transparent 55%),
-    radial-gradient(800px 480px at 100% 0%, hsl(205 90% 60% / 0.08) 0%, transparent 50%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Instrument-panel grid behind the main work area. */
+.mos-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+/* All money figures: fixed-width mono so columns of numbers align. */
+.num {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.01em;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -94,29 +128,29 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(220 16% 20%);
+  background: #1f2a3b;
   border-radius: 9999px;
 }
 
 /* Brief pulse used when "Take action" focuses a target alert card. */
 @keyframes highlightPulse {
   0% {
-    box-shadow: 0 0 0 0 hsl(152 62% 47% / 0.55);
-    border-color: hsl(152 62% 47%);
+    box-shadow: 0 0 0 0 rgb(56 207 255 / 0.55);
+    border-color: rgb(56 207 255);
   }
   70% {
-    box-shadow: 0 0 0 10px hsl(152 62% 47% / 0);
-    border-color: hsl(152 62% 47%);
+    box-shadow: 0 0 0 10px rgb(56 207 255 / 0);
+    border-color: rgb(56 207 255);
   }
   100% {
-    box-shadow: 0 0 0 0 hsl(152 62% 47% / 0);
+    box-shadow: 0 0 0 0 rgb(56 207 255 / 0);
   }
 }
 
 .highlight-target {
-  border-color: hsl(152 62% 47%) !important;
+  border-color: rgb(56 207 255) !important;
   box-shadow:
-    0 0 0 2px hsl(152 62% 47% / 0.65),
-    0 0 18px 2px hsl(152 62% 47% / 0.35);
+    0 0 0 2px rgb(56 207 255 / 0.65),
+    0 0 18px 2px rgb(56 207 255 / 0.35);
   animation: highlightPulse 1.3s ease-out 2;
 }

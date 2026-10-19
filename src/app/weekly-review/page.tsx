@@ -1,4 +1,4 @@
-import { Header } from "@/components/layout/Header";
+import { AppShell } from "@/components/layout/AppShell";
 import { WeeklyReviewDashboard } from "@/components/weekly-review/WeeklyReviewDashboard";
 
 export const metadata = {
@@ -8,11 +8,8 @@ export const metadata = {
 
 export default function WeeklyReviewPage() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
-      <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6">
-        <WeeklyReviewDashboard />
-      </main>
-    </div>
+    <AppShell>
+      <WeeklyReviewDashboard />
+    </AppShell>
   );
 }

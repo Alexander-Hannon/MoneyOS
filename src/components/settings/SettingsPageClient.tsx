@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
+import { AppShell } from "@/components/layout/AppShell";
 import { scrollToSection } from "@/lib/scroll-nav";
 
 export function SettingsPageClient() {
@@ -14,15 +14,8 @@ export function SettingsPageClient() {
   }, []);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-2xl px-4 py-8 sm:px-6">
-      <p className="text-sm text-muted-foreground">
-        <Link href="/" className="text-primary hover:underline">
-          ← Back to MoneyOS
-        </Link>
-      </p>
-      <div className="mt-4">
-        <SettingsPanel />
-      </div>
-    </main>
+    <AppShell width="narrow">
+      <SettingsPanel />
+    </AppShell>
   );
 }
