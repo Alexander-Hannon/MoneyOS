@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { TaskPageShell } from "@/components/layout/TaskPageShell";
 import { SubscriptionWatchlist } from "@/components/dashboard/SubscriptionWatchlist";
 import { DetectedRecurringItems } from "@/components/dashboard/DetectedRecurringItems";
+import { PriceWatch } from "@/components/subscriptions/PriceWatch";
 
 function SubscriptionsPageContent() {
   const searchParams = useSearchParams();
@@ -39,6 +40,9 @@ function SubscriptionsPageContent() {
           <DetectedRecurringItems />
         </section>
       ) : null}
+      <section id="price-watch" className="scroll-mt-24">
+        <PriceWatch />
+      </section>
       <section id="subscriptions-watchlist" className="scroll-mt-24">
         <SubscriptionWatchlist
           statusFilter={
