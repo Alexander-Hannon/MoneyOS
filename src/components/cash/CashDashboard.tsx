@@ -42,7 +42,7 @@ export function CashDashboard() {
               />
             }
           />
-          <p className="text-3xl font-semibold tabular-nums tracking-tight">
+          <p className="text-3xl font-medium num tracking-tight">
             {formatCurrency(breakdown.totalCashAvailable)}
           </p>
           {breakdown.buckets.length > 0 ? (
@@ -53,7 +53,7 @@ export function CashDashboard() {
                   className="flex items-center justify-between rounded-[var(--radius-md)] border border-border/60 bg-muted/20 px-3 py-2 text-sm"
                 >
                   <span className="text-muted-foreground">{bucket.label}</span>
-                  <span className="font-medium tabular-nums">
+                  <span className="font-medium num">
                     {formatCurrency(bucket.total, true)} · {bucket.accountCount}{" "}
                     acct{bucket.accountCount === 1 ? "" : "s"}
                   </span>
@@ -132,7 +132,7 @@ export function CashDashboard() {
                         />
                       </div>
                       <div className="text-right text-sm">
-                        <p className="font-semibold tabular-nums">
+                        <p className="font-medium num">
                           {formatCurrency(account.currentBalance)}
                         </p>
                         {account.availableBalance != null &&
@@ -198,7 +198,7 @@ export function CashDashboard() {
                     {maskSafeAccountName(account.name, account.mask)} ·{" "}
                     {account.typeLabel}
                   </span>
-                  <span className="tabular-nums text-muted-foreground">
+                  <span className="num text-muted-foreground">
                     {formatCurrency(account.currentBalance)}
                   </span>
                 </li>

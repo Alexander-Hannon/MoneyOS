@@ -3,6 +3,7 @@ import type { DataSource, LinkedAccount } from "@/types/transactions";
 import { hashPlaidId } from "@/lib/plaid/plaid-hash";
 import type { PlaidEnvironment } from "@/lib/plaid/plaid-env";
 import { plaidSourceForEnvironment } from "@/lib/plaid/plaid-env";
+import { recordBalanceSnapshots } from "@/lib/db/balance-snapshots";
 
 export async function listPlaidAccountsForUser(
   userId: string,
@@ -80,6 +81,7 @@ export async function upsertPlaidAccountsForItem(args: {
   if (!prisma) throw new Error("Database is not configured.");
 
   const accountIdByPlaid = new Map<string, string>();
+  const snapshotRows: Parameters<typeof recordBalanceSnapshots>[0]["accounts"] = [];
 
   for (const account of args.accounts) {
     const plaidAccountIdHash = hashPlaidId(account.plaidAccountId);
@@ -120,6 +122,30 @@ export async function upsertPlaidAccountsForItem(args: {
       },
     });
     accountIdByPlaid.set(account.plaidAccountId, row.id);
+    snapshotRows.push({
+      accountId: row.id,
+      accountType: account.type,
+      currentBalance: account.currentBalance ?? null,
+      availableBalance: account.availableBalance ?? null,
+    });
+  }
+
+  // Balances only reach this function when Plaid reported them, so this is
+  // the single place balance history is recorded. History is best-effort and
+  // must never fail the account sync itself.
+  if (args.source === "plaid_live" || args.source === "plaid_sandbox") {
+    try {
+      await recordBalanceSnapshots({
+        userId: args.userId,
+        source: args.source,
+        accounts: snapshotRows,
+      });
+    } catch (error) {
+      console.warn(
+        "[balance-history] snapshot write skipped:",
+        error instanceof Error ? error.name : "unknown error",
+      );
+    }
   }
 
   return accountIdByPlaid;

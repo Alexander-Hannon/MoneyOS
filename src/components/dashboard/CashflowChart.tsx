@@ -10,11 +10,12 @@ import {
   YAxis,
 } from "recharts";
 import { SafeResponsiveChart } from "@/components/shared/SafeResponsiveChart";
+import { CHART, CHART_TICK, CHART_TOOLTIP_STYLE } from "@/lib/chart-theme";
 
 type Point = { month: string; income: number; spending: number };
 
-const INCOME = "hsl(152 62% 47%)";
-const SPENDING = "hsl(0 72% 60%)";
+const INCOME = CHART.inflow;
+const SPENDING = CHART.outflow;
 
 export function CashflowChart({ data }: { data: Point[] }) {
   if (!data.length) return null;
@@ -34,28 +35,22 @@ export function CashflowChart({ data }: { data: Point[] }) {
                 <stop offset="100%" stopColor={SPENDING} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 16% 17%)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "hsl(215 16% 62%)", fontSize: 12 }}
+              tick={CHART_TICK}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               width={56}
-              tick={{ fill: "hsl(215 16% 62%)", fontSize: 12 }}
+              tick={CHART_TICK}
               tickFormatter={(v: number) => `$${(v / 1000).toFixed(1)}k`}
             />
             <Tooltip
-              contentStyle={{
-                background: "hsl(224 26% 9%)",
-                border: "1px solid hsl(220 16% 17%)",
-                borderRadius: 12,
-                color: "hsl(210 22% 96%)",
-                fontSize: 12,
-              }}
+              contentStyle={CHART_TOOLTIP_STYLE}
               formatter={(value, name) => [
                 `$${Number(value).toLocaleString()}`,
                 name === "income" ? "Income" : "Spending",

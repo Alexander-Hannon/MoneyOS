@@ -53,7 +53,7 @@ export function ActionCenter() {
         />
 
         <div className="mb-4 rounded-[var(--radius-md)] border border-primary/20 bg-primary/5 p-4">
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+          <p className="mb-2 flex items-center gap-2 text-xs font-medium text-primary">
             <Target className="size-3.5" />
             First 3 actions
           </p>

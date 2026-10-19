@@ -28,7 +28,7 @@ function ProgressBar({
     <div>
       <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
         <span>{label}</span>
-        <span className="tabular-nums">
+        <span className="num">
           {formatCurrency(value)} / {formatCurrency(max)}
         </span>
       </div>
@@ -65,7 +65,7 @@ function SimpleBriefView({ brief }: { brief: MoneyBriefOutput }) {
       )}
 
       <section>
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <h3 className="text-xs font-medium text-muted-foreground">
           Top 3 things that matter
         </h3>
         <ul className="mt-2 space-y-1.5 text-sm">
@@ -80,13 +80,13 @@ function SimpleBriefView({ brief }: { brief: MoneyBriefOutput }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-[var(--radius-md)] border border-destructive/20 bg-destructive/5 p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-destructive">
+          <p className="text-[10px] font-medium text-destructive">
             One main risk
           </p>
           <p className="mt-1 text-sm">{brief.mainRisk}</p>
         </div>
         <div className="rounded-[var(--radius-md)] border border-primary/20 bg-primary/5 p-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-primary">
+          <p className="text-[10px] font-medium text-primary">
             Best next action
           </p>
           <p className="mt-1 text-sm font-medium">{brief.bestNextAction}</p>
@@ -94,7 +94,7 @@ function SimpleBriefView({ brief }: { brief: MoneyBriefOutput }) {
       </div>
 
       <section className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <h3 className="text-xs font-medium text-muted-foreground">
           Visual snapshot
         </h3>
         <div className="mt-3 space-y-3">
@@ -113,13 +113,13 @@ function SimpleBriefView({ brief }: { brief: MoneyBriefOutput }) {
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded-[var(--radius-md)] border border-border bg-card p-2">
               <p className="text-muted-foreground">Review items</p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums">
+              <p className="mt-0.5 text-lg font-medium num">
                 {vs.reviewItemsCount}
               </p>
             </div>
             <div className="rounded-[var(--radius-md)] border border-border bg-card p-2">
               <p className="text-muted-foreground">Upcoming obligations</p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums">
+              <p className="mt-0.5 text-lg font-medium num">
                 {vs.upcomingObligationsCount}
               </p>
             </div>
@@ -242,13 +242,13 @@ export function MoneyAgentBrief({ compact = false }: { compact?: boolean }) {
             {showDetails && (
               <div className="mt-3 space-y-3 border-t border-border pt-3 text-sm">
                 <section>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <h3 className="text-xs font-medium text-muted-foreground">
                     Full snapshot
                   </h3>
                   <p className="mt-1 text-muted-foreground">{brief.snapshot}</p>
                 </section>
                 <section>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <h3 className="text-xs font-medium text-muted-foreground">
                     Top risks
                   </h3>
                   <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
@@ -258,7 +258,7 @@ export function MoneyAgentBrief({ compact = false }: { compact?: boolean }) {
                   </ul>
                 </section>
                 <section>
-                  <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <h3 className="text-xs font-medium text-muted-foreground">
                     Opportunities
                   </h3>
                   <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">

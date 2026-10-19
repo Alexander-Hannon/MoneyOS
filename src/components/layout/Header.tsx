@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { CircleDollarSign, Settings } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { AuthHeaderControls } from "@/components/auth/AuthHeaderControls";
 import { BankConnectionControl } from "@/components/layout/BankConnectionControl";
 import { ModeBadge } from "@/components/layout/ModeBadge";
@@ -10,60 +9,64 @@ import { RefreshMoneyOSDataButton } from "@/components/sync/RefreshMoneyOSDataBu
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 
-export function Header() {
+export function Header({
+  onOpenMenu,
+  onOpenPalette,
+}: {
+  onOpenMenu: () => void;
+  onOpenPalette: () => void;
+}) {
   const fd = useFinancialData();
   const { status } = useUserStatus();
   const showSignInHint =
     isClerkPublishableConfigured() && !status.signedIn && status.authConfigured;
 
   const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
+    weekday: "short",
+    month: "short",
     day: "numeric",
   });
 
   return (
-    <header className="relative z-40 overflow-visible border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-3.5 sm:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-[var(--radius-md)] bg-primary/15 text-primary ring-1 ring-primary/20">
-              <CircleDollarSign className="size-5" />
-            </span>
-            <div className="leading-tight">
-              <p className="text-base font-semibold tracking-tight">
-                Money<span className="text-primary">OS</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Personal finance command center
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <ModeBadge label={fd.modeLabel} />
-            {status.signedIn && status.databaseConfigured ? (
-              <RefreshMoneyOSDataButton variant="ghost" className="hidden sm:block" />
-            ) : null}
-            <BankConnectionControl />
-            <AuthHeaderControls />
-            <Link
-              href="/settings"
-              className="inline-flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              aria-label="Settings"
-            >
-              <Settings className="size-4" />
-            </Link>
-            <p className="hidden text-xs text-muted-foreground lg:block lg:text-sm">
-              {today}
-            </p>
-          </div>
+    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+      <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Open navigation"
+          className="inline-flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-border text-muted-foreground hover:text-foreground lg:hidden"
+        >
+          <Menu className="size-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          aria-label="Search MoneyOS"
+          className="flex h-8 min-w-0 items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-card/60 px-2.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex-1 sm:max-w-xs sm:px-3"
+        >
+          <Search className="size-3.5 shrink-0" aria-hidden />
+          <span className="hidden flex-1 truncate sm:inline">Search MoneyOS</span>
+          <kbd className="num hidden rounded-[3px] border border-border px-1 text-[10px] sm:inline">
+            Ctrl K
+          </kbd>
+        </button>
+
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <p className="num hidden text-xs text-muted-foreground xl:block">{today}</p>
+          <ModeBadge label={fd.modeLabel} />
+          {status.signedIn && status.databaseConfigured ? (
+            <RefreshMoneyOSDataButton variant="ghost" className="hidden sm:block" />
+          ) : null}
+          <BankConnectionControl />
+          <AuthHeaderControls />
         </div>
-        {showSignInHint && (
-          <p className="text-[11px] text-muted-foreground">
-            Sign in to save your MoneyOS data securely across devices.
-          </p>
-        )}
       </div>
+      {showSignInHint && (
+        <p className="border-t border-border px-4 py-1.5 text-[11px] text-muted-foreground sm:px-6">
+          Sign in to save your MoneyOS data securely across devices.
+        </p>
+      )}
     </header>
   );
 }

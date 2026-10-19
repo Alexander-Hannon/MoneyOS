@@ -1,17 +1,11 @@
 "use client";
 
+import { CATEGORICAL, CHART, CHART_TOOLTIP_STYLE } from "@/lib/chart-theme";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { SafeResponsiveChart } from "@/components/shared/SafeResponsiveChart";
 import type { CashAccountRow } from "@/lib/cash-breakdown";
 
-const COLORS = [
-  "hsl(152 62% 47%)",
-  "hsl(205 90% 60%)",
-  "hsl(38 92% 56%)",
-  "hsl(280 65% 65%)",
-  "hsl(0 72% 60%)",
-  "hsl(190 70% 50%)",
-];
+const COLORS = CATEGORICAL;
 
 export function CashAllocationChart({ accounts }: { accounts: CashAccountRow[] }) {
   const data = accounts.map((account) => ({
@@ -38,20 +32,14 @@ export function CashAllocationChart({ accounts }: { accounts: CashAccountRow[] }
               innerRadius={48}
               outerRadius={78}
               paddingAngle={2}
-              stroke="hsl(224 26% 9%)"
+              stroke={CHART.panel}
             >
               {data.map((entry, index) => (
                 <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{
-                background: "hsl(224 26% 9%)",
-                border: "1px solid hsl(220 16% 17%)",
-                borderRadius: 12,
-                color: "hsl(210 22% 96%)",
-                fontSize: 12,
-              }}
+              contentStyle={CHART_TOOLTIP_STYLE}
               formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]}
             />
           </PieChart>

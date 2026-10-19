@@ -111,13 +111,13 @@ export function RecurringCommandCenter() {
             title="Monthly recurring obligations"
             description="Confirmed bills and approved subscriptions only"
           />
-          <p className="text-3xl font-semibold tabular-nums">
+          <p className="text-3xl font-medium num">
             {formatCurrency(breakdown.totalConfirmedMonthlyObligations, true)}
           </p>
           <div className="grid gap-2 text-sm sm:grid-cols-2">
             <div className="rounded-[var(--radius-md)] border border-border/60 bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground">Confirmed bills subtotal</p>
-              <p className="font-semibold tabular-nums">
+              <p className="font-medium num">
                 {formatCurrency(breakdown.confirmedBillsTotal, true)}
               </p>
             </div>
@@ -125,7 +125,7 @@ export function RecurringCommandCenter() {
               <p className="text-xs text-muted-foreground">
                 Approved subscriptions subtotal
               </p>
-              <p className="font-semibold tabular-nums">
+              <p className="font-medium num">
                 {formatCurrency(breakdown.approvedSubscriptionsTotal, true)}
               </p>
             </div>
@@ -133,7 +133,7 @@ export function RecurringCommandCenter() {
               <p className="text-xs text-muted-foreground">
                 Confirmed monthly obligations total
               </p>
-              <p className="font-semibold tabular-nums">
+              <p className="font-medium num">
                 {formatCurrency(breakdown.totalConfirmedMonthlyObligations, true)}
               </p>
             </div>
@@ -141,7 +141,7 @@ export function RecurringCommandCenter() {
               <p className="text-xs text-muted-foreground">
                 Detected candidates excluded
               </p>
-              <p className="font-semibold tabular-nums text-warning">
+              <p className="font-medium num text-warning">
                 {formatCurrency(breakdown.detectedCandidatesExcludedTotal, true)}
               </p>
             </div>
@@ -176,7 +176,7 @@ export function RecurringCommandCenter() {
                 ).map(([label, value]) => (
                   <div key={label} className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="shrink-0 font-medium tabular-nums">
+                    <dd className="shrink-0 font-medium num">
                       {formatCurrency(value, true)}
                     </dd>
                   </div>
@@ -204,7 +204,7 @@ export function RecurringCommandCenter() {
             <div className="space-y-4">
               {confirmedBills.length > 0 ? (
                 <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Bills
                   </p>
                   <ul className="space-y-2">
@@ -238,7 +238,7 @@ export function RecurringCommandCenter() {
                               </a>
                             ) : null}
                           </div>
-                          <p className="font-semibold tabular-nums">
+                          <p className="font-medium num">
                             {formatCurrency(monthlyAmountForBill(bill), true)}/mo
                           </p>
                         </div>
@@ -249,7 +249,7 @@ export function RecurringCommandCenter() {
               ) : null}
               {approvedSubscriptions.length > 0 ? (
                 <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Approved subscriptions
                   </p>
                   <ul className="space-y-2">
@@ -278,7 +278,7 @@ export function RecurringCommandCenter() {
                               </a>
                             ) : null}
                           </div>
-                          <p className="font-semibold tabular-nums">
+                          <p className="font-medium num">
                             {formatCurrency(
                               monthlyAmountForSubscription(sub),
                               true,
@@ -481,7 +481,7 @@ export function RecurringCommandCenter() {
                           : ""}
                       </p>
                     </div>
-                    <p className="font-semibold tabular-nums">
+                    <p className="font-medium num">
                       {formatCurrency(Math.abs(txn.amount), true)}
                     </p>
                   </li>

@@ -94,7 +94,7 @@ function SubscriptionItem({
             Mark renewed
           </Button>
         )}
-        <span className="text-sm font-semibold tabular-nums">
+        <span className="text-sm font-medium num">
           {formatCurrency(sub.amount, true)}
         </span>
         <RowActions label={sub.name} onEdit={onEdit} onDelete={onDelete} />

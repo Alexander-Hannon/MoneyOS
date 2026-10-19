@@ -8,7 +8,7 @@ import type { ActionDestinationKey } from "@/lib/action-destinations";
 import { cn } from "@/lib/utils";
 
 const cardBase =
-  "rounded-[var(--radius)] border border-border bg-card text-card-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "rounded-[var(--radius)] border border-border bg-card text-card-foreground transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function ClickableStatCard({
   label,
@@ -55,17 +55,17 @@ export function ClickableStatCard({
         className={cn(cardBase, "w-full p-4 text-left", className)}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             {label}
           </span>
           <Icon className={cn("size-4 shrink-0", accent)} />
         </div>
-        <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
+        <p className="mt-2 text-2xl font-medium num tracking-tight">
           {value}
         </p>
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         {badge && (
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-info/80">
+          <p className="mt-1 text-[10px] font-medium text-info/80">
             {badge}
           </p>
         )}
@@ -86,7 +86,7 @@ export function ClickableStatCard({
     >
       <span
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-muted",
+          "flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border",
           accent,
         )}
       >
@@ -94,14 +94,14 @@ export function ClickableStatCard({
       </span>
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-lg font-semibold tabular-nums leading-tight">
+        <p className="truncate text-lg font-medium num leading-tight">
           {value}
         </p>
         {hint && (
           <p className="truncate text-xs text-muted-foreground">{hint}</p>
         )}
         {badge && (
-          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-info/80">
+          <p className="mt-0.5 text-[10px] font-medium text-info/80">
             {badge}
           </p>
         )}
@@ -146,7 +146,7 @@ export function ClickableStatusCard({
         className,
       )}
     >
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {label}
       </span>
       <div className="mt-2">{children}</div>

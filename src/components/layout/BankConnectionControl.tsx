@@ -38,7 +38,7 @@ function InstitutionList({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="text-[10px] font-medium text-muted-foreground">
         {title}
       </p>
       <ul className="space-y-1.5 rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
@@ -184,13 +184,13 @@ export function BankConnectionControl() {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   Mode
                 </p>
                 <p className="mt-0.5 font-medium">{fd.modeLabel}</p>
               </div>
               <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-2">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   Last sync
                 </p>
                 <p className="mt-0.5 font-medium">

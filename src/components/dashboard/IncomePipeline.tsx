@@ -112,7 +112,7 @@ export function IncomePipeline({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">
+                  <TableCell className="whitespace-nowrap num">
                     {expectedLabel(src)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">

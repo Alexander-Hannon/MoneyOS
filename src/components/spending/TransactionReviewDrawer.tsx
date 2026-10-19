@@ -211,7 +211,7 @@ function TransactionReviewForm({
               </p>
             </div>
             <p
-              className={`text-base font-semibold tabular-nums ${
+              className={`text-base font-medium num ${
                 transaction.amount >= 0 ? "text-success" : ""
               }`}
             >
@@ -344,7 +344,7 @@ function TransactionReviewForm({
         <div className="space-y-2">
           <label
             htmlFor="review-category"
-            className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-medium text-muted-foreground"
           >
             Category
           </label>
@@ -436,7 +436,7 @@ function TransactionReviewForm({
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Other actions
           </p>
           <div className="flex flex-wrap gap-2">

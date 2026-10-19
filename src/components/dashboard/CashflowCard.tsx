@@ -60,7 +60,7 @@ export function CashflowCard({
             title="Income vs spending"
             description={label}
             meta={
-              <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+              <span className="rounded-[3px] border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
                 Current month
               </span>
             }
@@ -70,13 +70,13 @@ export function CashflowCard({
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Income</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-success">
+                <p className="mt-1 text-lg font-medium num text-success">
                   {formatCurrency(point.income)}
                 </p>
               </div>
               <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
                 <p className="text-xs text-muted-foreground">Spending</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-destructive">
+                <p className="mt-1 text-lg font-medium num text-destructive">
                   {formatCurrency(point.spending)}
                 </p>
               </div>
@@ -115,15 +115,15 @@ export function CashflowCard({
           description={label}
           meta={
             chartDataSource === "demo" ? (
-              <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="rounded-[3px] border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 Demo data
               </span>
             ) : chartDataSource === "plaid_sandbox" ? (
-              <span className="rounded-full border border-info/30 bg-info/10 px-2 py-0.5 text-[10px] font-medium text-info">
+              <span className="rounded-[3px] border border-info/30 bg-info/10 px-2 py-0.5 text-[10px] font-medium text-info">
                 Plaid sandbox
               </span>
             ) : chartDataSource === "live" ? (
-              <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+              <span className="rounded-[3px] border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
                 Live bank data
               </span>
             ) : null

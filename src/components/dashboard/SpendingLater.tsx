@@ -104,7 +104,7 @@ export function SpendingLater() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm font-semibold tabular-nums">
+                    <span className="text-sm font-medium num">
                       {item.amount == null
                         ? "TBD"
                         : formatCurrency(item.amount)}

@@ -77,12 +77,12 @@ function StatTile({
   const content = (
     <>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {label}
         </span>
         <Icon className={`size-4 ${accent}`} />
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
+      <p className="mt-2 text-2xl font-medium num tracking-tight">
         {value}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
@@ -203,7 +203,7 @@ export function SpendingDashboard() {
           description="Transactions, categories, and trends"
           meta={
             <span
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+              className={`rounded-[3px] border px-2.5 py-1 text-[11px] font-medium ${
                 usingPlaid
                   ? fd.activePlaidEnvironment === "production"
                     ? "border-warning/30 bg-warning/10 text-warning"
@@ -233,7 +233,7 @@ export function SpendingDashboard() {
             </p>
             <button
               type="button"
-              className="text-[10px] uppercase tracking-wide text-muted-foreground/70 hover:text-foreground"
+              className="text-[10px] text-muted-foreground/70 hover:text-foreground"
               onClick={() => setShowTransferNote(false)}
             >
               Dismiss
@@ -368,7 +368,7 @@ export function SpendingDashboard() {
                             />
                             {c.category}
                           </span>
-                          <span className="tabular-nums">
+                          <span className="num">
                             {formatCurrency(c.total, true)}
                           </span>
                         </li>
@@ -395,7 +395,7 @@ export function SpendingDashboard() {
                             {m.count} transaction{m.count === 1 ? "" : "s"}
                           </p>
                         </div>
-                        <span className="text-sm font-semibold tabular-nums">
+                        <span className="text-sm font-medium num">
                           {formatCurrency(m.total, true)}
                         </span>
                       </li>
@@ -513,7 +513,7 @@ export function SpendingDashboard() {
                           ) : null}
                         </TableCell>
                         <TableCell
-                          className={`text-right tabular-nums whitespace-nowrap ${
+                          className={`text-right num whitespace-nowrap ${
                             t.amount >= 0 ? "text-success" : ""
                           }`}
                         >
@@ -578,7 +578,7 @@ export function SpendingDashboard() {
                           <span className="text-muted-foreground">
                             {t.merchantName}
                           </span>
-                          <span className="tabular-nums">
+                          <span className="num">
                             {formatCurrency(Math.abs(t.amount), true)}
                           </span>
                         </li>

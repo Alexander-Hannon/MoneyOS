@@ -78,7 +78,7 @@ export function ManualAccountsSection() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold tabular-nums">
+                  <span className="text-sm font-medium num">
                     {formatCurrency(account.availableBalance ?? account.balance)}
                   </span>
                   <RowActions
