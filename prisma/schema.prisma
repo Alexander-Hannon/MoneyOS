@@ -12,14 +12,14 @@ datasource db {
 }
 
 model User {
-  id                   String   @id @default(cuid())
-  clerkUserId          String   @unique
+  id                   String    @id @default(cuid())
+  clerkUserId          String    @unique
   email                String?
   displayName          String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  onboardingCompleted  Boolean  @default(false)
-  appMode              String   @default("local_user")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  onboardingCompleted  Boolean   @default(false)
+  appMode              String    @default("local_user")
   dataSourcePreference String?
   migrationCompletedAt DateTime?
 
@@ -37,6 +37,7 @@ model User {
   weeklyReviews         WeeklyReview[]
   plannedExpenses       PlannedExpense[]
   balanceRefreshEvents  BalanceRefreshEvent[]
+  balanceSnapshots      BalanceSnapshot[]
   lastAccountDataSyncAt DateTime?
   migrationRecords      AccountMigrationRecord[]
 }
@@ -100,19 +101,19 @@ model IncomeSource {
 }
 
 model Subscription {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  amount       Float
-  frequency    String
-  category     String
-  status       String
-  renewalDate  DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  amount        Float
+  frequency     String
+  category      String
+  status        String
+  renewalDate   DateTime?
   lastRenewedAt DateTime?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([userId])
 }
@@ -188,9 +189,9 @@ model PlaidItem {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
+  @@unique([userId, itemIdHash])
   @@index([userId])
   @@index([userId, institutionId, environment])
-  @@unique([userId, itemIdHash])
 }
 
 model Account {
@@ -213,15 +214,17 @@ model Account {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  balanceSnapshots BalanceSnapshot[]
+
+  @@unique([userId, plaidAccountIdHash])
   @@index([userId])
   @@index([userId, plaidItemId])
-  @@unique([userId, plaidAccountIdHash])
 }
 
 model MoneyTransaction {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   userId                 String
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   plaidItemId            String?
   /// Server-side Plaid transaction_id for sync mapping — never sent to client.
   plaidTransactionId     String?
@@ -232,32 +235,32 @@ model MoneyTransaction {
   description            String
   amount                 Float
   type                   String
-  classification         String   @default("review")
+  classification         String    @default("review")
   category               String
   subcategory            String?
-  pending                Boolean  @default(false)
+  pending                Boolean   @default(false)
   source                 String
-  needsReview            Boolean  @default(false)
+  needsReview            Boolean   @default(false)
   notes                  String?
   userConfirmedCategory  String?
-  reviewState            String   @default("needs_review")
+  reviewState            String    @default("needs_review")
   classificationSource   String?
   linkedBillId           String?
   linkedSubscriptionId   String?
   plaidCategoryPrimary   String?
   plaidCategoryDetailed  String?
-  isTransferInternal     Boolean  @default(false)
-  isRefund               Boolean  @default(false)
-  isIncomeFlag           Boolean  @default(false)
-  isRecurringExcluded    Boolean  @default(false)
+  isTransferInternal     Boolean   @default(false)
+  isRefund               Boolean   @default(false)
+  isIncomeFlag           Boolean   @default(false)
+  isRecurringExcluded    Boolean   @default(false)
   recurringReviewState   String?
   reviewedAt             DateTime?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
+  @@unique([userId, plaidTransactionIdHash])
   @@index([userId])
   @@index([userId, plaidItemId])
-  @@unique([userId, plaidTransactionIdHash])
 }
 
 model TransactionRule {
@@ -276,33 +279,33 @@ model TransactionRule {
 }
 
 model WeeklyReview {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weekStartDate     String
-  createdAt         DateTime @default(now())
-  status            String
-  cashAvailable     Float
-  billsDue7         Float
-  billsDue14        Float
-  billsDue30        Float
-  incomeExpected14  Float
-  monthlyRecurring  Float
-  reviewItemCount   Int
-  weeklyScore       Int
-  summary           String
-  whatMattersMost   Json
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate       String
+  createdAt           DateTime @default(now())
+  status              String
+  cashAvailable       Float
+  billsDue7           Float
+  billsDue14          Float
+  billsDue30          Float
+  incomeExpected14    Float
+  monthlyRecurring    Float
+  reviewItemCount     Int
+  weeklyScore         Int
+  summary             String
+  whatMattersMost     Json
   obligationsSnapshot Json
-  spendingSnapshot  Json
-  risks             Json
-  firstThreeActions Json
-  bestNextAction    String
-  userNotes         String?
-  completedActions  Json?
-  sourceMode        String
-  aiProvider        String
-  dataConfidence    String
-  reminderDrafts    Json?
+  spendingSnapshot    Json
+  risks               Json
+  firstThreeActions   Json
+  bestNextAction      String
+  userNotes           String?
+  completedActions    Json?
+  sourceMode          String
+  aiProvider          String
+  dataConfidence      String
+  reminderDrafts      Json?
 
   @@index([userId])
   @@index([userId, weekStartDate])
@@ -356,4 +359,25 @@ model AccountMigrationRecord {
   createdAt         DateTime @default(now())
 
   @@index([userId, mergedAt])
+}
+
+/// One recorded balance per account per calendar day (UTC), written only when
+/// real balances are received from Plaid. Never backfilled or interpolated.
+model BalanceSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId        String
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// plaid_live | plaid_sandbox — Personal Live and Sandbox never mix.
+  source           String
+  accountType      String
+  /// YYYY-MM-DD (UTC) the balance was recorded.
+  snapshotDate     String
+  currentBalance   Float?
+  availableBalance Float?
+  capturedAt       DateTime @default(now())
+
+  @@unique([accountId, snapshotDate])
+  @@index([userId, source, snapshotDate])
 }
