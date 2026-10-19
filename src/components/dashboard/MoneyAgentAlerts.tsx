@@ -85,7 +85,7 @@ export function MoneyAgentAlerts() {
                 onClick={() => setFilter(f)}
                 className={`flex-1 rounded-[var(--radius-sm)] px-2 py-1 capitalize transition-colors ${
                   filter === f
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-card text-foreground "
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -117,7 +117,7 @@ export function MoneyAgentAlerts() {
                 >
                   <div className="flex items-start gap-3">
                     <span
-                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${tint}`}
+                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] ${tint}`}
                     >
                       <Icon className="size-4" />
                     </span>

@@ -138,14 +138,13 @@ export function Dashboard() {
         <ManualAccountsSection />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section id="action-center" className="min-w-0 scroll-mt-20">
-          <ActionCenter />
-        </section>
-        <section id="alerts" className="min-w-0 scroll-mt-20">
-          <MoneyAgentAlerts />
-        </section>
-      </div>
+      <section id="action-center" className="min-w-0 scroll-mt-20">
+        <ActionCenter />
+      </section>
+
+      <section id="alerts" className="min-w-0 scroll-mt-20">
+        <MoneyAgentAlerts />
+      </section>
 
       <section id="institutions" className="scroll-mt-20">
         <ConnectedInstitutionsSection />

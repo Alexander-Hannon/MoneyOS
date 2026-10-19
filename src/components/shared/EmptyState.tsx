@@ -14,7 +14,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-border/70 bg-muted/10 px-4 py-8 text-center">
-      <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      <span className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-muted/40 text-muted-foreground">
         <Icon className="size-5" />
       </span>
       <p className="text-sm font-medium">{title}</p>

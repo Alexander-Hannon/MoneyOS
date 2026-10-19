@@ -31,7 +31,7 @@ export function SetupChecklistCard() {
             </p>
           </div>
           {checklist.readyForWeeklyUse && (
-            <span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+            <span className="rounded-[3px] border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
               MoneyOS is ready for weekly use
             </span>
           )}

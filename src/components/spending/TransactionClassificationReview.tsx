@@ -242,7 +242,7 @@ export function TransactionClassificationReview({
                       <StatusBadge label={state.label} tone={state.tone} />
                     </TableCell>
                     <TableCell
-                      className={`text-right tabular-nums whitespace-nowrap ${
+                      className={`text-right num whitespace-nowrap ${
                         transaction.amount >= 0 ? "text-success" : ""
                       }`}
                     >

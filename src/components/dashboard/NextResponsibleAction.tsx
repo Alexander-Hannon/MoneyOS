@@ -7,10 +7,10 @@ import { toneForAlertSeverity } from "@/lib/money-utils";
 import { useActionNavigation } from "@/hooks/useActionNavigation";
 import type { Alert } from "@/types/money";
 
-const severityRing: Record<Alert["severity"], string> = {
-  high: "from-destructive/20 ring-destructive/30",
-  medium: "from-warning/20 ring-warning/25",
-  low: "from-primary/20 ring-primary/25",
+const severityRail: Record<Alert["severity"], string> = {
+  high: "bg-destructive",
+  medium: "bg-warning",
+  low: "bg-primary",
 };
 
 export function NextResponsibleAction({ action }: { action: Alert | null }) {
@@ -19,7 +19,7 @@ export function NextResponsibleAction({ action }: { action: Alert | null }) {
   if (!action) {
     return (
       <section className="rounded-[var(--radius)] border border-border bg-card p-6">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <ShieldCheck className="size-4 text-primary" />
           Next responsible action
         </div>
@@ -34,11 +34,13 @@ export function NextResponsibleAction({ action }: { action: Alert | null }) {
   }
 
   return (
-    <section
-      className={`relative overflow-hidden rounded-[var(--radius)] bg-gradient-to-br ${severityRing[action.severity]} to-card p-6 ring-1`}
-    >
+    <section className="relative overflow-hidden rounded-[var(--radius)] border border-border bg-card p-6 pl-7">
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 left-0 w-[3px] ${severityRail[action.severity]}`}
+      />
       <div className="flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Sparkles className="size-4 text-primary" />
           Next responsible action
         </span>

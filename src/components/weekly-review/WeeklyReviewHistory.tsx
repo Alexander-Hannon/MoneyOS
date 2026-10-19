@@ -95,7 +95,7 @@ export function WeeklyReviewHistory({
               <div className="mt-4 space-y-4 border-t border-border pt-4">
                 <p className="text-sm text-muted-foreground">{review.summary}</p>
                 <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
                     First 3 actions
                   </p>
                   <ul className="space-y-2">

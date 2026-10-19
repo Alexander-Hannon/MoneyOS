@@ -60,7 +60,7 @@ function BillRow({
           </div>
         )}
       </TableCell>
-      <TableCell className="text-right tabular-nums whitespace-nowrap">
+      <TableCell className="text-right num whitespace-nowrap">
         {amountLabel(bill)}
       </TableCell>
       <TableCell className="whitespace-nowrap">
@@ -100,7 +100,7 @@ function BillRow({
             Open payment
           </Button>
         ) : (
-          <span className="text-xs text-muted-foreground">No payment link</span>
+          <span className="whitespace-nowrap text-xs text-muted-foreground">No link</span>
         )}
       </TableCell>
       <TableCell className="text-right">

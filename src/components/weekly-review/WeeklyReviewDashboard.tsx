@@ -44,10 +44,10 @@ function MetricCard({
 }) {
   return (
     <div className="rounded-[var(--radius-md)] border border-border bg-card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+      <p className="mt-1 text-xl font-medium num tracking-tight">
         {value}
       </p>
       {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
@@ -237,10 +237,10 @@ export function WeeklyReviewDashboard() {
             <div className="space-y-5 border-t border-border pt-5">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="rounded-[var(--radius-md)] border border-primary/30 bg-primary/10 px-4 py-3">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-primary">
+                  <p className="text-[10px] font-medium text-primary">
                     Weekly Money Score
                   </p>
-                  <p className="text-3xl font-bold tabular-nums">
+                  <p className="text-3xl font-bold num">
                     {review.weeklyScore}
                     <span className="text-base font-medium text-muted-foreground">
                       /100
@@ -273,7 +273,7 @@ export function WeeklyReviewDashboard() {
               <Section title="Risks" items={review.risks} tone="warning" />
 
               <div>
-                <p className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
                   <Target className="size-3.5" />
                   First 3 actions
                 </p>
@@ -297,7 +297,7 @@ export function WeeklyReviewDashboard() {
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
                   Reminder drafts (approval required)
                 </p>
                 <ul className="space-y-2">
@@ -348,7 +348,7 @@ function Section({
   return (
     <div>
       <p
-        className={`mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide ${
+        className={`mb-2 flex items-center gap-2 text-xs font-medium ${
           tone === "warning" ? "text-warning" : "text-muted-foreground"
         }`}
       >

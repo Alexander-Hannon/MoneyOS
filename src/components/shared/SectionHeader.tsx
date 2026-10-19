@@ -18,12 +18,12 @@ export function SectionHeader({
     <div className="mb-4 flex items-start justify-between gap-3">
       <div className="flex items-center gap-2.5">
         {Icon && (
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-muted text-muted-foreground">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border text-muted-foreground">
             <Icon className="size-4" />
           </span>
         )}
         <div>
-          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
           {description && (
             <p className="text-xs text-muted-foreground">{description}</p>
           )}

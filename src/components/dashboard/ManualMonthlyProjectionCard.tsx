@@ -20,7 +20,7 @@ export function ManualMonthlyProjectionCard({
           title="Manual monthly projection"
           description="Manual projection — not historical transaction data."
           meta={
-            <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+            <span className="rounded-[3px] border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
               Projection only
             </span>
           }
@@ -28,7 +28,7 @@ export function ManualMonthlyProjectionCard({
         <dl className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
             <dt className="text-xs text-muted-foreground">Expected monthly income</dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums text-success">
+            <dd className="mt-1 text-lg font-medium num text-success">
               {formatCurrency(projection.expectedMonthlyIncome)}
             </dd>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -38,7 +38,7 @@ export function ManualMonthlyProjectionCard({
           </div>
           <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
             <dt className="text-xs text-muted-foreground">Expected monthly obligations</dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums text-destructive">
+            <dd className="mt-1 text-lg font-medium num text-destructive">
               {formatCurrency(projection.expectedMonthlyObligations)}
             </dd>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -49,7 +49,7 @@ export function ManualMonthlyProjectionCard({
           </div>
           <div className="rounded-[var(--radius-md)] border border-border bg-muted/20 p-3">
             <dt className="text-xs text-muted-foreground">Projected surplus / deficit</dt>
-            <dd className={`mt-1 text-lg font-semibold tabular-nums ${surplusTone}`}>
+            <dd className={`mt-1 text-lg font-medium num ${surplusTone}`}>
               {formatCurrency(projection.projectedSurplus)}
             </dd>
             <p className="mt-0.5 text-[11px] text-muted-foreground">

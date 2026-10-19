@@ -85,21 +85,21 @@ export function ExplainAlertButton({ alert }: { alert: Alert }) {
             </div>
 
             <section>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-xs font-medium text-muted-foreground">
                 Plain English
               </h3>
               <p className="mt-1">{result.plainEnglishExplanation}</p>
             </section>
 
             <section>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-xs font-medium text-muted-foreground">
                 Why it matters
               </h3>
               <p className="mt-1 text-muted-foreground">{result.whyItMatters}</p>
             </section>
 
             <section>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-xs font-medium text-muted-foreground">
                 Suggested review steps
               </h3>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
@@ -110,7 +110,7 @@ export function ExplainAlertButton({ alert }: { alert: Alert }) {
             </section>
 
             <section>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="text-xs font-medium text-muted-foreground">
                 What not to do
               </h3>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-destructive/90">

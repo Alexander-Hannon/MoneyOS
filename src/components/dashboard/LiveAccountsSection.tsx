@@ -81,7 +81,7 @@ export function LiveAccountsSection() {
                   </p>
                 </div>
                 <div className="text-right text-sm">
-                  <p className="font-semibold tabular-nums">
+                  <p className="font-medium num">
                     {formatCurrency(
                       account.currentBalance ??
                         account.availableBalance ??

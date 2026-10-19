@@ -314,7 +314,7 @@ export function SettingsPanel() {
                       <td className="py-2 pr-3 font-medium">
                         {inst.institutionName}
                       </td>
-                      <td className="py-2 pr-3 tabular-nums">
+                      <td className="py-2 pr-3 num">
                         {inst.accountCount}
                       </td>
                       <td className="py-2 pr-3">
