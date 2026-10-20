@@ -17,8 +17,9 @@ MoneyOS may process real personal financial data through Plaid Personal Live mod
 * Prisma + Neon/Postgres
 * Plaid integration with separate Sandbox and Personal Live environments
 * AES-256-GCM encrypted Plaid access-token storage
-* Local, Demo, Plaid Sandbox, and Personal Live app modes
-* Cross-device account-backed sync for signed-in users
+* Signed-in accounts with the database as the only store for financial data
+* Signed-out visitors see an in-memory Demo Preview (never persisted)
+* Per-record writes through `/api/user/records` (ownership-checked, idempotent by id)
 * Gemini or mock AI provider for review-only financial guidance
 
 ## Current Product State
@@ -35,7 +36,7 @@ MoneyOS supports:
 * Transaction classification and recurring-item detection
 * Cross-device data sync between Laptop and Desktop
 
-MoneyOS is still a private owner-use product. It is not public SaaS production.
+MoneyOS is moving toward a consumer subscription product for individuals. It is not yet public production: Personal Live bank access is still limited to an allowlisted owner email until multi-user entitlements, billing, and Plaid production approval are in place. Never claim public-production readiness.
 
 ## Security Rules
 
@@ -85,8 +86,8 @@ Any destructive cleanup, disconnect, deletion, duplicate repair, or data replace
 
 Always label data truthfully:
 
-* `Local User Data`
-* `Demo Data`
+* `Your Data` (signed-in account data)
+* `Demo Preview` / `Demo Data` (signed-out sample data)
 * `Plaid Sandbox`
 * `Personal Live`
 * `Manual`
@@ -116,12 +117,13 @@ Personal Live Plaid Items, accounts, transactions, and balance data must stay se
 
 ## Cross-Device and Persistence Rules
 
-When signed in with Clerk and Postgres is configured:
-
-* Database-backed account data is the canonical source of truth.
-* LocalStorage is a fallback for unsigned-in, offline, or intentionally local-only use.
-* Empty local browser data must never overwrite non-empty database data.
-* Local-to-account migration must preserve local data until successful server confirmation.
+* A signed-in account's database data is the only source of truth.
+* Never store financial data in localStorage, sessionStorage, or IndexedDB. Browser storage is for per-device UI state only.
+* Signed-out Demo Preview data lives in memory and is never persisted or synced.
+* Clients send only changed records; the server checks ownership before every write.
+* Record ids are global primary keys: generate full UUIDs, never short random suffixes.
+* Empty client state must never overwrite non-empty database data.
+* Importing legacy browser-only data must preserve the browser copy until the server confirms success, and must never import demo data.
 * Database mutations should be idempotent where practical.
 * Reconnecting an existing Plaid Item must not silently duplicate accounts or transactions.
 * Account and transaction upserts must use stable Plaid identifiers or safe deterministic hashes.
@@ -218,11 +220,11 @@ Before claiming work is complete:
 
 ## Current Priority
 
-Current work is focused on making transaction review real and trustworthy:
+Path to a monetizable product, in order:
 
-* Manual transaction categorization
-* Persisted AI-suggestion acceptance
-* Bill/subscription reconciliation
-* Recurring-alert synchronization
-* Cross-device synchronization of review decisions
-* No duplicate records or stale Action Center alerts
+1. Foundation (done): database-canonical data layer, shared session, CI, no dev or personal leftovers in the UI.
+2. Multi-user: plan-based entitlements replacing the single owner allowlist, Clerk production on a custom domain, landing and pricing pages, account deletion.
+3. Billing: Stripe subscriptions, webhooks, trials, billing portal.
+4. Production operations: Plaid webhooks and scheduled sync, rate limiting, error monitoring, audit logging, reviewed legal pages, Plaid production approval.
+
+Transaction review must stay trustworthy throughout: persisted decisions, bill/subscription reconciliation, and no duplicate records or stale Action Center alerts.
