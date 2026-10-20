@@ -53,6 +53,8 @@ export interface AppModeContextValue {
   recordPlaidConsent: () => ConsentRecord;
   clearPendingPlaidConnect: () => void;
   refreshConsentHistory: () => void;
+  /** Mark onboarding done without changing any data (account-backed users). */
+  dismissOnboarding: () => void;
 }
 
 const AppModeContext = createContext<AppModeContextValue | null>(null);
@@ -141,6 +143,11 @@ export function AppModeProvider({
     [money],
   );
 
+  const dismissOnboarding = useCallback(() => {
+    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
+    setOnboardingCompleted(true);
+  }, []);
+
   const requestPlaidConnect = useCallback((environment: PlaidLinkTarget = "sandbox") => {
     saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
     setPendingPlaidConnect(true);
@@ -169,6 +176,7 @@ export function AppModeProvider({
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
+      dismissOnboarding,
     }),
     [
       money.hydrated,
@@ -185,6 +193,7 @@ export function AppModeProvider({
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
+      dismissOnboarding,
     ],
   );
 
