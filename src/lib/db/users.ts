@@ -510,7 +510,7 @@ function plannedExpenseFingerprintFromInput(row: Record<string, unknown>): strin
   return `${row.name ?? row.title ?? ""}|${row.amount ?? ""}|${row.targetDate ?? ""}|${row.category ?? "General"}`.toLowerCase();
 }
 
-function mapPlannedExpenseFields(userId: string, row: Record<string, unknown>) {
+export function mapPlannedExpenseFields(userId: string, row: Record<string, unknown>) {
   return {
     userId,
     name: String(row.name ?? row.title ?? "Planned expense"),
@@ -719,7 +719,7 @@ function formatDateOnly(d: Date | null | undefined): string | undefined {
   return `${y}-${m}-${day}`;
 }
 
-function mapBillFields(userId: string, bill: Record<string, unknown>) {
+export function mapBillFields(userId: string, bill: Record<string, unknown>) {
   const dueDate = parseDate(bill.dueDate);
   return {
     userId,
@@ -748,7 +748,7 @@ function mapBillFields(userId: string, bill: Record<string, unknown>) {
   };
 }
 
-function mapIncomeFields(userId: string, income: Record<string, unknown>) {
+export function mapIncomeFields(userId: string, income: Record<string, unknown>) {
   return {
     userId,
     source: String(income.source ?? "Income"),
@@ -765,7 +765,7 @@ function mapIncomeFields(userId: string, income: Record<string, unknown>) {
   };
 }
 
-function mapSubscriptionFields(userId: string, sub: Record<string, unknown>) {
+export function mapSubscriptionFields(userId: string, sub: Record<string, unknown>) {
   return {
     userId,
     name: String(sub.name ?? "Subscription"),
@@ -779,7 +779,7 @@ function mapSubscriptionFields(userId: string, sub: Record<string, unknown>) {
   };
 }
 
-function mapAlertFields(userId: string, alert: Record<string, unknown>) {
+export function mapAlertFields(userId: string, alert: Record<string, unknown>) {
   return {
     userId,
     title: String(alert.title ?? "Alert"),
@@ -794,7 +794,7 @@ function mapAlertFields(userId: string, alert: Record<string, unknown>) {
   };
 }
 
-function mapManualAccountFields(userId: string, account: Record<string, unknown>) {
+export function mapManualAccountFields(userId: string, account: Record<string, unknown>) {
   return {
     userId,
     name: String(account.name ?? "Account"),

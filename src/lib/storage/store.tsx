@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -21,21 +22,22 @@ import type {
   SubscriptionStatus,
 } from "@/types/money";
 import { getDefaultsForMode } from "@/lib/app-mode";
-import {
-  emptySpendingLater,
-} from "@/lib/data/empty-user-data";
 import { inferNextIncomeDate } from "@/lib/money-utils";
 import { getBillNextDueDate, getIncomeNextDate, getSubscriptionNextRenewalDate } from "@/lib/recurrence";
 import { normalizeFinancialDataBundle } from "@/lib/date-normalization";
-import {
-  STORAGE_KEYS,
-  loadAppModeFromStorage,
-  loadCollection,
-  newId,
-  saveAppModeToStorage,
-  saveBoolean,
-  saveCollection,
-} from "@/lib/storage/local-storage";
+import { newId } from "@/lib/storage/local-storage";
+import { diffRecords, isEmptyDiff } from "@/lib/storage/record-diff";
+import { EMPTY_PREFERENCES, sanitizePreferences, type UserPreferences } from "@/lib/preferences";
+import { useSession } from "@/context/SessionProvider";
+import { useToast } from "@/components/ui/toast";
+
+/*
+ * MoneyOS data store.
+ *  - Signed in ("account"): the database is canonical. State loads from the
+ *    server and every change writes only the changed records.
+ *  - Signed out ("preview"): read-only-in-spirit demo data held in memory;
+ *    nothing is persisted anywhere.
+ */
 
 type DraftBill = Omit<Bill, "id">;
 type DraftIncome = Omit<IncomeSource, "id">;
@@ -43,6 +45,8 @@ type DraftSubscription = Omit<Subscription, "id">;
 type DraftAlert = Omit<Alert, "id" | "status">;
 type DraftAccount = Omit<Account, "id" | "createdAt" | "updatedAt">;
 type DraftSpendingLater = Omit<PlannedExpense, "id">;
+
+export type DataMode = "loading" | "account" | "preview";
 
 export type UserDataExport = {
   version: 1;
@@ -56,17 +60,36 @@ export type UserDataExport = {
   manualAccounts?: Account[];
 };
 
-interface MoneyDataContextValue {
-  hydrated: boolean;
-  /** Increments on user CRUD edits — not on importData / account pull. */
-  userEditGeneration: number;
-  appMode: AppMode;
+type Collections = {
   bills: Bill[];
   income: IncomeSource[];
   subscriptions: Subscription[];
   alerts: Alert[];
   spendingLater: PlannedExpense[];
   manualAccounts: Account[];
+};
+type CollectionKey = keyof Collections;
+
+const EMPTY: Collections = {
+  bills: [],
+  income: [],
+  subscriptions: [],
+  alerts: [],
+  spendingLater: [],
+  manualAccounts: [],
+};
+
+const MAX_PER_REQUEST = 200;
+const FOCUS_RELOAD_MS = 30_000;
+
+interface MoneyDataContextValue extends Collections {
+  hydrated: boolean;
+  dataMode: DataMode;
+  appMode: AppMode;
+  /** Set when the account data couldn't load. */
+  loadError: string | null;
+  saving: boolean;
+  reload: () => Promise<void>;
 
   addBill: (draft: DraftBill) => void;
   updateBill: (id: string, draft: DraftBill) => void;
@@ -106,35 +129,17 @@ interface MoneyDataContextValue {
   updateManualAccount: (id: string, draft: DraftAccount) => void;
   deleteManualAccount: (id: string) => void;
 
-  applyModeData: (mode: AppMode) => void;
-  startFresh: () => void;
-  loadDemoData: () => void;
-  resetToModeDefaults: () => void;
   exportData: () => UserDataExport;
+  /** Adds or updates records from an export file. Never deletes. */
   importData: (bundle: UserDataExport) => void;
-  setAppMode: (mode: AppMode) => void;
 }
 
 const MoneyDataContext = createContext<MoneyDataContextValue | null>(null);
 
-function persistMode(mode: AppMode, data: ReturnType<typeof getDefaultsForMode>) {
-  saveAppModeToStorage(mode);
-  saveCollection(STORAGE_KEYS.bills, data.bills);
-  saveCollection(STORAGE_KEYS.income, data.income);
-  saveCollection(STORAGE_KEYS.subscriptions, data.subscriptions);
-  saveCollection(STORAGE_KEYS.alerts, data.alerts);
-  saveCollection(STORAGE_KEYS.spendingLater, data.spendingLater);
-}
-
 function normalizeBillDraft(draft: DraftBill): DraftBill {
   if (draft.status === "paid") {
     const occurrenceDate = getBillNextDueDate({ ...draft, id: "temp" });
-    return {
-      ...draft,
-      lastPaidAt: occurrenceDate,
-      scheduledForDate: undefined,
-      status: "unpaid",
-    };
+    return { ...draft, lastPaidAt: occurrenceDate, scheduledForDate: undefined, status: "unpaid" };
   }
   if (draft.status === "scheduled") {
     const occurrenceDate = getBillNextDueDate({ ...draft, id: "temp" });
@@ -144,416 +149,314 @@ function normalizeBillDraft(draft: DraftBill): DraftBill {
 }
 
 function normalizeIncomeDraft(draft: DraftIncome): DraftIncome {
-  const next = {
-    ...draft,
-    nextDate: draft.nextDate ?? inferNextIncomeDate({ ...draft, id: "temp" }),
+  return { ...draft, nextDate: draft.nextDate ?? inferNextIncomeDate({ ...draft, id: "temp" }) };
+}
+
+function previewCollections(): Collections {
+  const demo = getDefaultsForMode("demo");
+  return { ...demo, manualAccounts: [] };
+}
+
+function collectionsFromBundle(data: Partial<UserDataExport>): Collections {
+  const normalized = normalizeFinancialDataBundle({
+    bills: data.bills ?? [],
+    income: data.income ?? [],
+    subscriptions: data.subscriptions ?? [],
+  });
+  return {
+    bills: normalized.bills ?? [],
+    income: normalized.income ?? [],
+    subscriptions: normalized.subscriptions ?? [],
+    alerts: data.alerts ?? [],
+    spendingLater: data.spendingLater ?? [],
+    manualAccounts: data.manualAccounts ?? [],
   };
-  return next;
+}
+
+async function postJson(url: string, body: unknown, method = "POST") {
+  const res = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.message ?? "Could not save your changes.");
+  }
+  return data;
 }
 
 export function MoneyDataProvider({ children }: { children: ReactNode }) {
-  const [hydrated, setHydrated] = useState(false);
-  const [appMode, setAppModeState] = useState<AppMode>("local_user");
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [income, setIncome] = useState<IncomeSource[]>([]);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [spendingLater, setSpendingLater] =
-    useState<PlannedExpense[]>(emptySpendingLater);
-  const [manualAccounts, setManualAccounts] = useState<Account[]>([]);
-  const [dismissedRecurringIds, setDismissedRecurringIds] = useState<string[]>(
-    [],
-  );
-  const [dismissedActionIds, setDismissedActionIds] = useState<string[]>([]);
-  const [userEditGeneration, setUserEditGeneration] = useState(0);
+  const session = useSession();
+  const toast = useToast();
+  const [dataMode, setDataMode] = useState<DataMode>("loading");
+  const [data, setData] = useState<Collections>(EMPTY);
+  const [prefs, setPrefs] = useState<UserPreferences>(EMPTY_PREFERENCES);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pending, setPending] = useState(0);
 
-  const bumpUserEdit = useCallback(() => {
-    setUserEditGeneration((generation) => generation + 1);
+  const dataRef = useRef<Collections>(EMPTY);
+  const prefsRef = useRef<UserPreferences>(EMPTY_PREFERENCES);
+  const modeRef = useRef<DataMode>("loading");
+  const queues = useRef<Partial<Record<string, Promise<void>>>>({});
+
+  const setAll = useCallback((next: Collections, nextPrefs: UserPreferences) => {
+    dataRef.current = next;
+    prefsRef.current = nextPrefs;
+    setData(next);
+    setPrefs(nextPrefs);
   }, []);
+
+  const loadAccount = useCallback(async () => {
+    try {
+      const [bundleRes, prefsRes] = await Promise.all([
+        fetch("/api/user/sync").then((r) => r.json()),
+        fetch("/api/user/preferences").then((r) => r.json()),
+      ]);
+      if (bundleRes.ok === false) throw new Error(bundleRes.message ?? "Could not load your data.");
+      setAll(
+        collectionsFromBundle(bundleRes.data ?? {}),
+        sanitizePreferences(prefsRes.ok === false ? null : prefsRes.preferences),
+      );
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Could not load your data.");
+    }
+  }, [setAll]);
 
   useEffect(() => {
-    const mode = loadAppModeFromStorage() ?? "local_user";
-    const defaults = getDefaultsForMode(mode);
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setAppModeState(mode);
-    setBills(loadCollection(STORAGE_KEYS.bills, defaults.bills));
-    setIncome(loadCollection(STORAGE_KEYS.income, defaults.income));
-    setSubscriptions(
-      loadCollection(STORAGE_KEYS.subscriptions, defaults.subscriptions),
-    );
-    setAlerts(loadCollection(STORAGE_KEYS.alerts, defaults.alerts));
-    setSpendingLater(
-      loadCollection(STORAGE_KEYS.spendingLater, defaults.spendingLater),
-    );
-    setManualAccounts(loadCollection(STORAGE_KEYS.manualAccounts, []));
-    setDismissedRecurringIds(
-      loadCollection(STORAGE_KEYS.dismissedRecurring, []),
-    );
-    setDismissedActionIds(loadCollection(STORAGE_KEYS.dismissedActions, []));
-    setHydrated(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
+    if (session.loading) return;
+    let cancelled = false;
+    async function start() {
+      if (session.accountBacked) {
+        await loadAccount();
+        if (cancelled) return;
+        modeRef.current = "account";
+        setDataMode("account");
+      } else {
+        setAll(previewCollections(), EMPTY_PREFERENCES);
+        modeRef.current = "preview";
+        setDataMode("preview");
+      }
+    }
+    void start();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.loading, session.accountBacked, loadAccount, setAll]);
+
+  // Pick up changes made on other devices when this tab regains focus.
+  const lastLoadRef = useRef(0);
+  const pendingRef = useRef(0);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  useEffect(() => {
+    if (dataMode !== "account") return;
+    lastLoadRef.current = Date.now();
+    const onFocus = () => {
+      if (pendingRef.current > 0) return;
+      if (Date.now() - lastLoadRef.current < FOCUS_RELOAD_MS) return;
+      lastLoadRef.current = Date.now();
+      void loadAccount();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [dataMode, loadAccount]);
+
+  /** Serialize writes per collection so edits land in order. */
+  const enqueue = useCallback((key: string, task: () => Promise<void>) => {
+    const previous = queues.current[key] ?? Promise.resolve();
+    const next = previous.then(task, task);
+    queues.current[key] = next;
+    return next;
   }, []);
 
-  const commitBills = useCallback((next: Bill[]) => {
-    setBills(next);
-    saveCollection(STORAGE_KEYS.bills, next);
-  }, []);
-  const commitIncome = useCallback((next: IncomeSource[]) => {
-    setIncome(next);
-    saveCollection(STORAGE_KEYS.income, next);
-  }, []);
-  const commitSubscriptions = useCallback((next: Subscription[]) => {
-    setSubscriptions(next);
-    saveCollection(STORAGE_KEYS.subscriptions, next);
-  }, []);
-  const commitAlerts = useCallback((next: Alert[]) => {
-    setAlerts(next);
-    saveCollection(STORAGE_KEYS.alerts, next);
-  }, []);
-  const commitSpendingLater = useCallback((next: PlannedExpense[]) => {
-    setSpendingLater(next);
-    saveCollection(STORAGE_KEYS.spendingLater, next);
-  }, []);
-  const commitDismissedRecurring = useCallback((next: string[]) => {
-    setDismissedRecurringIds(next);
-    saveCollection(STORAGE_KEYS.dismissedRecurring, next);
-  }, []);
-  const commitDismissedActions = useCallback((next: string[]) => {
-    setDismissedActionIds(next);
-    saveCollection(STORAGE_KEYS.dismissedActions, next);
-  }, []);
-  const commitManualAccounts = useCallback((next: Account[]) => {
-    setManualAccounts(next);
-    saveCollection(STORAGE_KEYS.manualAccounts, next);
-  }, []);
-
-  const applyAll = useCallback(
-    (mode: AppMode, data: ReturnType<typeof getDefaultsForMode>, accounts: Account[] = []) => {
-      setAppModeState(mode);
-      setBills(data.bills);
-      setIncome(data.income);
-      setSubscriptions(data.subscriptions);
-      setAlerts(data.alerts);
-      setSpendingLater(data.spendingLater);
-      setManualAccounts(accounts);
-      persistMode(mode, data);
-      saveCollection(STORAGE_KEYS.manualAccounts, accounts);
+  const handleSaveFailure = useCallback(
+    async (error: unknown) => {
+      toast(error instanceof Error ? error.message : "Could not save your changes.");
+      // The server is canonical — reload it rather than guess at a rollback.
+      await loadAccount();
     },
-    [],
+    [loadAccount, toast],
   );
 
-  const applyModeData = useCallback(
-    (mode: AppMode) => {
-      const accounts = mode === "local_user" ? manualAccounts : [];
-      applyAll(mode, getDefaultsForMode(mode), accounts);
+  const update = useCallback(
+    <K extends CollectionKey>(key: K, fn: (current: Collections[K]) => Collections[K]) => {
+      const prev = dataRef.current[key];
+      const next = fn(prev);
+      if (next === prev) return;
+      dataRef.current = { ...dataRef.current, [key]: next };
+      setData(dataRef.current);
+      if (modeRef.current !== "account") return;
+
+      const diff = diffRecords(prev as { id: string }[], next as { id: string }[]);
+      if (isEmptyDiff(diff)) return;
+      setPending((n) => n + 1);
+      void enqueue(key, async () => {
+        try {
+          for (let i = 0; i < Math.max(diff.upserts.length, diff.deletes.length); i += MAX_PER_REQUEST) {
+            await postJson("/api/user/records", {
+              entity: key,
+              upserts: diff.upserts.slice(i, i + MAX_PER_REQUEST),
+              deletes: diff.deletes.slice(i, i + MAX_PER_REQUEST),
+            });
+          }
+        } catch (error) {
+          await handleSaveFailure(error);
+        } finally {
+          setPending((n) => n - 1);
+        }
+      });
     },
-    [applyAll, manualAccounts],
+    [enqueue, handleSaveFailure],
   );
 
-  const startFresh = useCallback(() => {
-    applyAll("local_user", getDefaultsForMode("local_user"), []);
-    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
-  }, [applyAll]);
-
-  const loadDemoData = useCallback(() => {
-    applyAll("demo", getDefaultsForMode("demo"), []);
-    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
-  }, [applyAll]);
-
-  const resetToModeDefaults = useCallback(() => {
-    applyModeData(appMode);
-  }, [applyModeData, appMode]);
-
-  const setAppMode = useCallback(
-    (mode: AppMode) => {
-      saveAppModeToStorage(mode);
-      setAppModeState(mode);
+  const updatePrefs = useCallback(
+    (fn: (current: UserPreferences) => UserPreferences) => {
+      const next = fn(prefsRef.current);
+      if (next === prefsRef.current) return;
+      prefsRef.current = next;
+      setPrefs(next);
+      if (modeRef.current !== "account") return;
+      setPending((n) => n + 1);
+      void enqueue("preferences", async () => {
+        try {
+          await postJson("/api/user/preferences", prefsRef.current, "PUT");
+        } catch (error) {
+          await handleSaveFailure(error);
+        } finally {
+          setPending((n) => n - 1);
+        }
+      });
     },
-    [],
+    [enqueue, handleSaveFailure],
   );
 
-  const exportData = useCallback((): UserDataExport => {
-    return {
+  const mapOne = <T extends { id: string }>(list: T[], id: string, fn: (item: T) => T): T[] =>
+    list.map((item) => (item.id === id ? fn(item) : item));
+
+  const appMode: AppMode = dataMode === "preview" ? "demo" : "local_user";
+
+  const exportData = useCallback(
+    (): UserDataExport => ({
       version: 1,
       exportedAt: new Date().toISOString(),
       appMode,
-      bills,
-      income,
-      subscriptions,
-      alerts,
-      spendingLater,
-      manualAccounts: manualAccounts,
-    };
-  }, [appMode, bills, income, subscriptions, alerts, spendingLater, manualAccounts]);
+      ...dataRef.current,
+    }),
+    [appMode],
+  );
 
   const importData = useCallback(
     (bundle: UserDataExport) => {
-      const mode = bundle.appMode ?? "local_user";
-      const normalized = normalizeFinancialDataBundle({
-        bills: bundle.bills ?? [],
-        income: bundle.income ?? [],
-        subscriptions: bundle.subscriptions ?? [],
+      const incoming = collectionsFromBundle(bundle);
+      (Object.keys(incoming) as CollectionKey[]).forEach((key) => {
+        update(key, (current) => {
+          const byId = new Map((current as { id: string }[]).map((r) => [r.id, r]));
+          for (const r of incoming[key] as { id: string }[]) byId.set(r.id, r);
+          return [...byId.values()] as Collections[typeof key];
+        });
       });
-      applyAll(
-        mode,
-        {
-          bills: normalized.bills ?? [],
-          income: normalized.income ?? [],
-          subscriptions: normalized.subscriptions ?? [],
-          alerts: bundle.alerts ?? [],
-          spendingLater: bundle.spendingLater ?? [],
-        },
-        bundle.manualAccounts ?? [],
-      );
     },
-    [applyAll],
+    [update],
   );
 
   const value: MoneyDataContextValue = {
-    hydrated,
-    userEditGeneration,
+    hydrated: dataMode !== "loading",
+    dataMode,
     appMode,
-    bills,
-    income,
-    subscriptions,
-    alerts,
-    spendingLater,
-    manualAccounts,
+    loadError,
+    saving: pending > 0,
+    reload: loadAccount,
+    ...data,
 
-    addBill: (draft) => {
-      commitBills([...bills, { ...normalizeBillDraft(draft), id: newId("bill") }]);
-      bumpUserEdit();
-    },
-    updateBill: (id, draft) => {
-      commitBills(
-        bills.map((b) =>
-          b.id === id ? { ...normalizeBillDraft(draft), id } : b,
-        ),
-      );
-      bumpUserEdit();
-    },
-    deleteBill: (id) => {
-      commitBills(bills.filter((b) => b.id !== id));
-      bumpUserEdit();
-    },
-    setBillStatus: (id, status) => {
-      commitBills(
-        bills.map((b) => {
-          if (b.id !== id) return b;
+    addBill: (draft) => update("bills", (l) => [...l, { ...normalizeBillDraft(draft), id: newId("bill") }]),
+    updateBill: (id, draft) => update("bills", (l) => mapOne(l, id, () => ({ ...normalizeBillDraft(draft), id }))),
+    deleteBill: (id) => update("bills", (l) => l.filter((b) => b.id !== id)),
+    setBillStatus: (id, status) =>
+      update("bills", (l) =>
+        mapOne(l, id, (b) => {
           if (status === "paid") {
-            const occurrenceDate = getBillNextDueDate(b);
-            return {
-              ...b,
-              status: "unpaid",
-              lastPaidAt: occurrenceDate,
-              scheduledForDate: undefined,
-            };
+            return { ...b, status: "unpaid", lastPaidAt: getBillNextDueDate(b), scheduledForDate: undefined };
           }
-          if (status === "scheduled") {
-            const occurrenceDate = getBillNextDueDate(b);
-            return { ...b, status, scheduledForDate: occurrenceDate };
-          }
+          if (status === "scheduled") return { ...b, status, scheduledForDate: getBillNextDueDate(b) };
           return { ...b, status, scheduledForDate: undefined };
         }),
-      );
-      bumpUserEdit();
-    },
-    markBillPaid: (id) => {
-      commitBills(
-        bills.map((b) => {
-          if (b.id !== id) return b;
-          const occurrenceDate = getBillNextDueDate(b);
-          return {
-            ...b,
-            status: "unpaid",
-            lastPaidAt: occurrenceDate,
-            scheduledForDate: undefined,
-          };
-        }),
-      );
-      bumpUserEdit();
-    },
-    markBillScheduled: (id) => {
-      commitBills(
-        bills.map((b) => {
-          if (b.id !== id) return b;
-          const occurrenceDate = getBillNextDueDate(b);
-          return { ...b, status: "scheduled", scheduledForDate: occurrenceDate };
-        }),
-      );
-      bumpUserEdit();
-    },
+      ),
+    markBillPaid: (id) =>
+      update("bills", (l) =>
+        mapOne(l, id, (b) => ({ ...b, status: "unpaid", lastPaidAt: getBillNextDueDate(b), scheduledForDate: undefined })),
+      ),
+    markBillScheduled: (id) =>
+      update("bills", (l) => mapOne(l, id, (b) => ({ ...b, status: "scheduled", scheduledForDate: getBillNextDueDate(b) }))),
 
-    addIncome: (draft) => {
-      const normalized = normalizeIncomeDraft(draft);
-      commitIncome([...income, { ...normalized, id: newId("income") }]);
-      bumpUserEdit();
-    },
-    updateIncome: (id, draft) => {
-      const normalized = normalizeIncomeDraft(draft);
-      commitIncome(income.map((i) => (i.id === id ? { ...normalized, id } : i)));
-      bumpUserEdit();
-    },
-    deleteIncome: (id) => {
-      commitIncome(income.filter((i) => i.id !== id));
-      bumpUserEdit();
-    },
-    toggleIncomeActive: (id) => {
-      commitIncome(
-        income.map((i) => (i.id === id ? { ...i, active: !i.active } : i)),
-      );
-      bumpUserEdit();
-    },
-    markIncomeReceived: (id) => {
-      commitIncome(
-        income.map((i) => {
-          if (i.id !== id) return i;
+    addIncome: (draft) => update("income", (l) => [...l, { ...normalizeIncomeDraft(draft), id: newId("income") }]),
+    updateIncome: (id, draft) => update("income", (l) => mapOne(l, id, () => ({ ...normalizeIncomeDraft(draft), id }))),
+    deleteIncome: (id) => update("income", (l) => l.filter((i) => i.id !== id)),
+    toggleIncomeActive: (id) => update("income", (l) => mapOne(l, id, (i) => ({ ...i, active: !i.active }))),
+    markIncomeReceived: (id) =>
+      update("income", (l) =>
+        mapOne(l, id, (i) => {
           const occurrenceDate = getIncomeNextDate(i) ?? i.nextDate;
-          if (!occurrenceDate) return i;
-          return { ...i, lastReceivedAt: occurrenceDate };
+          return occurrenceDate ? { ...i, lastReceivedAt: occurrenceDate } : i;
         }),
-      );
-      bumpUserEdit();
-    },
+      ),
 
-    addSubscription: (draft) => {
-      commitSubscriptions([...subscriptions, { ...draft, id: newId("sub") }]);
-      bumpUserEdit();
-    },
-    updateSubscription: (id, draft) => {
-      commitSubscriptions(
-        subscriptions.map((s) => (s.id === id ? { ...draft, id } : s)),
-      );
-      bumpUserEdit();
-    },
-    deleteSubscription: (id) => {
-      commitSubscriptions(subscriptions.filter((s) => s.id !== id));
-      bumpUserEdit();
-    },
-    setSubscriptionStatus: (id, status) => {
-      commitSubscriptions(
-        subscriptions.map((s) => (s.id === id ? { ...s, status } : s)),
-      );
-      bumpUserEdit();
-    },
-    markSubscriptionRenewed: (id) => {
-      commitSubscriptions(
-        subscriptions.map((s) => {
-          if (s.id !== id) return s;
-          const occurrenceDate =
-            getSubscriptionNextRenewalDate(s) ?? s.renewalDate;
-          if (!occurrenceDate) return s;
-          return { ...s, lastRenewedAt: occurrenceDate };
+    addSubscription: (draft) => update("subscriptions", (l) => [...l, { ...draft, id: newId("sub") }]),
+    updateSubscription: (id, draft) => update("subscriptions", (l) => mapOne(l, id, () => ({ ...draft, id }))),
+    deleteSubscription: (id) => update("subscriptions", (l) => l.filter((s) => s.id !== id)),
+    setSubscriptionStatus: (id, status) => update("subscriptions", (l) => mapOne(l, id, (s) => ({ ...s, status }))),
+    markSubscriptionRenewed: (id) =>
+      update("subscriptions", (l) =>
+        mapOne(l, id, (s) => {
+          const occurrenceDate = getSubscriptionNextRenewalDate(s) ?? s.renewalDate;
+          return occurrenceDate ? { ...s, lastRenewedAt: occurrenceDate } : s;
         }),
-      );
-      bumpUserEdit();
-    },
+      ),
 
-    addAlert: (draft) => {
-      commitAlerts([
-        {
-          ...draft,
-          id: newId("alert"),
-          status: "active",
-          userCreated: true,
-        },
-        ...alerts,
-      ]);
-      bumpUserEdit();
-    },
-    updateAlert: (id, draft) => {
-      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, ...draft } : a)));
-      bumpUserEdit();
-    },
-    setAlertStatus: (id, status) => {
-      commitAlerts(alerts.map((a) => (a.id === id ? { ...a, status } : a)));
-      bumpUserEdit();
-    },
-    deleteAlert: (id) => {
-      commitAlerts(alerts.filter((a) => a.id !== id));
-      bumpUserEdit();
-    },
-    replaceAlerts: commitAlerts,
+    addAlert: (draft) =>
+      update("alerts", (l) => [{ ...draft, id: newId("alert"), status: "active", userCreated: true }, ...l]),
+    updateAlert: (id, draft) => update("alerts", (l) => mapOne(l, id, (a) => ({ ...a, ...draft }))),
+    setAlertStatus: (id, status) => update("alerts", (l) => mapOne(l, id, (a) => ({ ...a, status }))),
+    deleteAlert: (id) => update("alerts", (l) => l.filter((a) => a.id !== id)),
+    replaceAlerts: (alerts) => update("alerts", () => alerts),
 
-    addSpendingLater: (draft) => {
-      commitSpendingLater([
-        ...spendingLater,
-        { ...draft, id: newId("spend-later"), title: draft.title ?? draft.name },
-      ]);
-      bumpUserEdit();
-    },
-    updateSpendingLater: (id, draft) => {
-      commitSpendingLater(
-        spendingLater.map((item) =>
-          item.id === id
-            ? { ...draft, id, title: draft.title ?? draft.name }
-            : item,
-        ),
-      );
-      bumpUserEdit();
-    },
-    deleteSpendingLater: (id) => {
-      commitSpendingLater(spendingLater.filter((item) => item.id !== id));
-      bumpUserEdit();
-    },
+    addSpendingLater: (draft) =>
+      update("spendingLater", (l) => [...l, { ...draft, id: newId("spend-later"), title: draft.title ?? draft.name }]),
+    updateSpendingLater: (id, draft) =>
+      update("spendingLater", (l) => mapOne(l, id, () => ({ ...draft, id, title: draft.title ?? draft.name }))),
+    deleteSpendingLater: (id) => update("spendingLater", (l) => l.filter((item) => item.id !== id)),
 
-    dismissRecurringSuggestion: (id) => {
-      if (dismissedRecurringIds.includes(id)) return;
-      commitDismissedRecurring([...dismissedRecurringIds, id]);
-      bumpUserEdit();
-    },
-    dismissActionItem: (id) => {
-      if (dismissedActionIds.includes(id)) return;
-      commitDismissedActions([...dismissedActionIds, id]);
-      bumpUserEdit();
-    },
-    dismissedRecurringIds,
-    dismissedActionIds,
+    dismissRecurringSuggestion: (id) =>
+      updatePrefs((p) =>
+        p.dismissedRecurringIds.includes(id) ? p : { ...p, dismissedRecurringIds: [...p.dismissedRecurringIds, id] },
+      ),
+    dismissActionItem: (id) =>
+      updatePrefs((p) =>
+        p.dismissedActionIds.includes(id) ? p : { ...p, dismissedActionIds: [...p.dismissedActionIds, id] },
+      ),
+    dismissedRecurringIds: prefs.dismissedRecurringIds,
+    dismissedActionIds: prefs.dismissedActionIds,
 
     addManualAccount: (draft) => {
       const now = new Date().toISOString();
-      commitManualAccounts([
-        ...manualAccounts,
-        {
-          ...draft,
-          id: newId("acct"),
-          source: "manual" as const,
-          createdAt: now,
-          updatedAt: now,
-        },
+      update("manualAccounts", (l) => [
+        ...l,
+        { ...draft, id: newId("acct"), source: "manual" as const, createdAt: now, updatedAt: now },
       ]);
-      bumpUserEdit();
     },
     updateManualAccount: (id, draft) => {
       const now = new Date().toISOString();
-      commitManualAccounts(
-        manualAccounts.map((a) =>
-          a.id === id
-            ? { ...draft, id, source: "manual" as const, updatedAt: now }
-            : a,
-        ),
-      );
-      bumpUserEdit();
+      update("manualAccounts", (l) => mapOne(l, id, () => ({ ...draft, id, source: "manual" as const, updatedAt: now })));
     },
-    deleteManualAccount: (id) => {
-      commitManualAccounts(manualAccounts.filter((a) => a.id !== id));
-      bumpUserEdit();
-    },
+    deleteManualAccount: (id) => update("manualAccounts", (l) => l.filter((a) => a.id !== id)),
 
-    applyModeData,
-    startFresh,
-    loadDemoData,
-    resetToModeDefaults,
     exportData,
     importData,
-    setAppMode,
   };
 
-  return (
-    <MoneyDataContext.Provider value={value}>
-      {children}
-    </MoneyDataContext.Provider>
-  );
+  return <MoneyDataContext.Provider value={value}>{children}</MoneyDataContext.Provider>;
 }
 
 export function useMoneyData(): MoneyDataContextValue {

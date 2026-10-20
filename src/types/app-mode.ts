@@ -8,7 +8,7 @@ export type AppMode =
 export type OnboardingChoice = "fresh" | "demo" | "connect_sandbox";
 
 export type ModeDisplayLabel =
-  | "Demo Mode"
-  | "Local User Data"
+  | "Demo Preview"
+  | "Your Data"
   | "Plaid Sandbox"
   | "Personal Live";

@@ -1,5 +1,4 @@
 import type { UserDataExport } from "@/lib/storage/store";
-import { hasExistingUserData } from "@/lib/storage/local-storage";
 
 export type DomainCounts = {
   bills: number;
@@ -37,47 +36,11 @@ export function totalRecords(counts: DomainCounts): number {
   );
 }
 
-export function localDataFingerprint(bundle: UserDataExport): string {
-  const parts = [
-    bundle.bills.map((b) => b.id).sort().join(","),
-    bundle.subscriptions.map((s) => s.id).sort().join(","),
-    bundle.income.map((i) => i.id).sort().join(","),
-  ];
-  return parts.join("|").slice(0, 512);
-}
 
 export function isLocalDataEmpty(bundle: UserDataExport): boolean {
   return totalRecords(countBundleRecords(bundle)) === 0;
 }
 
-export function shouldApplyAccountData(args: {
-  serverCounts: DomainCounts;
-  localBundle: UserDataExport;
-  localDirty: boolean;
-  serverUpdatedAt: string | null;
-  lastSyncedAt: string | null;
-}): boolean {
-  const serverTotal = totalRecords(args.serverCounts);
-  const localTotal = totalRecords(countBundleRecords(args.localBundle));
-  const localEmpty = localTotal === 0 && !hasExistingUserData();
-
-  if (serverTotal === 0) return false;
-  if (localEmpty) return true;
-  if (localTotal === 0 && serverTotal > 0) return true;
-
-  if (args.localDirty) return false;
-
-  if (!args.serverUpdatedAt) return serverTotal > localTotal;
-
-  if (!args.lastSyncedAt) {
-    return serverTotal >= localTotal;
-  }
-
-  return (
-    new Date(args.serverUpdatedAt).getTime() >
-    new Date(args.lastSyncedAt).getTime()
-  );
-}
 
 export function wouldWipeAccountData(args: {
   existingCounts: DomainCounts;

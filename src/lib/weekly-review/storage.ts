@@ -1,30 +1,61 @@
 import type { WeeklyReviewRecord } from "@/types/weekly-review";
-import { loadCollection, saveCollection, STORAGE_KEYS, newId } from "@/lib/storage/local-storage";
+import { newId } from "@/lib/storage/local-storage";
+
+/*
+ * Weekly reviews. Signed-in: the server is canonical and this module keeps an
+ * in-memory copy for synchronous readers (e.g. the setup checklist).
+ * Signed-out preview: reviews live in memory only and are never saved.
+ */
+
+let cache: WeeklyReviewRecord[] = [];
+
+function sorted(records: WeeklyReviewRecord[]): WeeklyReviewRecord[] {
+  return [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 
 export function listWeeklyReviews(): WeeklyReviewRecord[] {
-  return loadCollection<WeeklyReviewRecord>(STORAGE_KEYS.weeklyReviews, []).sort(
-    (a, b) => b.createdAt.localeCompare(a.createdAt),
-  );
+  return sorted(cache);
 }
 
-export function saveWeeklyReview(record: WeeklyReviewRecord): void {
-  const existing = listWeeklyReviews();
-  const withoutDup = existing.filter((r) => r.id !== record.id);
-  saveCollection(STORAGE_KEYS.weeklyReviews, [record, ...withoutDup]);
+export async function loadWeeklyReviews(accountBacked: boolean): Promise<WeeklyReviewRecord[]> {
+  if (!accountBacked) return listWeeklyReviews();
+  const res = await fetch("/api/user/weekly-reviews");
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(body.reviews)) {
+    throw new Error(body.message ?? body.error ?? "Could not load weekly reviews.");
+  }
+  cache = body.reviews as WeeklyReviewRecord[];
+  return listWeeklyReviews();
 }
 
-export function updateWeeklyReview(
+/** Saves a review (server first when signed in) and returns the new list. */
+export async function saveWeeklyReview(
+  record: WeeklyReviewRecord,
+  accountBacked: boolean,
+): Promise<WeeklyReviewRecord[]> {
+  if (accountBacked) {
+    const res = await fetch("/api/user/weekly-reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.success === false) {
+      throw new Error(body.error ?? body.message ?? "Could not save the weekly review.");
+    }
+  }
+  cache = [record, ...cache.filter((r) => r.id !== record.id)];
+  return listWeeklyReviews();
+}
+
+export async function updateWeeklyReview(
   id: string,
   patch: Partial<Pick<WeeklyReviewRecord, "userNotes" | "completedActions">>,
-): WeeklyReviewRecord | null {
-  const reviews = listWeeklyReviews();
-  const index = reviews.findIndex((r) => r.id === id);
-  if (index < 0) return null;
-  const updated = { ...reviews[index], ...patch };
-  const next = [...reviews];
-  next[index] = updated;
-  saveCollection(STORAGE_KEYS.weeklyReviews, next);
-  return updated;
+  accountBacked: boolean,
+): Promise<WeeklyReviewRecord[]> {
+  const current = cache.find((r) => r.id === id);
+  if (!current) return listWeeklyReviews();
+  return saveWeeklyReview({ ...current, ...patch }, accountBacked);
 }
 
 export function createWeeklyReviewId(): string {

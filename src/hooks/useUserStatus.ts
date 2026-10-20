@@ -1,61 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSession } from "@/context/SessionProvider";
 
-export type UserStatus = {
-  authConfigured: boolean;
-  databaseConfigured: boolean;
-  encryptionConfigured: boolean;
-  persistentPlaidEnabled: boolean;
-  plaidStorageMode: "memory" | "database" | "none";
-  signedIn: boolean;
-  storageMode: "localStorage" | "database" | "mixed";
-  user: { email: string | null; displayName: string | null } | null;
-};
+export type { UserStatus } from "@/context/SessionProvider";
 
-const defaultStatus: UserStatus = {
-  authConfigured: false,
-  databaseConfigured: false,
-  encryptionConfigured: false,
-  persistentPlaidEnabled: false,
-  plaidStorageMode: "none",
-  signedIn: false,
-  storageMode: "localStorage",
-  user: null,
-};
-
+/** Shared session status (one fetch app-wide via SessionProvider). */
 export function useUserStatus() {
-  const [status, setStatus] = useState<UserStatus>(defaultStatus);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/user/status")
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        setStatus({
-          authConfigured: Boolean(data.authConfigured),
-          databaseConfigured: Boolean(data.databaseConfigured),
-          encryptionConfigured: Boolean(data.encryptionConfigured),
-          persistentPlaidEnabled: Boolean(data.persistentPlaidEnabled),
-          plaidStorageMode: data.plaidStorageMode ?? "none",
-          signedIn: Boolean(data.signedIn),
-          storageMode: data.storageMode ?? "localStorage",
-          user: data.user ?? null,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setStatus(defaultStatus);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { status, loading, refresh: () => setLoading(true) };
+  const { status, loading, refresh } = useSession();
+  return { status, loading, refresh };
 }

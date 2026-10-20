@@ -43,6 +43,7 @@ import {
   resolveEffectiveMode,
 } from "@/lib/app-mode";
 import { useMoneyData } from "@/lib/storage/store";
+import { useSession } from "@/context/SessionProvider";
 import type { Account, Alert, Bill, IncomeSource, PlannedExpense, Subscription } from "@/types/money";
 import type { ActionItem, ConnectedInstitutionDisplay, PlaidStorageMode, RecurringSuggestion } from "@/types/actions";
 import type {
@@ -577,10 +578,13 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     storedMode,
     activePlaidEnvironment,
   );
+  // Browser-only overrides exist for the signed-out preview. For signed-in
+  // users the database is canonical, so stale local decisions never apply.
+  const { accountBacked } = useSession();
   const transactions = useMemo(() => {
     void reviewOverrideVersion;
-    return applyTransactionReviewOverrides(baseTransactions);
-  }, [baseTransactions, reviewOverrideVersion]);
+    return accountBacked ? baseTransactions : applyTransactionReviewOverrides(baseTransactions);
+  }, [baseTransactions, reviewOverrideVersion, accountBacked]);
 
   const submitTransactionReview = useCallback(
     async (transactionId: string, payload: TransactionReviewPayload) => {
@@ -654,7 +658,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        if (res.status === 503 || res.status === 401 || res.status === 404) {
+        if (!accountBacked && (res.status === 503 || res.status === 401 || res.status === 404)) {
           saveTransactionReviewOverride(transactionId, {
             category: optimistic.category,
             classification: optimistic.classification,
@@ -702,6 +706,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       subscriptions,
       plaidConnected,
       dismissRecurringSuggestion,
+      accountBacked,
     ],
   );
 

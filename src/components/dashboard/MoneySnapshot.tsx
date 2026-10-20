@@ -113,7 +113,7 @@ export function MoneySnapshot({
         }`}
         icon={CalendarClock}
         accent="text-warning"
-        badge={storedMode === "demo" ? "Demo data" : "Local user data"}
+        badge={storedMode === "demo" ? "Demo data" : "Your data"}
         sectionId="bills"
       />
       <ClickableStatCard
