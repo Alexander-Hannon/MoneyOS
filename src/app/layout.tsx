@@ -5,6 +5,7 @@ import { AppProviders } from "@/components/providers/AppProviders";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { ToastProvider } from "@/components/ui/toast";
 import { HighlightProvider } from "@/components/providers/highlight";
+import { BRAND } from "@/lib/brand";
 
 const uiFont = IBM_Plex_Sans({
   variable: "--font-ui",
@@ -19,8 +20,8 @@ const figuresFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MoneyOS",
-  description: "Personal finance command center by Apalym",
+  title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
+  description: BRAND.description,
 };
 
 export default function RootLayout({

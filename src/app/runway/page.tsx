@@ -1,7 +1,7 @@
 import { RunwayPageClient } from "@/components/runway/RunwayPageClient";
 
 export const metadata = {
-  title: "Runway · MoneyOS",
+  title: "Runway",
   description: "Day-by-day projected cash from confirmed bills, subscriptions, and income.",
 };
 

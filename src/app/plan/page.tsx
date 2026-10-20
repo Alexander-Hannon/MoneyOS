@@ -1,7 +1,7 @@
 import { SpendingPlanPageClient } from "@/components/plan/SpendingPlanPageClient";
 
 export const metadata = {
-  title: "Spending plan · MoneyOS",
+  title: "Spending plan",
   description: "Flexible monthly spending plan built from fixed costs, savings, and real transactions.",
 };
 

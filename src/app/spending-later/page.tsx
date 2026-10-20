@@ -2,7 +2,7 @@ import { TaskPageShell } from "@/components/layout/TaskPageShell";
 import { SpendingLater } from "@/components/dashboard/SpendingLater";
 
 export const metadata = {
-  title: "Spending Later · MoneyOS",
+  title: "Spending Later",
   description: "Planned future spending and savings goals.",
 };
 

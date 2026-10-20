@@ -455,19 +455,6 @@ export function recurringChargeCandidates(
   return result;
 }
 
-/** @deprecated Demo/sandbox synthetic trend — do not use for personal live mode. */
-export function incomeVsSpendingTrend(txns: MoneyTransaction[]) {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  const spending = monthlySpendingTotal(txns) || 1800;
-  const income = Math.max(monthlyIncomeTotal(txns) * 4, 3000);
-  const incomeFactors = [0.82, 0.91, 1.18, 0.96, 1.09, 1.0];
-  const spendingFactors = [0.86, 1.07, 0.93, 1.24, 0.9, 1.0];
-  return months.map((month, i) => ({
-    month,
-    income: Math.round(income * incomeFactors[i]),
-    spending: Math.round(spending * spendingFactors[i]),
-  }));
-}
 
 /* ------------------------------------------------------------------ */
 /* Spending alerts                                                     */

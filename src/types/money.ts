@@ -1,5 +1,4 @@
-// Core MoneyOS domain types. All data is local/mock and editable in-browser
-// (persisted to localStorage) — no bank APIs, no auth, no database.
+// Core MoneyOS domain types shared by the client, API routes, and database mappers.
 
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 

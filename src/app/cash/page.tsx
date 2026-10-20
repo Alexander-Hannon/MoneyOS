@@ -2,7 +2,7 @@ import { TaskPageShell } from "@/components/layout/TaskPageShell";
 import { CashDashboard } from "@/components/cash/CashDashboard";
 
 export const metadata = {
-  title: "Cash & Accounts | MoneyOS",
+  title: "Cash & Accounts",
   description: "Cash available breakdown across live and manual accounts.",
 };
 

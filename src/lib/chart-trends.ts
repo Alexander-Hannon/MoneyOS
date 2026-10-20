@@ -2,7 +2,6 @@ import type { MoneyTransaction } from "@/types/transactions";
 import {
   isIncomeTransaction,
   shouldCountInMonthlySpending,
-  incomeVsSpendingTrend,
 } from "@/lib/transaction-utils";
 
 export type CashflowTrendPoint = {
@@ -62,21 +61,9 @@ export function currentMonthCashflowSnapshot(
   return points[points.length - 1] ?? null;
 }
 
+/** Monthly income vs spending from real transactions only — never synthesized. */
 export function resolveCashflowTrend(args: {
   transactions: MoneyTransaction[];
-  allowSyntheticFallback: boolean;
 }): CashflowTrendPoint[] {
-  const real = buildCashflowTrendFromTransactions(args.transactions);
-  if (hasEnoughCashflowHistory(real)) {
-    return real;
-  }
-  if (args.allowSyntheticFallback && args.transactions.length > 0) {
-    return incomeVsSpendingTrend(args.transactions).map((point, index) => ({
-      month: point.month,
-      income: point.income,
-      spending: point.spending,
-      monthKey: `synthetic-${index}`,
-    }));
-  }
-  return real;
+  return buildCashflowTrendFromTransactions(args.transactions);
 }

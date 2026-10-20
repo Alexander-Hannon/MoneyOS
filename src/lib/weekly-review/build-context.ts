@@ -14,7 +14,7 @@ function buildModeContext(fd: FinancialDataContextValue): string {
     return "Setup incomplete — add core accounts, income, and bills first.";
   }
   if (fd.effectiveMode === "personal_live") {
-    return "Personal live bank data — real financial data, private owner mode.";
+    return "Personal Live bank data (real financial data).";
   }
   if (fd.effectiveMode === "plaid_sandbox") {
     return "Plaid sandbox data — not live bank data.";

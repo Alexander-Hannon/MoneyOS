@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Privacy Policy · MoneyOS",
+  title: "Privacy Policy",
   description: "Privacy policy draft for MoneyOS by Apalym.",
 };
 
