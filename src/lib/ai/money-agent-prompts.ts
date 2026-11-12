@@ -18,7 +18,7 @@ Focus on cash runway, upcoming obligations, review items, and one clear next act
 
 Write like a disciplined financial coach speaking to a smart beginner. Give only the most important information. Use short sentences. No dense paragraphs.`;
 
-export const WEEKLY_REVIEW_USER_PROMPT = `Generate a Weekly Money Review for AJ's personal finance command center.
+export const WEEKLY_REVIEW_USER_PROMPT = `Generate a Weekly Money Review for this MoneyOS user.
 
 STRICT STYLE:
 - Short, direct, simple language

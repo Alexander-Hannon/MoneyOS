@@ -13,8 +13,8 @@ import {
 } from "@/components/layout/nav-items";
 
 const MODE_DOT: Record<string, string> = {
-  "Demo Mode": "bg-info",
-  "Local User Data": "bg-muted-foreground",
+  "Demo Preview": "bg-info",
+  "Your Data": "bg-muted-foreground",
   "Plaid Sandbox": "bg-success",
   "Personal Live": "bg-warning",
 };

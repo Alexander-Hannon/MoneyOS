@@ -9,18 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AppMode, ModeDisplayLabel, OnboardingChoice } from "@/types/app-mode";
+import type { AppMode, ModeDisplayLabel } from "@/types/app-mode";
 import type { ConsentRecord } from "@/types/user";
-import {
-  getModeDisplayLabel,
-  loadOnboardingCompleted,
-  resolveEffectiveMode,
-} from "@/lib/app-mode";
+import { getModeDisplayLabel, resolveEffectiveMode } from "@/lib/app-mode";
 import {
   loadBoolean,
   loadConsentHistory,
   newId,
-  saveBoolean,
   saveConsentHistory,
   saveString,
   STORAGE_KEYS,
@@ -43,18 +38,13 @@ export interface AppModeContextValue {
   storedMode: AppMode;
   effectiveMode: AppMode;
   modeLabel: ModeDisplayLabel;
-  onboardingCompleted: boolean;
-  showOnboarding: boolean;
   consentHistory: ConsentRecord[];
   pendingPlaidConnect: boolean;
   pendingPlaidEnvironment: PlaidLinkTarget | null;
-  completeOnboarding: (choice: OnboardingChoice) => void;
   requestPlaidConnect: (environment?: PlaidLinkTarget) => void;
   recordPlaidConsent: () => ConsentRecord;
   clearPendingPlaidConnect: () => void;
   refreshConsentHistory: () => void;
-  /** Mark onboarding done without changing any data (account-backed users). */
-  dismissOnboarding: () => void;
 }
 
 const AppModeContext = createContext<AppModeContextValue | null>(null);
@@ -68,7 +58,6 @@ export function AppModeProvider({
 }) {
   const money = useMoneyData();
   const [hydrated, setHydrated] = useState(false);
-  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [consentHistory, setConsentHistory] = useState<ConsentRecord[]>([]);
   const [pendingPlaidConnect, setPendingPlaidConnect] = useState(false);
   const [pendingPlaidEnvironment, setPendingPlaidEnvironment] =
@@ -76,7 +65,6 @@ export function AppModeProvider({
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    setOnboardingCompleted(loadOnboardingCompleted());
     setConsentHistory(loadConsentHistory());
     setPendingPlaidConnect(loadBoolean(STORAGE_KEYS.pendingPlaidConnect));
     setHydrated(true);
@@ -94,12 +82,13 @@ export function AppModeProvider({
   const recordPlaidConsent = useCallback((): ConsentRecord => {
     const record: ConsentRecord = {
       id: newId("consent"),
-      userId: "local-dev-user",
+      // Client-side cache only; the server records the authenticated user id.
+      userId: "self",
       consentType: "plaid_link",
       acceptedAt: new Date().toISOString(),
       version: CONSENT_VERSION,
       textSummary:
-        "User accepted Plaid sandbox connection consent before opening Link.",
+        "User accepted Plaid connection consent before opening Link.",
       dataScopes: PLAID_SCOPES,
       plaidProducts: ["transactions"],
     };
@@ -125,28 +114,7 @@ export function AppModeProvider({
     return record;
   }, []);
 
-  const completeOnboarding = useCallback(
-    (choice: OnboardingChoice) => {
-      if (choice === "demo") {
-        money.loadDemoData();
-      } else {
-        money.startFresh();
-      }
-      saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
-      setOnboardingCompleted(true);
-      if (choice === "connect_sandbox") {
-        saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
-        setPendingPlaidConnect(true);
-        setPendingPlaidEnvironment("sandbox");
-      }
-    },
-    [money],
-  );
 
-  const dismissOnboarding = useCallback(() => {
-    saveBoolean(STORAGE_KEYS.onboardingCompleted, true);
-    setOnboardingCompleted(true);
-  }, []);
 
   const requestPlaidConnect = useCallback((environment: PlaidLinkTarget = "sandbox") => {
     saveString(STORAGE_KEYS.pendingPlaidConnect, "true");
@@ -166,17 +134,13 @@ export function AppModeProvider({
       storedMode,
       effectiveMode,
       modeLabel,
-      onboardingCompleted,
-      showOnboarding: money.hydrated && hydrated && !onboardingCompleted,
       consentHistory,
       pendingPlaidConnect,
       pendingPlaidEnvironment,
-      completeOnboarding,
       requestPlaidConnect,
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
-      dismissOnboarding,
     }),
     [
       money.hydrated,
@@ -184,16 +148,13 @@ export function AppModeProvider({
       storedMode,
       effectiveMode,
       modeLabel,
-      onboardingCompleted,
       consentHistory,
       pendingPlaidConnect,
       pendingPlaidEnvironment,
-      completeOnboarding,
       requestPlaidConnect,
       recordPlaidConsent,
       clearPendingPlaidConnect,
       refreshConsentHistory,
-      dismissOnboarding,
     ],
   );
 

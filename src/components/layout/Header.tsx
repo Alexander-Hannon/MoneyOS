@@ -6,8 +6,6 @@ import { BankConnectionControl } from "@/components/layout/BankConnectionControl
 import { ModeBadge } from "@/components/layout/ModeBadge";
 import { useFinancialData } from "@/hooks/useFinancialData";
 import { RefreshMoneyOSDataButton } from "@/components/sync/RefreshMoneyOSDataButton";
-import { useUserStatus } from "@/hooks/useUserStatus";
-import { isClerkPublishableConfigured } from "@/lib/auth/config-client";
 
 export function Header({
   onOpenMenu,
@@ -17,9 +15,6 @@ export function Header({
   onOpenPalette: () => void;
 }) {
   const fd = useFinancialData();
-  const { status } = useUserStatus();
-  const showSignInHint =
-    isClerkPublishableConfigured() && !status.signedIn && status.authConfigured;
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "short",
@@ -55,18 +50,11 @@ export function Header({
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <p className="num hidden text-xs text-muted-foreground xl:block">{today}</p>
           <ModeBadge label={fd.modeLabel} />
-          {status.signedIn && status.databaseConfigured ? (
-            <RefreshMoneyOSDataButton variant="ghost" className="hidden sm:block" />
-          ) : null}
+          <RefreshMoneyOSDataButton className="hidden sm:inline-flex" />
           <BankConnectionControl />
           <AuthHeaderControls />
         </div>
       </div>
-      {showSignInHint && (
-        <p className="border-t border-border px-4 py-1.5 text-[11px] text-muted-foreground sm:px-6">
-          Sign in to save your MoneyOS data securely across devices.
-        </p>
-      )}
     </header>
   );
 }

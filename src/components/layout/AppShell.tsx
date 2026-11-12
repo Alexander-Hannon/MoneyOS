@@ -5,6 +5,8 @@ import { X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/layout/CommandPalette";
+import { PreviewBanner } from "@/components/auth/PreviewBanner";
+import { LegacyDataImport } from "@/components/auth/LegacyDataImport";
 import { cn } from "@/lib/utils";
 
 export function AppShell({
@@ -62,12 +64,14 @@ export function AppShell({
           onOpenMenu={() => setMenuOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
+        <PreviewBanner />
         <main
           className={cn(
             "mx-auto w-full min-w-0 flex-1 space-y-6 px-4 py-6 sm:px-6 lg:py-8",
             width === "narrow" ? "max-w-3xl" : "max-w-7xl",
           )}
         >
+          <LegacyDataImport />
           {title ? (
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>

@@ -5,8 +5,8 @@ const toneMap: Record<
   ModeDisplayLabel,
   "success" | "info" | "warning" | "neutral"
 > = {
-  "Demo Mode": "info",
-  "Local User Data": "neutral",
+  "Demo Preview": "info",
+  "Your Data": "neutral",
   "Plaid Sandbox": "success",
   "Personal Live": "warning",
 };

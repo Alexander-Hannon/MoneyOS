@@ -40,12 +40,8 @@ export function Dashboard() {
     hasManualIncomeOrBills,
   });
 
-  const allowSyntheticFallback =
-    chartDataSource === "demo" || chartDataSource === "plaid_sandbox";
-
   const trendPoints = resolveCashflowTrend({
     transactions: fd.transactions,
-    allowSyntheticFallback,
   });
 
   const chartPresentation = resolveChartPresentationInfo({
@@ -150,13 +146,6 @@ export function Dashboard() {
         <ConnectedInstitutionsSection />
       </section>
 
-      <footer className="pt-2 text-center text-xs text-muted-foreground/60">
-        MoneyOS by Apalym.{" "}
-        {fd.activePlaidEnvironment === "production"
-          ? "Personal Live, private owner mode."
-          : "Development / Sandbox mode."}{" "}
-        Data: {fd.modeLabel}.
-      </footer>
     </AppShell>
   );
 }

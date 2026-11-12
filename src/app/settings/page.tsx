@@ -1,7 +1,7 @@
 import { SettingsPageClient } from "@/components/settings/SettingsPageClient";
 
 export const metadata = {
-  title: "Settings · MoneyOS",
+  title: "Settings",
   description: "MoneyOS settings — data source, export, and privacy controls.",
 };
 

@@ -21,12 +21,6 @@ import {
   getEmptyIncome,
   getEmptySubscriptions,
 } from "@/lib/data/empty-user-data";
-import {
-  hasExistingUserData,
-  loadAppModeFromStorage,
-  loadBoolean,
-  STORAGE_KEYS,
-} from "@/lib/storage/local-storage";
 
 export type ModeDefaults = {
   bills: Bill[];
@@ -55,19 +49,6 @@ export function getDefaultsForMode(mode: AppMode): ModeDefaults {
   };
 }
 
-/** Stored preference, with migration for existing localStorage users. */
-export function loadStoredAppMode(): AppMode {
-  const stored = loadAppModeFromStorage();
-  if (stored) return stored;
-  if (hasExistingUserData()) return "local_user";
-  return "local_user";
-}
-
-export function loadOnboardingCompleted(): boolean {
-  if (loadBoolean(STORAGE_KEYS.onboardingCompleted)) return true;
-  if (hasExistingUserData()) return true;
-  return false;
-}
 
 /**
  * Effective mode for data labels and AI context.
@@ -96,19 +77,19 @@ export function getModeDisplayLabel(
     return "Personal Live";
   }
   if (plaidConnected) return "Plaid Sandbox";
-  if (storedMode === "demo") return "Demo Mode";
-  return "Local User Data";
+  if (storedMode === "demo") return "Demo Preview";
+  return "Your Data";
 }
 
 export type DataSourceLabel =
   | "Demo data"
-  | "Local user data"
+  | "Your data"
   | "Plaid Sandbox"
   | "Personal Live Data"
-  | "Mixed demo + sandbox"
-  | "Mixed demo + live"
-  | "Mixed local + sandbox"
-  | "Mixed local + live"
+  | "Demo + Plaid Sandbox"
+  | "Demo + Personal Live"
+  | "Your data + Plaid Sandbox"
+  | "Your data + Personal Live"
   | "Live bank data"
   | "Empty — add your data";
 
@@ -119,17 +100,17 @@ export function getDataSourceLabel(
   activePlaidEnvironment: PlaidEnvironment | null = null,
 ): DataSourceLabel {
   if (plaidConnected && activePlaidEnvironment === "production") {
-    if (storedMode === "demo") return "Mixed demo + live";
-    if (storedMode === "local_user" && !isEmpty) return "Mixed local + live";
+    if (storedMode === "demo") return "Demo + Personal Live";
+    if (storedMode === "local_user" && !isEmpty) return "Your data + Personal Live";
     return "Personal Live Data";
   }
   if (plaidConnected) {
-    if (storedMode === "demo") return "Mixed demo + sandbox";
-    return "Mixed local + sandbox";
+    if (storedMode === "demo") return "Demo + Plaid Sandbox";
+    return "Your data + Plaid Sandbox";
   }
   if (storedMode === "demo") return "Demo data";
   if (isEmpty) return "Empty — add your data";
-  return "Local user data";
+  return "Your data";
 }
 
 export function isManualDataEmpty(args: {

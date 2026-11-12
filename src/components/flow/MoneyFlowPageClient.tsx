@@ -16,7 +16,7 @@ const SOURCE_LABEL: Record<DataSource, string> = {
   plaid_live: "Personal Live",
   plaid_sandbox: "Plaid Sandbox",
   mock: "Demo Data",
-  manual: "Local User Data",
+  manual: "Your Data",
 };
 
 const money = (n: number) => formatCurrency(n, true);

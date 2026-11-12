@@ -19,6 +19,14 @@ export async function saveWeeklyReviewForUser(
   const prisma = getPrisma();
   if (!prisma) throw new Error("Database is not configured.");
 
+  const existing = await prisma.weeklyReview.findUnique({
+    where: { id: record.id },
+    select: { userId: true },
+  });
+  if (existing && existing.userId !== userId) {
+    throw new Error("Weekly review belongs to another account.");
+  }
+
   return prisma.weeklyReview.upsert({
     where: { id: record.id },
     create: {

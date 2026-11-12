@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -20,14 +20,16 @@ import {
 import { SetupChecklistCard } from "@/components/weekly-review/SetupChecklistCard";
 import { WeeklyReviewHistory } from "@/components/weekly-review/WeeklyReviewHistory";
 import { useFinancialData } from "@/hooks/useFinancialData";
-import { useUserStatus } from "@/hooks/useUserStatus";
+import { useSession } from "@/context/SessionProvider";
 import { useToast } from "@/components/ui/toast";
 import { buildWeeklyReviewInput, getWeekStartDate } from "@/lib/weekly-review/build-context";
 import { computeDataConfidence } from "@/lib/data-confidence";
 import {
   createWeeklyReviewId,
   listWeeklyReviews,
+  loadWeeklyReviews,
   saveWeeklyReview,
+  updateWeeklyReview,
 } from "@/lib/weekly-review/storage";
 import type { WeeklyReviewOutput, WeeklyReviewRecord } from "@/types/weekly-review";
 import { formatCurrency } from "@/lib/money-utils";
@@ -57,20 +59,42 @@ function MetricCard({
 
 export function WeeklyReviewDashboard() {
   const fd = useFinancialData();
-  const { status } = useUserStatus();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [review, setReview] = useState<WeeklyReviewOutput | null>(null);
+  const { accountBacked, loading: sessionLoading } = useSession();
   const [history, setHistory] = useState<WeeklyReviewRecord[]>(() =>
     listWeeklyReviews(),
   );
 
+  useEffect(() => {
+    if (sessionLoading) return;
+    let cancelled = false;
+    loadWeeklyReviews(accountBacked)
+      .then((list) => {
+        if (!cancelled) setHistory(list);
+      })
+      .catch((e) => {
+        if (!cancelled) toast(e instanceof Error ? e.message : "Could not load weekly reviews.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountBacked, sessionLoading, toast]);
+
   const confidence = useMemo(() => computeDataConfidence(fd), [fd]);
   const input = useMemo(() => buildWeeklyReviewInput(fd), [fd]);
 
-  const refreshHistory = useCallback(() => {
-    setHistory(listWeeklyReviews());
-  }, []);
+  const updateHistory = useCallback(
+    async (id: string, patch: Partial<Pick<WeeklyReviewRecord, "userNotes" | "completedActions">>) => {
+      try {
+        setHistory(await updateWeeklyReview(id, patch, accountBacked));
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Could not save the weekly review.");
+      }
+    },
+    [accountBacked, toast],
+  );
 
   const runReview = async () => {
     setLoading(true);
@@ -121,22 +145,12 @@ export function WeeklyReviewDashboard() {
       completedActions: [],
     };
 
-    saveWeeklyReview(record);
-    refreshHistory();
-
-    if (status.signedIn && status.databaseConfigured) {
-      try {
-        await fetch("/api/user/weekly-reviews", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ record }),
-        });
-      } catch {
-        // Local save succeeded — DB sync is best-effort.
-      }
+    try {
+      setHistory(await saveWeeklyReview(record, accountBacked));
+      toast(accountBacked ? "Weekly review saved" : "Review kept for this preview only. Sign in to save it.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save the weekly review.");
     }
-
-    toast("Weekly review saved");
   };
 
   return (
@@ -327,7 +341,7 @@ export function WeeklyReviewDashboard() {
       <Card>
         <CardContent className="space-y-4 pt-5">
           <h2 className="text-sm font-medium">Past weekly reviews</h2>
-          <WeeklyReviewHistory reviews={history} onUpdate={refreshHistory} />
+          <WeeklyReviewHistory reviews={history} onChange={(id, patch) => void updateHistory(id, patch)} />
         </CardContent>
       </Card>
     </div>

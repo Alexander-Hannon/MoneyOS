@@ -42,7 +42,7 @@ export function LivePlaidConsentDialog({
       open={open}
       onClose={handleClose}
       title="Connect real financial accounts?"
-      description="Personal live mode — private owner use only."
+      description="Read-only access to your accounts through Plaid. MoneyOS can’t move money."
     >
       <div className="space-y-4 text-sm text-muted-foreground">
         <p className="rounded-[var(--radius-md)] border border-warning/30 bg-warning/10 p-3 text-warning">

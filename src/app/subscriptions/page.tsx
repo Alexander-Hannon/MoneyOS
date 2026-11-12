@@ -1,7 +1,7 @@
 import { SubscriptionsPageClient } from "@/components/subscriptions/SubscriptionsPageClient";
 
 export const metadata = {
-  title: "Subscriptions · MoneyOS",
+  title: "Subscriptions",
   description: "Review subscriptions and detected recurring charges.",
 };
 

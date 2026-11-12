@@ -48,8 +48,8 @@ export function SummaryCards({
     storedMode === "demo"
       ? "Demo data"
       : dataLabel === "Empty — add your data"
-        ? "Local user data"
-        : "Local user data";
+        ? "Your data"
+        : "Your data";
 
   const reviewHint =
     reviewCount === 0 ? "all clear" : "need a decision";

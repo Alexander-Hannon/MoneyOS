@@ -7,15 +7,17 @@ import type { WeeklyReviewRecord } from "@/types/weekly-review";
 import {
   exportWeeklyReviewJson,
   exportWeeklyReviewText,
-  updateWeeklyReview,
 } from "@/lib/weekly-review/storage";
 
 export function WeeklyReviewHistory({
   reviews,
-  onUpdate,
+  onChange,
 }: {
   reviews: WeeklyReviewRecord[];
-  onUpdate: () => void;
+  onChange: (
+    id: string,
+    patch: Partial<Pick<WeeklyReviewRecord, "userNotes" | "completedActions">>,
+  ) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(
     reviews[0]?.id ?? null,
@@ -32,18 +34,14 @@ export function WeeklyReviewHistory({
 
   const saveNotes = (review: WeeklyReviewRecord) => {
     const notes = notesDraft[review.id] ?? review.userNotes ?? "";
-    updateWeeklyReview(review.id, { userNotes: notes });
-    onUpdate();
+    onChange(review.id, { userNotes: notes });
   };
 
   const toggleAction = (review: WeeklyReviewRecord, action: string) => {
     const completed = new Set(review.completedActions ?? []);
     if (completed.has(action)) completed.delete(action);
     else completed.add(action);
-    updateWeeklyReview(review.id, {
-      completedActions: Array.from(completed),
-    });
-    onUpdate();
+    onChange(review.id, { completedActions: Array.from(completed) });
   };
 
   const download = (review: WeeklyReviewRecord, format: "json" | "text") => {

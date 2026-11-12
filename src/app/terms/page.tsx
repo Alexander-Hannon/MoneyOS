@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Terms of Use · MoneyOS",
+  title: "Terms of Use",
   description: "Terms of use draft for MoneyOS by Apalym.",
 };
 

@@ -3,7 +3,7 @@ import { TaskPageShell } from "@/components/layout/TaskPageShell";
 import { SpendingDashboard } from "@/components/spending/SpendingDashboard";
 
 export const metadata = {
-  title: "Spending · MoneyOS",
+  title: "Spending",
   description: "Review transactions, categories, and spending trends.",
 };
 

@@ -1,7 +1,7 @@
 import { MoneyFlowPageClient } from "@/components/flow/MoneyFlowPageClient";
 
 export const metadata = {
-  title: "Money flow · MoneyOS",
+  title: "Money flow",
   description: "Monthly money flow from income to bills, subscriptions, and spending.",
 };
 

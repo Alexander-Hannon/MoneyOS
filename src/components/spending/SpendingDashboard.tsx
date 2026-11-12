@@ -148,16 +148,7 @@ export function SpendingDashboard() {
     hasManualIncomeOrBills:
       fd.income.length > 0 || fd.bills.length > 0 || fd.subscriptions.length > 0,
   });
-  const allowSyntheticFallback =
-    chartDataSource === "demo" || chartDataSource === "plaid_sandbox";
-  const trendPoints = useMemo(
-    () =>
-      resolveCashflowTrend({
-        transactions: txns,
-        allowSyntheticFallback,
-      }),
-    [txns, allowSyntheticFallback],
-  );
+  const trendPoints = useMemo(() => resolveCashflowTrend({ transactions: txns }), [txns]);
   const trendPresentation = useMemo(
     () =>
       resolveChartPresentationInfo({
